@@ -39,8 +39,10 @@ interface Entity { kind: string; props: Props }
 
 interface DocState {
   entities: Record<string, Entity>;
-  users?: Record<string, string>;   // userId → displayName, carried in snapshots
 }
+
+Membership is not part of the document: the server tells a joiner who is
+present (`session_info`), so snapshots carry entities only.
 ```
 
 Both apps fit:
@@ -101,8 +103,14 @@ type SessionMessage =
   | { type: "leave"; userId: string }
   | { type: "session_info"; members: Record<string, string>; seq: number }  // server → joiner
   | { type: "snapshot_request" }
-  | { type: "snapshot_response"; state: DocState };
+  | { type: "snapshot_response"; state: DocState; seq: number };
 ```
+
+`seq` on the response is the last change the provider had applied when it
+took the snapshot. A joiner buffers changes that arrive during the
+handshake and, once the snapshot lands, replays only those with a higher
+`seq`. Without this a change broadcast between the request and the
+response would be lost on the joiner.
 
 ### Presence
 
@@ -250,8 +258,10 @@ small config object rather than hard-coded strings:
 
 ## Package layout
 
-New repo, published as a package (name TBD, e.g. `@sandtreader/collab`),
-with four entry points so consumers only pull what they need:
+Lives at [github.com/sandtreader/collab](https://github.com/sandtreader/collab)
+as `@sandtreader/collab` (phase 1 implemented 2026-10-12: protocol,
+sequenced relay, client, React UI, tests). Four entry points so consumers
+only pull what they need:
 
 | Entry | Contents | Dependencies |
 |---|---|---|
@@ -332,8 +342,8 @@ inactive, never throw.
   a jam; probably fine for a shared drawing too, but note it.
 - **Undo across users.** Local-only undo is the standard choice and what
   SynFlo plans. Confirm.
-- **Package hosting.** npm publish vs git dependency vs pnpm workspace
-  linking across the two repos during development.
+- **Package hosting.** npm publish vs git dependency vs `pnpm link` across
+  the repos during development. Not yet decided; nothing is published.
 
 ## Migration from SynFlo
 
