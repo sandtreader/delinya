@@ -1,7 +1,7 @@
-# 2D Woodwork Drawing Tool — Outline
+# Delinya — 2D Drawing Tool — Outline
 
 ## Goal
-A browser-based 2D drawing tool for woodwork plans that handles real scale and dimensions properly. Better than Inkscape or paper, without the complexity of full CAD.
+A browser-based 2D drawing tool that handles real scale and dimensions properly. Better than Inkscape or paper, without the complexity of full CAD. Woodwork plans are the first use case, not the limit.
 
 ## Principles
 - 2D only.
@@ -33,7 +33,7 @@ A browser-based 2D drawing tool for woodwork plans that handles real scale and d
 
 ## Output
 - Print at true 1:1 or at a chosen scale, with a check ruler on the page.
-- Export to SVG and DXF (for CNC or laser) and to PDF (for the shop).
+- Export to SVG and DXF (for CNC or laser) and to PDF (for printing).
 
 ## Collaboration
 - Sync the model: shapes, links and values. Don't sync derived positions.
