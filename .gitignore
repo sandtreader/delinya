@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.tsbuildinfo
+package-lock.json
+yarn.lock
+.idea
+.vscode
+.claude/settings.local.json
+.DS_Store
