@@ -6,8 +6,14 @@ for the goal and `plans/collab.md` for the collaboration design.
 
 ## Status
 
-Model only. There is no canvas yet; the model under `src/model` is exercised
-by the tests and a placeholder page is all `pnpm dev` shows.
+First working slice: draw lines, rectangles and circles with snapping, move
+them, type exact values and corner radii in the inspector, link equal
+values and equal spacing from a multi-selection, undo/redo. Dimensions are
+attached automatically. No file save, print, export or collaboration UI yet.
+
+Keys: V select, L line, R rectangle, C circle, Shift constrains while
+drawing, Space or middle button pans, Ctrl/⌘ + wheel zooms, Delete removes
+the selection, ⌘Z / ⇧⌘Z undo and redo.
 
 ## Layout
 
@@ -19,6 +25,10 @@ by the tests and a placeholder page is all `pnpm dev` shows.
 | `src/model/actions.ts` | User operations as pure `(state, …) → Change` functions. |
 | `src/model/store.ts` | `DrawingStore`: the single point of mutation, with change-based undo/redo. |
 | `src/collab/` | Adapter binding a store to a `CollabClient`. |
+| `src/view/` | Screen/model mapping and geometry to SVG path. |
+| `src/canvas/` | The SVG canvas: tools, snapping, rendering of shapes, dimensions and labels. |
+| `src/panels/` | Toolbar, inspector, status bar. |
+| `src/app/` | The app's store instance and editor (non-document) state. |
 | `tests/` | Vitest: resolve, actions, store, and two stores through the real relay. |
 
 ## Model in one paragraph

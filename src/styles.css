@@ -1,0 +1,97 @@
+:root {
+  --bg: #f7f7f5;
+  --panel: #ffffff;
+  --line: #d9d9d4;
+  --ink: #1d1d1b;
+  --muted: #6b6b66;
+  --accent: #0b6e99;
+  --warn: #b35c00;
+  --shape: #1d1d1b;
+  --dimension: #5a6b7a;
+  --grid-minor: #ececea;
+  --grid-major: #dcdcd8;
+  --grid-axis: #c4c4bf;
+  font-family: system-ui, -apple-system, sans-serif;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body { background: var(--bg); }
+
+.app {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas: "toolbar toolbar" "canvas inspector" "status status";
+}
+
+.toolbar {
+  grid-area: toolbar;
+  display: flex; align-items: center; gap: 16px;
+  padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 600; margin-right: 8px; }
+.group { display: flex; gap: 4px; align-items: center; }
+.zoom { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
+
+button {
+  font: inherit; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 4px; padding: 4px 10px; cursor: pointer;
+}
+button:hover { border-color: var(--accent); }
+button.active { background: var(--accent); border-color: var(--accent); color: white; }
+button:disabled { opacity: 0.45; cursor: default; }
+button.small { padding: 1px 6px; font-size: 11px; margin-left: 6px; }
+button.danger { color: #9b1c1c; }
+
+.canvas { grid-area: canvas; width: 100%; height: 100%; display: block; background: var(--bg); touch-action: none; user-select: none; -webkit-user-select: none; }
+.canvas text { pointer-events: none; }
+.canvas.tool-select { cursor: default; }
+.canvas.tool-line, .canvas.tool-rect, .canvas.tool-circle { cursor: crosshair; }
+
+.grid-minor { stroke: var(--grid-minor); stroke-width: 1; }
+.grid-major { stroke: var(--grid-major); stroke-width: 1; }
+.grid-axis { stroke: var(--grid-axis); stroke-width: 1; }
+
+.shape .stroke { stroke: var(--shape); }
+.shape .hit { pointer-events: stroke; }
+.shape.selected .stroke { stroke: var(--accent); }
+.shape:hover .stroke { stroke: var(--accent); }
+
+.dimension { stroke: var(--dimension); }
+.dimension text { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
+.radius-label { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
+.preview { stroke: var(--accent); stroke-dasharray: 4 3; fill: none; }
+
+.snap { fill: none; stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
+
+.inspector {
+  grid-area: inspector; overflow: auto;
+  background: var(--panel); border-left: 1px solid var(--line); padding: 10px 12px;
+}
+.inspector h2 { font-size: 13px; margin: 6px 0 10px; }
+.inspector h2 small { color: var(--muted); font-weight: normal; margin-left: 6px; }
+.inspector section + section { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+fieldset { border: 1px solid var(--line); border-radius: 4px; margin: 10px 0; padding: 6px 8px; display: flex; flex-wrap: wrap; gap: 4px; }
+legend { color: var(--muted); padding: 0 4px; }
+fieldset .row { width: 100%; }
+.row { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
+.row .label { width: 80px; color: var(--muted); flex: none; }
+.num { display: inline-flex; align-items: center; gap: 4px; }
+.num input { width: 80px; font: inherit; padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; text-align: right; font-variant-numeric: tabular-nums; }
+.num input:focus { outline: none; border-color: var(--accent); }
+.num input:disabled { background: var(--bg); color: var(--muted); }
+.unit { color: var(--muted); }
+.linked { color: var(--accent); white-space: nowrap; }
+.hint { color: var(--muted); }
+.warn { color: var(--warn); }
+
+.status {
+  grid-area: status; display: flex; gap: 16px; padding: 4px 10px;
+  background: var(--panel); border-top: 1px solid var(--line); color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.status .grow { flex: 1; }

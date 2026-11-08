@@ -37,6 +37,8 @@ export class DrawingStore {
   private undoStack: HistoryEntry[] = [];
   private redoStack: HistoryEntry[] = [];
   private openGesture: HistoryEntry | null = null;
+  /** True while beginGesture() has been called and endGesture() hasn't. */
+  private explicitGesture = false;
   private listeners = new Set<Listener>();
   private emitters = new Set<Emitter>();
   private readonly historyLimit: number;
@@ -77,6 +79,22 @@ export class DrawingStore {
     this.openGesture = null;
     this.apply({ type: "state_replaced", state });
     if (emit) for (const e of this.emitters) e({ type: "state_replaced", state });
+  }
+
+  /**
+   * Group every commit until endGesture() into one undo step, whatever the
+   * entities involved. For drags of several shapes at once; a single-shape
+   * drag can rely on gestureStart/gestureEnd flags alone.
+   */
+  beginGesture(): void {
+    this.closeGesture();
+    this.openGesture = { forward: [], inverse: [] };
+    this.explicitGesture = true;
+  }
+
+  endGesture(): void {
+    this.explicitGesture = false;
+    this.closeGesture();
   }
 
   undo(): boolean {
@@ -123,10 +141,12 @@ export class DrawingStore {
     this.redoStack = [];
 
     const target = change.type === "props_changed" ? change.id : undefined;
-    if (this.openGesture && !gesture.start && target === this.openGesture.gestureEntity) {
+    const folds = this.openGesture !== null
+      && (this.explicitGesture || (!gesture.start && target === this.openGesture.gestureEntity));
+    if (this.openGesture && folds) {
       this.openGesture.forward.push(change);
       this.openGesture.inverse.unshift(inverse);
-      if (gesture.end) this.closeGesture();
+      if (gesture.end && !this.explicitGesture) this.closeGesture();
       return;
     }
     // Anything else ends an unfinished drag before it is recorded.
@@ -143,9 +163,10 @@ export class DrawingStore {
   private closeGesture(): void {
     if (this.openGesture) {
       delete this.openGesture.gestureEntity;
-      this.push(this.openGesture);
+      if (this.openGesture.forward.length > 0) this.push(this.openGesture);
       this.openGesture = null;
     }
+    this.explicitGesture = false;
   }
 
   private push(entry: HistoryEntry): void {

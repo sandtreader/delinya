@@ -17,6 +17,12 @@ use case, not a limit. Plans live in `plans/`.
   edits the variable (`setLength` handles this).
 - Coordinates: x right, y down, angles in degrees from +x towards +y.
 
+- UI reads `store.resolved` only and writes only via `store.commit()`.
+  Editor state (tool, selection, view) lives in `src/app/editor.ts` and is
+  never part of the document.
+- Plain CSS, no component library yet. The collab React entry needs MUI, so
+  adding the session panel later means deciding on MUI then.
+
 ## Commands
 
-`pnpm test`, `pnpm typecheck`, `pnpm dev` (placeholder page only so far).
+`pnpm test`, `pnpm typecheck`, `pnpm build`, `pnpm dev` (port 5174).

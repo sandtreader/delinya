@@ -88,6 +88,29 @@ describe("DrawingStore", () => {
     expect(rectOf(store, "r").x).toBe(3);
   });
 
+  it("groups a multi-shape drag with beginGesture/endGesture", () => {
+    const store = new DrawingStore();
+    store.commit(addRect("a", { x: 0, y: 0, width: 10, height: 10 }));
+    store.commit(addRect("b", { x: 50, y: 0, width: 10, height: 10 }));
+    store.beginGesture();
+    for (let i = 0; i < 3; i++) {
+      store.commit(moveBy(store.state, "a", 1, 0)!);
+      store.commit(moveBy(store.state, "b", 1, 0)!);
+    }
+    store.endGesture();
+    expect(rectOf(store, "a").x).toBe(3);
+    expect(rectOf(store, "b").x).toBe(53);
+    store.undo();
+    expect(rectOf(store, "a").x).toBe(0);
+    expect(rectOf(store, "b").x).toBe(50);
+    expect(store.canUndo).toBe(true);     // the two adds remain
+    // An empty gesture leaves no entry behind.
+    store.beginGesture();
+    store.endGesture();
+    store.redo();
+    expect(rectOf(store, "b").x).toBe(53);
+  });
+
   it("closes an unfinished gesture when something else happens", () => {
     const store = new DrawingStore();
     store.commit(addRect("r", { x: 0, y: 0, width: 10, height: 10 }));
