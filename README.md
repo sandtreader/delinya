@@ -12,8 +12,9 @@ values and equal spacing from a multi-selection, undo/redo. Dimensions are
 attached automatically. No file save, print, export or collaboration UI yet.
 
 Keys: V select, L line, R rectangle, C circle, Shift constrains while
-drawing, Space or middle button pans, Ctrl/⌘ + wheel zooms, Delete removes
-the selection, ⌘Z / ⇧⌘Z undo and redo.
+drawing, Delete removes the selection, ⌘Z / ⇧⌘Z undo and redo. Wheel or
+pinch zooms; dragging the background pans (Space or the middle button pans
+in any tool).
 
 ## Layout
 

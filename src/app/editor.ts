@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type Dispatch } from "react";
 import type { EntityId, SnapPoint } from "../model";
-import { DEFAULT_VIEW, type View } from "../view/viewport";
+import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
 
 export type Tool = "select" | "line" | "rect" | "circle";
 
@@ -29,6 +29,8 @@ export type EditorAction =
   | { type: "select"; ids: EntityId[] }
   | { type: "toggleSelect"; id: EntityId }
   | { type: "view"; view: View }
+  | { type: "panBy"; dx: number; dy: number }
+  | { type: "zoomAt"; factor: number; at: [number, number] }
   | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null };
 
 export function editorReducer(s: EditorState, a: EditorAction): EditorState {
@@ -38,6 +40,10 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "toggleSelect":
       return { ...s, selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id] };
     case "view": return { ...s, view: a.view };
+    // Deltas, not absolute views: several pointer or wheel events can arrive
+    // between renders and each must build on the last.
+    case "panBy": return { ...s, view: pan(s.view, a.dx, a.dy) };
+    case "zoomAt": return { ...s, view: zoomAt(s.view, a.factor, a.at) };
     case "pointer": return { ...s, cursor: a.cursor, snap: a.snap };
   }
 }

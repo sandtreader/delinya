@@ -9,7 +9,7 @@ import {
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { useEditor, type Tool } from "../app/editor";
-import { gridPitch, pan, toModel, toScreen, zoomAt, type View } from "../view/viewport";
+import { gridPitch, toModel, toScreen, type View } from "../view/viewport";
 import { pathToSvg } from "../view/svgPath";
 import { snapMove, snapPoint } from "./snap";
 
@@ -17,7 +17,7 @@ const SNAP_PX = 10;
 const DIMENSION_OFFSET = 10;
 
 type Drag =
-  | { kind: "pan"; last: Point }
+  | { kind: "pan"; last: Point; start: Point; clearOnClick: boolean }
   | { kind: "move"; ids: EntityId[]; primary: EntityId; origin: Point; applied: Point; moved: boolean }
   | { kind: "draw"; tool: Exclude<Tool, "select">; start: Point; current: Point };
 
@@ -60,12 +60,13 @@ export function Canvas() {
     if (e.button !== 0 && e.button !== 1) return;
     svgRef.current!.setPointerCapture(e.pointerId);
     const sp = screenPoint(e);
-    if (e.button === 1 || spaceRef.current) { dragRef.current = { kind: "pan", last: sp }; return; }
+    if (e.button === 1 || spaceRef.current) { dragRef.current = { kind: "pan", last: sp, start: sp, clearOnClick: false }; return; }
 
     const mp = toModel(view, sp);
     if (tool === "select") {
       const hit = (e.target as Element).closest<SVGElement>("[data-id]")?.dataset.id;
-      if (!hit) { if (!e.shiftKey) dispatch({ type: "select", ids: [] }); return; }
+      // Dragging the background pans; a plain click on it clears the selection.
+      if (!hit) { dragRef.current = { kind: "pan", last: sp, start: sp, clearOnClick: !e.shiftKey }; return; }
       if (e.shiftKey) { dispatch({ type: "toggleSelect", id: hit }); return; }
       const ids = selection.includes(hit) ? selection : [hit];
       if (!selection.includes(hit)) dispatch({ type: "select", ids });
@@ -90,7 +91,7 @@ export function Canvas() {
     }
     switch (d.kind) {
       case "pan":
-        dispatch({ type: "view", view: pan(view, sp[0] - d.last[0], sp[1] - d.last[1]) });
+        dispatch({ type: "panBy", dx: sp[0] - d.last[0], dy: sp[1] - d.last[1] });
         d.last = sp;
         return;
       case "move": {
@@ -124,6 +125,10 @@ export function Canvas() {
     dragRef.current = null;
     setPreview(null);
     if (!d) return;
+    if (d.kind === "pan" && d.clearOnClick) {
+      const sp = screenPoint(e);
+      if (Math.hypot(sp[0] - d.start[0], sp[1] - d.start[1]) < 3) dispatch({ type: "select", ids: [] });
+    }
     if (d.kind === "move" && d.moved) {
       for (const id of d.ids) { const c = moveBy(store.state, id, 0, 0, { end: true }); if (c) store.commit(c); }
       store.endGesture();
@@ -138,12 +143,11 @@ export function Canvas() {
   const onWheel = useCallback((e: RWheelEvent<SVGSVGElement>) => {
     const r = svgRef.current!.getBoundingClientRect();
     const at: Point = [e.clientX - r.left, e.clientY - r.top];
-    if (e.ctrlKey || e.metaKey) {
-      dispatch({ type: "view", view: zoomAt(view, Math.exp(-e.deltaY * 0.01), at) });
-    } else {
-      dispatch({ type: "view", view: pan(view, -e.deltaX, -e.deltaY) });
-    }
-  }, [view, dispatch]);
+    // Wheel and trackpad pinch both zoom, as in SynFlo. A pinch arrives as a
+    // ctrl-wheel with small deltas, so it gets a higher gain than wheel notches.
+    const gain = e.ctrlKey ? 0.01 : 0.002;
+    dispatch({ type: "zoomAt", factor: Math.exp(-e.deltaY * gain), at });
+  }, [dispatch]);
 
   // React's onWheel is passive; preventDefault needs a native listener.
   useEffect(() => {
@@ -160,7 +164,7 @@ export function Canvas() {
   return (
     <svg
       ref={svgRef}
-      className={`canvas tool-${tool}`}
+      className={`canvas tool-${tool}${dragRef.current?.kind === "pan" ? " panning" : ""}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}

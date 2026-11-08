@@ -49,7 +49,9 @@ button.danger { color: #9b1c1c; }
 
 .canvas { grid-area: canvas; width: 100%; height: 100%; display: block; background: var(--bg); touch-action: none; user-select: none; -webkit-user-select: none; }
 .canvas text { pointer-events: none; }
-.canvas.tool-select { cursor: default; }
+.canvas.tool-select { cursor: grab; }
+.canvas.tool-select .shape { cursor: move; }
+.canvas.panning { cursor: grabbing; }
 .canvas.tool-line, .canvas.tool-rect, .canvas.tool-circle { cursor: crosshair; }
 
 .grid-minor { stroke: var(--grid-minor); stroke-width: 1; }
