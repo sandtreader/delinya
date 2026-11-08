@@ -68,6 +68,9 @@ button.danger { color: #9b1c1c; }
 .radius-label { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
 .preview { stroke: var(--accent); stroke-dasharray: 4 3; fill: none; }
 
+.handle { fill: white; stroke: var(--accent); stroke-width: 1.5; }
+.handle:hover { fill: var(--accent); }
+
 .snap { fill: none; stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
 
 .inspector {

@@ -4,3 +4,4 @@ export * from "./resolve";
 export * from "./actions";
 export * from "./store";
 export * from "./ids";
+export * from "./resize";

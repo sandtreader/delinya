@@ -4,8 +4,8 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent } from "react";
 import {
-  addCircle, addDimension, addLine, addRect, batch, moveBy, newId, snapNumber,
-  type EntityId, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
+  addCircle, addDimension, addLine, addRect, batch, handlesFor, moveBy, newId, resizeTo, snapNumber,
+  type EntityId, type HandleSpot, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { useEditor, type Tool } from "../app/editor";
@@ -19,6 +19,7 @@ const DIMENSION_OFFSET = 10;
 type Drag =
   | { kind: "pan"; last: Point; start: Point; clearOnClick: boolean }
   | { kind: "move"; ids: EntityId[]; primary: EntityId; origin: Point; applied: Point; moved: boolean }
+  | { kind: "resize"; id: EntityId; spot: HandleSpot; moved: boolean }
   | { kind: "draw"; tool: Exclude<Tool, "select">; start: Point; current: Point };
 
 export function Canvas() {
@@ -64,6 +65,12 @@ export function Canvas() {
 
     const mp = toModel(view, sp);
     if (tool === "select") {
+      const handleIndex = (e.target as Element).closest<SVGElement>("[data-handle]")?.dataset.handle;
+      if (handleIndex !== undefined && selection.length === 1) {
+        const shape = resolved.shapes[selection[0]!];
+        const spot = shape && handlesFor(shape)[Number(handleIndex)];
+        if (spot) { dragRef.current = { kind: "resize", id: shape.id, spot, moved: false }; return; }
+      }
       const hit = (e.target as Element).closest<SVGElement>("[data-id]")?.dataset.id;
       // Dragging the background pans; a plain click on it clears the selection.
       if (!hit) { dragRef.current = { kind: "pan", last: sp, start: sp, clearOnClick: !e.shiftKey }; return; }
@@ -110,6 +117,16 @@ export function Canvas() {
         dispatch({ type: "pointer", cursor: mp, snap });
         return;
       }
+      case "resize": {
+        const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid);
+        const change = resizeTo(store.state, d.id, d.spot.handle, point, d.spot.anchor);
+        if (change) {
+          if (!d.moved) { store.beginGesture(); d.moved = true; }
+          store.commit(change);
+        }
+        dispatch({ type: "pointer", cursor: point, snap });
+        return;
+      }
       case "draw": {
         const { point, snap } = snapPoint(resolved, mp, tolerance, new Set(), grid);
         d.current = constrain(d, point, e.shiftKey);
@@ -133,6 +150,7 @@ export function Canvas() {
       for (const id of d.ids) { const c = moveBy(store.state, id, 0, 0, { end: true }); if (c) store.commit(c); }
       store.endGesture();
     }
+    if (d.kind === "resize" && d.moved) store.endGesture();
     if (d.kind === "draw") {
       const id = createShape(d);
       if (id) dispatch({ type: "select", ids: [id] });
@@ -181,6 +199,9 @@ export function Canvas() {
         {resolved.radiusLabels.map((l) => <RadiusLabelView key={l.id} label={l} fontSize={fontSize} />)}
         {preview?.kind === "draw" && <DrawPreview d={preview} hair={hair} />}
       </g>
+      {tool === "select" && selection.length === 1 && resolved.shapes[selection[0]!] && (
+        <Handles shape={resolved.shapes[selection[0]!]!} view={view} />
+      )}
       {editor.snap && <SnapMarker snap={editor.snap} view={view} />}
     </svg>
   );
@@ -303,6 +324,21 @@ function DrawPreview({ d, hair }: { d: Extract<Drag, { kind: "draw" }>; hair: nu
     case "line":
       return <line {...props} x1={x0} y1={y0} x2={x1} y2={y1} />;
   }
+}
+
+/** Resize handles in screen space, so they stay the same size at any zoom. */
+function Handles({ shape, view }: { shape: ResolvedShape; view: View }) {
+  return (
+    <g className="handles">
+      {handlesFor(shape).map((spot, i) => {
+        const [x, y] = toScreen(view, spot.point);
+        const round = spot.handle.kind === "circle-centre" || spot.handle.kind === "line-end";
+        return round
+          ? <circle key={i} data-handle={i} className="handle" cx={x} cy={y} r={5} style={{ cursor: spot.cursor }} />
+          : <rect key={i} data-handle={i} className="handle" x={x - 5} y={y - 5} width={10} height={10} style={{ cursor: spot.cursor }} />;
+      })}
+    </g>
+  );
 }
 
 function SnapMarker({ snap, view }: { snap: SnapPoint; view: View }) {
