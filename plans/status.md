@@ -1,7 +1,7 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-09. Repo `sandtreader/delinya`, branch `main`, head
-`4d0ac7a`. Tree clean; 47 Vitest tests and `tsc` pass.
+is the file save/load commit. Tree clean; 67 Vitest tests and `tsc` pass.
 
 ## Where we are
 
@@ -9,7 +9,7 @@ The abstract model is complete for the outline's v1 feature set and the
 first visual slice is usable: you can draw, move, resize, type exact values,
 link equal values and equal spacing, and undo. The collab adapter is wired
 and tested against the real relay but has no UI. Nothing persists: there is
-no save/load, print or export yet.
+save/load to local files but no print or export yet.
 
 ## What is built
 
@@ -41,7 +41,16 @@ no save/load, print or export yet.
   `commit` (local, undo-recorded, emitted), `applyRemote`, `replace`,
   change-based undo/redo via `invert()`, and gesture folding
   (`gestureStart`/`gestureEnd` flags on one entity, or
-  `beginGesture()`/`endGesture()` for multi-entity drags).
+  `beginGesture()`/`endGesture()` for multi-entity drags). `markSaved()`
+  and `dirty` track unsaved changes by history position, so undoing back
+  to the saved point is clean again; remote changes and `replace` dirty
+  it until the next `markSaved()`.
+- **Files** (`file.ts`): `serializeDrawing` writes pretty JSON
+  `{ format: "delinya", version: 1, doc }`; `parseDrawing` returns
+  `{ ok, state } | { ok: false, error }` and never throws. It checks only
+  the generic entity shape (resolve handles bad props), keeps unknown
+  kinds, and refuses newer versions. Bump `FILE_VERSION` only when an
+  older reader would misread a file.
 
 ### Collaboration (`src/collab/index.ts`)
 
@@ -76,8 +85,16 @@ through `useSyncExternalStore`.
   link widths/heights/diameters/lengths (names the variable via
   `window.prompt`) and space evenly by gaps or centres along x or y, with
   the outer two items as anchors. Variables are listed.
+- **Files** (`app/file.ts`): New, Open…, Save, Save as… in the toolbar;
+  ⌘O, ⌘S, ⇧⌘S. Uses the File System Access API where present (Chromium),
+  so Save writes back to the opened file; elsewhere Save downloads and
+  Open uses a file input. Extension `.delinya` (JSON; `.json` also
+  opens). The toolbar and tab title show the file name and a • when
+  dirty; New/Open confirm before discarding, and closing the tab warns.
+  Loading clears selection, returns to select and resets the view.
 - **Keys**: ⌘Z / ⇧⌘Z (Ctrl+Y) undo/redo, Delete/Backspace, Escape to
-  select and clear.
+  select and clear. File keys work from inside a field: they blur it
+  first so its value commits.
 
 ## Decisions taken (not in the outline)
 
@@ -94,15 +111,15 @@ through `useSyncExternalStore`.
 
 ## Not built yet (in rough priority order)
 
-1. **File save/load** (JSON of `DocState`; `store.replace` already exists
-   and maps to `state_replaced` when connected).
-2. **Print at scale** with a check ruler; **export** SVG, DXF, PDF.
+1. **Print at scale** with a check ruler; **export** SVG, DXF, PDF.
    `view/svgPath.ts` already turns paths into SVG `d` strings.
-3. **Manual dimension and radius-label tools**, and dragging dimension
+2. **Manual dimension and radius-label tools**, and dragging dimension
    offsets.
-4. **Collaboration UI**: connect, session panel, presence cursors. Needs
+3. **Collaboration UI**: connect, session panel, presence cursors. Needs
    the MUI decision and `ProxyPass` lines on a delinya.net vhost (same as
    synflo.net, port 2901 on st1).
+4. **Fit view to drawing** (on open, and as a button); opening resets to
+   the default view for now.
 5. Rotation of rects, text, named variables/expressions, woodwork extras
    (see outline "Later").
 

@@ -9,14 +9,15 @@ for the goal and `plans/collab.md` for the collaboration design.
 First working slice: draw lines, rectangles and circles with snapping, move
 and resize them with handles, type exact values and corner radii in the
 inspector, link equal values and equal spacing from a multi-selection,
-undo/redo. Dimensions are attached automatically. The collaboration adapter
-is wired and tested but has no UI. No file save, print or export yet. Full
+undo/redo, save and open `.delinya` files. Dimensions are attached
+automatically. The collaboration adapter is wired and tested but has no UI.
+No print or export yet. Full
 state, decisions and next steps: `plans/status.md`.
 
 Keys: V select, L line, R rectangle, C circle, Shift constrains while
-drawing, Delete removes the selection, ⌘Z / ⇧⌘Z undo and redo. Wheel or
-pinch zooms; dragging the background pans (Space or the middle button pans
-in any tool).
+drawing, Delete removes the selection, ⌘Z / ⇧⌘Z undo and redo, ⌘O open,
+⌘S / ⇧⌘S save and save as. Wheel or pinch zooms; dragging the background
+pans (Space or the middle button pans in any tool).
 
 ## Layout
 

@@ -33,7 +33,9 @@ body { background: var(--bg); }
   display: flex; align-items: center; gap: 16px;
   padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--line);
 }
-.brand { font-weight: 600; margin-right: 8px; }
+.brand { font-weight: 600; }
+.filename { color: var(--muted); margin-right: 8px; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.filename .dirty { color: var(--warn); }
 .group { display: flex; gap: 4px; align-items: center; }
 .zoom { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
 

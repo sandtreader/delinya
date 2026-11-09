@@ -9,6 +9,11 @@
 // changes and their inverses, computed against the document at commit time.
 // Changes flagged gestureStart..gestureEnd fold into one entry so a drag
 // undoes in one step.
+//
+// Save tracking: markSaved() remembers the current history position (the top
+// undo entry, or the last one dropped off the bottom). The document is dirty
+// when it has moved from there, a drag is open, or something undo can't take
+// back (a remote change, a replace) has happened since.
 
 import {
   applyChange, emptyState, isTransient,
@@ -42,6 +47,12 @@ export class DrawingStore {
   private listeners = new Set<Listener>();
   private emitters = new Set<Emitter>();
   private readonly historyLimit: number;
+  /** The newest entry dropped by historyLimit: the position when undoStack is empty. */
+  private base: HistoryEntry | undefined;
+  /** History position at the last markSaved(); undefined is the start of history. */
+  private saved: HistoryEntry | undefined;
+  /** A change outside undo history has happened since markSaved(). */
+  private unsavedOutsideHistory = false;
 
   constructor(options: StoreOptions = {}) {
     this.historyLimit = options.historyLimit ?? 200;
@@ -58,6 +69,20 @@ export class DrawingStore {
   get canUndo(): boolean { return this.undoStack.length > 0 || this.openGesture !== null; }
   get canRedo(): boolean { return this.redoStack.length > 0; }
 
+  /** Changed since the last markSaved(). */
+  get dirty(): boolean {
+    return this.unsavedOutsideHistory
+      || (this.openGesture !== null && this.openGesture.forward.length > 0)
+      || this.position !== this.saved;
+  }
+
+  /** Call after saving, loading or starting afresh. Notifies, as only the flag changes. */
+  markSaved(): void {
+    this.saved = this.position;
+    this.unsavedOutsideHistory = false;
+    this.notify();
+  }
+
   // ---- Mutation ----
 
   /** A local edit. */
@@ -69,6 +94,7 @@ export class DrawingStore {
 
   /** A change that arrived from another client. */
   applyRemote(change: Change): void {
+    this.unsavedOutsideHistory = true;
     this.apply(change);
   }
 
@@ -77,6 +103,8 @@ export class DrawingStore {
     this.undoStack = [];
     this.redoStack = [];
     this.openGesture = null;
+    this.base = undefined;
+    this.unsavedOutsideHistory = true;
     this.apply({ type: "state_replaced", state });
     if (emit) for (const e of this.emitters) e({ type: "state_replaced", state });
   }
@@ -132,7 +160,15 @@ export class DrawingStore {
   private apply(change: Change): void {
     this._state = applyChange(this._state, change);
     this._resolved = null;
+    this.notify();
+  }
+
+  private notify(): void {
     for (const fn of this.listeners) fn(this);
+  }
+
+  private get position(): HistoryEntry | undefined {
+    return this.undoStack.at(-1) ?? this.base;
   }
 
   private record(change: Change): void {
@@ -171,7 +207,7 @@ export class DrawingStore {
 
   private push(entry: HistoryEntry): void {
     this.undoStack.push(entry);
-    if (this.undoStack.length > this.historyLimit) this.undoStack.shift();
+    if (this.undoStack.length > this.historyLimit) this.base = this.undoStack.shift();
   }
 }
 
