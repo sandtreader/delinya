@@ -211,6 +211,21 @@ export function unlinkAlign(state: DocState, id: EntityId): Change | undefined {
   return batch(writeBackAndRemove(id, r, r.aligns.find((l) => l.id === id)));
 }
 
+/** Align links on `axis` whose anchor and at least one item are in `ids`, in ID order. */
+export function alignLinksAmong(state: DocState, ids: EntityId[], axis: Axis): Array<[EntityId, AlignProps]> {
+  const sel = new Set<unknown>(ids);
+  return entitiesOfKind(state, KINDS.align)
+    .filter(([, l]) => l.axis === axis && sel.has(l.anchor) && idList(l.items).some((i) => i !== l.anchor && sel.has(i)))
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/** Change an align link's mode; undefined if it already has it or isn't an align link. */
+export function setAlignMode(state: DocState, linkId: EntityId, mode: AlignMode): Change | undefined {
+  const l = entityAs(state, linkId, KINDS.align);
+  if (!l || l.mode === mode) return undefined;
+  return propsChanged(linkId, { mode });
+}
+
 /**
  * Move items once so their start, centre or end on an axis meets the
  * reference's, leaving no link. Items a live link places on that axis are
@@ -247,6 +262,39 @@ export function equaliseOnce(state: DocState, reference: EntityId, items: Entity
     changes.push(c);
   }
   return single(changes);
+}
+
+// ---- Removing any link ----
+
+/**
+ * Something removable that ties shapes together: an align or spacing link,
+ * or one shape's length (or one corner of a rect's `r`) tied to a variable.
+ */
+export type LinkTarget =
+  | { kind: "link"; id: EntityId }
+  | { kind: "value"; shape: EntityId; prop: string; corner?: 0 | 1 | 2 | 3 };
+
+/** The variable a value target refers to; undefined for a plain number or a link. */
+export function targetVariable(state: DocState, target: LinkTarget): EntityId | undefined {
+  if (target.kind !== "value") return undefined;
+  const v = state.entities[target.shape]?.props[target.prop];
+  const current = target.corner === undefined ? v : Array.isArray(v) ? v[target.corner] : undefined;
+  return isRef(current) ? current.ref : undefined;
+}
+
+/** Remove a link as its own unlink does; undefined if there's nothing to unlink. */
+export function unlinkTarget(state: DocState, target: LinkTarget): Change | undefined {
+  if (target.kind === "link") {
+    const kind = kindOf(state, target.id);
+    return kind === KINDS.align ? unlinkAlign(state, target.id) : kind === KINDS.spacing ? unlinkSpacing(state, target.id) : undefined;
+  }
+  if (target.corner === undefined) return unlinkLength(state, target.shape, target.prop);
+  const ref = targetVariable(state, target);
+  const r = state.entities[target.shape]?.props[target.prop];
+  if (ref === undefined || !Array.isArray(r)) return undefined;
+  const next = [...r];
+  next[target.corner] = lengthValue(state, { ref }) ?? 0;
+  return propsChanged(target.shape, { [target.prop]: next });
 }
 
 // ---- Document properties ----

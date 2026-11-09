@@ -6,6 +6,7 @@ import { Inspector, deleteSelection } from "./panels/Inspector";
 import { StatusBar } from "./panels/StatusBar";
 import { OutputDialog } from "./panels/OutputDialog";
 import { SelectionPanel } from "./panels/SelectionPanel";
+import { LinkButtons } from "./panels/LinkButtons";
 import { ToolPalette } from "./panels/ToolPalette";
 import { Toolbar, useFileCommands } from "./panels/Toolbar";
 import { useDirty, useFileName } from "./app/file";
@@ -89,6 +90,7 @@ function Shell() {
       <div className="canvas-area">
         <Canvas />
         <SelectionPanel />
+        <LinkButtons />
         <ToolPalette />
       </div>
       <Inspector />

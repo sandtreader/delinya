@@ -11,6 +11,7 @@ import {
 import { store, useDocument } from "../app/store";
 import { useEditor } from "../app/editor";
 import { useFileName } from "../app/file";
+import { ALIGN_LABELS } from "../view/linkButtons";
 import { formatMm } from "../canvas/Canvas";
 
 export function Inspector() {
@@ -138,11 +139,6 @@ function SpacingMembership({ id }: { id: EntityId }) {
   );
 }
 
-const ALIGN_LABEL: Record<string, string> = {
-  "x start": "left edges", "x centre": "centres across", "x end": "right edges",
-  "y start": "top edges", "y centre": "centres down", "y end": "bottom edges",
-};
-
 function AlignMembership({ id }: { id: EntityId }) {
   const state = useDocument();
   const links = entitiesOfKind(state, KINDS.align).filter(([, l]) => l.anchor === id || (Array.isArray(l.items) && l.items.includes(id)));
@@ -151,7 +147,7 @@ function AlignMembership({ id }: { id: EntityId }) {
     <fieldset>
       <legend>aligned</legend>
       {links.map(([lid, l]) => (
-        <Row key={lid} label={ALIGN_LABEL[`${l.axis} ${l.mode}`] ?? "aligned"}>
+        <Row key={lid} label={ALIGN_LABELS[l.axis]?.[l.mode] ?? "aligned"}>
           <span className="hint">{l.anchor === id ? `reference for ${l.items.length}` : `to ${kindLabel(state.entities[l.anchor]?.kind ?? "")}`}</span>
           <button className="small" onClick={() => { const c = unlinkAlign(store.state, lid); if (c) store.commit(c); }}>remove</button>
         </Row>

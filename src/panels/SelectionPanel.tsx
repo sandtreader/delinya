@@ -5,7 +5,7 @@
 
 import type { Change } from "@sandtreader/collab/protocol";
 import {
-  KINDS, alignOnce, batch, derivedAxes, equaliseOnce, linkAlign, linkLengths, linkSpacing, newId, outerAnchors, spaceOnce,
+  KINDS, alignLinksAmong, alignOnce, batch, derivedAxes, equaliseOnce, linkAlign, linkLengths, linkSpacing, newId, outerAnchors, setAlignMode, spaceOnce,
   type AlignMode, type Axis, type EntityId, type SpacingMode,
 } from "../model";
 import { store, useDocument } from "../app/store";
@@ -43,18 +43,26 @@ export function SelectionPanel() {
   /** Items not already positioned on this axis by another link; a second link would conflict. */
   const free = (axis: Axis) => others.filter((id) => !derivedAxes(store.resolved, id).has(axis));
 
-  const align = (axis: Axis, mode: AlignMode) => {
-    if (!linked) return commit(alignOnce(store.state, ref, others, axis, mode));
+  // Align links already joining the selection, per axis: shown pressed, and
+  // the align buttons for that axis change their mode instead of adding more.
+  const existing = { x: alignLinksAmong(state, shapes, "x"), y: alignLinksAmong(state, shapes, "y") };
+  const current = (axis: Axis) => new Set(existing[axis].map(([, l]) => l.mode));
+
+  /** The change for aligning one axis: retarget existing links, else move once or link. */
+  const alignChange = (axis: Axis, mode: AlignMode): Change | undefined => {
+    if (existing[axis].length) {
+      const changes = existing[axis].map(([id]) => setAlignMode(store.state, id, mode)).filter((c): c is Change => !!c);
+      return changes.length ? batch(changes) : undefined;
+    }
+    if (!linked) return alignOnce(store.state, ref, others, axis, mode);
     const items = free(axis);
-    if (items.length) commit(linkAlign(newId("align"), ref, items, axis, mode));
+    return items.length ? linkAlign(newId("align"), ref, items, axis, mode) : undefined;
   };
 
+  const align = (axis: Axis, mode: AlignMode) => commit(alignChange(axis, mode));
+
   const centre = () => {
-    const changes = (["x", "y"] as const).flatMap((axis) => {
-      if (!linked) return alignOnce(store.state, ref, others, axis, "centre") ?? [];
-      const items = free(axis);
-      return items.length ? [linkAlign(newId("align"), ref, items, axis, "centre")] : [];
-    });
+    const changes = (["x", "y"] as const).flatMap((axis) => alignChange(axis, "centre") ?? []);
     if (changes.length) commit(batch(changes));
   };
 
@@ -80,16 +88,28 @@ export function SelectionPanel() {
           reference: {SHAPE_LABEL[state.entities[ref]!.kind] ?? "shape"}
         </span>
       </header>
-      <div className="group">
-        <span className="label">Align</span>
-        <div className="icons">
-          {ALIGNS.map((a) => (
-            <button key={a.axis + a.mode} className="icon" title={a.title} aria-label={a.title} onClick={() => align(a.axis, a.mode)}>
-              <AlignIcon axis={a.axis} mode={a.mode} />
-            </button>
-          ))}
-        </div>
-      </div>
+      {(["x", "y"] as const).map((axis) => {
+        const on = current(axis);
+        return (
+          <div className="group" key={axis}>
+            <span className="label">{axis === "x" ? "Across" : "Down"}</span>
+            <div className="icons">
+              {ALIGNS.filter((a) => a.axis === axis).map((a) => {
+                const pressed = on.has(a.mode);
+                const title = pressed ? `${a.title} (linked)` : on.size ? `${a.title}: change the link to this` : a.title;
+                return (
+                  <button
+                    key={a.mode} className={pressed ? "icon linked" : "icon"} aria-pressed={pressed}
+                    title={title} aria-label={title} onClick={() => align(a.axis, a.mode)}
+                  >
+                    <AlignIcon axis={a.axis} mode={a.mode} />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
       <div className="group">
         <span className="label">Centre</span>
         <button onClick={centre} title="Centre the others on the reference, both ways">On reference</button>

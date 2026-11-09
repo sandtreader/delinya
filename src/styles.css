@@ -75,14 +75,17 @@ button.danger { color: #9b1c1c; }
 .shape .ref-halo { stroke: var(--select); opacity: 0.25; pointer-events: none; }
 .shape:hover .stroke { stroke: var(--select); }
 
-.dimension { stroke: var(--dimension); }
+/* Dimensions aren't interactive (yet): clicks go through to links and shapes below. */
+.dimension { stroke: var(--dimension); pointer-events: none; }
 .dimension text { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
 .link-guide { stroke: var(--link); fill: none; opacity: 0.4; pointer-events: none; }
-.link-guide.emphasis { opacity: 1; }
+.link-guide.emphasis, .link-guide:hover { opacity: 1; }
+.link-guide .link-hit { pointer-events: stroke; cursor: pointer; }
 .link-guide.broken { stroke: var(--broken); opacity: 0.8; }
 .link-guide text { fill: var(--link); stroke: none; font-family: system-ui, sans-serif; font-weight: 600; }
 .link-guide.broken text { fill: var(--broken); }
-.link-name { fill: var(--link); opacity: 0.7; }
+.link-name { fill: var(--link); opacity: 0.7; pointer-events: auto; cursor: pointer; }
+.link-name:hover { opacity: 1; text-decoration: underline; }
 .link-name.emphasis { opacity: 1; font-weight: 600; }
 .radius-label { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
 .preview { stroke: var(--select); stroke-dasharray: 4 3; fill: none; }
@@ -189,6 +192,9 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .selection-panel button.icon { padding: 3px; line-height: 0; }
 .selection-panel button.icon svg rect { fill: var(--ink); }
 .selection-panel button.icon svg .guide { stroke: var(--select); stroke-width: 1.5; }
+/* An align link already joins the selection on this axis. */
+.selection-panel button.icon.linked { background: #efe6ff; border-color: var(--link); }
+.selection-panel button.icon.linked svg .guide { stroke: var(--link); }
 .selection-panel .keep-linked { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 
 /* ---- Tool palette (floating, draggable) ---- */
@@ -204,3 +210,15 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .tool-palette .grip:active { cursor: grabbing; }
 .tool-palette .grip svg { fill: currentColor; }
 .tool-palette button { padding: 5px; line-height: 0; }
+
+/* ---- Delink buttons (canvas overlay) ---- */
+
+.delink {
+  position: absolute; z-index: 3; transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 4px; padding: 2px 8px 2px 6px;
+  border: 1px solid var(--link); border-radius: 12px; background: var(--panel); color: var(--link);
+  font-size: 11px; line-height: 16px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15); white-space: nowrap;
+}
+.delink:hover { background: var(--link); color: white; border-color: var(--link); }
+.delink.icon-only { padding: 3px; border-radius: 50%; line-height: 0; }
+.delink.popup { transform: translate(-50%, calc(-100% - 10px)); }

@@ -105,3 +105,10 @@ const cross = (axis: Axis): Axis => (axis === "x" ? "y" : "x");
 const mid = (b: Bounds, axis: Axis) => (boundsMin(b, axis) + boundsMax(b, axis)) / 2;
 /** A point from its along-axis and cross-axis coordinates. */
 const pt = (axis: Axis, along: number, across: number): Point => (axis === "x" ? [along, across] : [across, along]);
+
+/**
+ * How far guides run past their shapes, in screen px. Shapes take clicks
+ * 6 px either side of their edges, so this leaves an edge-aligned guide a
+ * clickable stretch of its own; the delink buttons sit at its end.
+ */
+export const GUIDE_OVERHANG_PX = 16;

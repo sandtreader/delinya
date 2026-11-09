@@ -112,7 +112,10 @@ through `useSyncExternalStore`.
   the reference (drawn with a halo). Align (six icons), Centre on
   reference, Space (gaps/centres across/down, three or more shapes, the
   outer two as anchors) and Equal (width/height, diameter or length for
-  same-kind selections). "Keep linked" (editor state, off by default)
+  same-kind selections). Align has an Across and a Down row; an align link
+  already joining the selection on an axis shows pressed (purple), and
+  that row's buttons change its mode (`setAlignMode`) rather than adding a
+  conflicting link. "Keep linked" (editor state, off by default)
   switches every action from a one-off move/resize to a live link; equal
   values then go through a named variable. With nothing
   selected it shows the document Properties (title, author, revision,
@@ -166,7 +169,14 @@ through `useSyncExternalStore`.
   across each equal gap or pitch, and "= name" after linked dimension and
   radius values. All links are faint; links touching the selection are
   strong; links not in force (conflict, cycle) are red. Geometry is the
-  pure `view/linkGuides.ts`.
+  pure `view/linkGuides.ts`; guides run 16 px past their shapes so an
+  edge-aligned guide has a clickable stretch beyond the shape's edge.
+- **Removing links** (`panels/LinkButtons.tsx`): clicking a guide or a
+  "= name" opens a small broken-chain popup that removes that link
+  (`unlinkTarget`: align/spacing write positions back; a linked length or
+  corner keeps its value). With two or more shapes selected, every link
+  joining them shows a broken-chain button on the canvas (`view/
+  linkButtons.ts`). Dimension lines are click-through.
 - Resize handles respect links (`linkLocks`, `dragHandle`): the point a
   link holds (edge or centre; spacing counts as centre) stays put and the
   handle follows the pointer from it; a handle that would have to move the
