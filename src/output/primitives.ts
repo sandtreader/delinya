@@ -6,8 +6,8 @@
 // scale pass sizes divided by it and get fixed sizes on paper.
 
 import {
-  type Bounds, type Path, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type Resolved,
-  boundsOfPoints, midpoint, pathBounds, pointsNear, polar, segment, unionBounds,
+  type Bounds, type EntityId, type Path, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type Resolved,
+  boundsOfPoints, isVisible, midpoint, pathBounds, pointsNear, polar, segment, unionBounds,
 } from "../model";
 import { formatMm } from "../view/format";
 import { textWidth } from "./text";
@@ -19,17 +19,23 @@ export interface PrimitiveOptions {
   textSize: number;
   /** Half-length of a dimension's end ticks. */
   tick: number;
+  /** Layers the viewer has hidden: left out, so output is what they see. */
+  hidden?: ReadonlySet<EntityId>;
 }
 
+const NO_LAYERS: ReadonlySet<EntityId> = new Set();
+
+/** The visible shapes, and with `dimensions` their dimensions and labels; hidden layers are left out. */
 export function drawingPrimitives(resolved: Resolved, o: PrimitiveOptions): Primitive[] {
+  const hidden = o.hidden ?? NO_LAYERS;
+  const shown = (id: EntityId) => isVisible(resolved, id, hidden);
   const out: Primitive[] = [];
   for (const id of resolved.order) {
-    const s = resolved.shapes[id];
-    if (s) out.push({ kind: "path", role: "shape", path: s.path });
+    if (shown(id)) out.push({ kind: "path", role: "shape", path: resolved.shapes[id]!.path });
   }
   if (!o.dimensions) return out;
-  for (const d of resolved.dimensions) out.push(...dimensionPrims(d, o));
-  for (const l of resolved.radiusLabels) out.push(radiusLabelPrim(l, o.textSize));
+  for (const d of resolved.dimensions) if (shown(d.target)) out.push(...dimensionPrims(d, o));
+  for (const l of resolved.radiusLabels) if (shown(l.target)) out.push(radiusLabelPrim(l, o.textSize));
   return out;
 }
 

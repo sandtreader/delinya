@@ -5,9 +5,9 @@
 // It must never throw on a malformed or half-arrived document: dangling
 // references make the dependent piece inactive and add an Issue.
 //
-// Order of work: variables, shapes as authored, position links (spacing and
-// align) in dependency order, then dimensions and labels on the placed
-// shapes. "Position links" below says how links are ordered.
+// Order of work: variables, layers, shapes as authored, position links
+// (spacing and align) in dependency order, then dimensions and labels on the
+// placed shapes. "Position links" below says how links are ordered.
 //
 // Coordinates: x to the right, y increasing downwards (as SVG and canvas),
 // angles in degrees from +x towards +y. "Top" means smaller y.
@@ -21,7 +21,7 @@ import {
 import {
   type Axis, type DimensionProp, type DimensionProps, type EntityId, type Length,
   type AlignMode, type RadiusLabelProps, type SpacingMode, type SpacingProps,
-  DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, isRef,
+  BASE_LAYER_ID, DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, isRef,
 } from "./types";
 
 // ---- Output types ----
@@ -52,6 +52,8 @@ export interface SnapPoint {
 
 interface ResolvedBase {
   id: EntityId;
+  /** The layer the shape is on: always one of `Resolved.layers`. */
+  layer: EntityId;
   path: Path;
   bounds: Bounds;
   snaps: SnapPoint[];
@@ -137,11 +139,26 @@ export interface ResolvedDocument {
   notes: string;
 }
 
+/** A layer as drawn: `number` is its 1-based position, 1 at the back. */
+export interface ResolvedLayer {
+  id: EntityId;
+  name: string;
+  number: number;
+}
+
 export interface Resolved {
   document: ResolvedDocument;
-  /** Shapes by ID, positions already adjusted by spacing and align links. */
+  /**
+   * Layers back to front; never empty. A drawing with no layer entities has
+   * one implicit base layer at BASE_LAYER_ID.
+   */
+  layers: ResolvedLayer[];
+  /**
+   * Shapes by ID, positions already adjusted by spacing and align links.
+   * Every layer's shapes are here; which layers a viewer has hidden is editor state.
+   */
   shapes: Record<EntityId, ResolvedShape>;
-  /** Shape IDs in document (draw) order. */
+  /** Shape IDs in draw order: by layer, then document order within a layer. */
   order: EntityId[];
   variables: Record<EntityId, number>;
   dimensions: ResolvedDimension[];
@@ -158,20 +175,28 @@ export function resolve(state: DocState): Resolved {
   const issues: Issue[] = [];
   const variables = resolveVariables(state, issues);
   const ctx: Ctx = { state, variables, issues };
+  const layers = resolveLayers(ctx);
 
+  // Map, not object: a layer ID like "__proto__" or "toString" stays data.
+  const position = new Map(layers.map((l, i) => [l.id, i]));
+  const fallback = position.has(BASE_LAYER_ID) ? BASE_LAYER_ID : layers[0]!.id;
   const shapes: Record<EntityId, ResolvedShape> = {};
-  const order: EntityId[] = [];
+  const documentOrder: EntityId[] = [];
   for (const [id, e] of Object.entries(state.entities)) {
-    const shape = resolveShape(ctx, id, e.kind, e.props);
-    if (shape) { shapes[id] = shape; order.push(id); }
+    const l = e.props.layer;
+    const layer = typeof l === "string" && position.has(l) ? l : fallback;
+    const shape = resolveShape(ctx, id, e.kind, e.props, layer);
+    if (shape) { shapes[id] = shape; documentOrder.push(id); }
   }
+  // Array.sort is stable, so document order holds within a layer.
+  const order = documentOrder.sort((a, b) => position.get(shapes[a]!.layer)! - position.get(shapes[b]!.layer)!);
 
   const { spacings, aligns } = applyLinks(ctx, shapes);
   const dimensions = resolveDimensions(ctx, shapes);
   const radiusLabels = resolveRadiusLabels(ctx, shapes);
   const document = resolveDocument(ctx);
 
-  return { document, shapes, order, variables, dimensions, radiusLabels, spacings, aligns, issues };
+  return { document, layers, shapes, order, variables, dimensions, radiusLabels, spacings, aligns, issues };
 }
 
 interface Ctx {
@@ -233,30 +258,64 @@ function resolveDocument(ctx: Ctx): ResolvedDocument {
   return out;
 }
 
+// ---- Layers ----
+
+/** A stored layer entity with its effective order. */
+export interface StoredLayer {
+  id: EntityId;
+  order: number;
+}
+
+/**
+ * The stored layer entities back to front: by `order` (anything but a finite
+ * number counts as 0), ties by ID. Empty if the drawing has none, in which
+ * case resolve() supplies the implicit base layer.
+ */
+export function storedLayers(state: DocState): StoredLayer[] {
+  return entitiesOfKind(state, KINDS.layer)
+    .map(([id, p]) => ({ id, order: layerOrder(p.order) }))
+    .sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+
+function layerOrder(v: unknown): number {
+  return typeof v === "number" && Number.isFinite(v) ? v : 0;
+}
+
+function resolveLayers(ctx: Ctx): ResolvedLayer[] {
+  const stored = storedLayers(ctx.state);
+  if (stored.length === 0) return [{ id: BASE_LAYER_ID, name: "", number: 1 }];
+  return stored.map(({ id }, i) => {
+    const p = ctx.state.entities[id]!.props;
+    if (layerOrder(p.order) !== p.order) ctx.issues.push({ entity: id, code: "bad-value", message: "layer order is not a number" });
+    if (p.name != null && typeof p.name !== "string") ctx.issues.push({ entity: id, code: "bad-value", message: "layer name is not text" });
+    return { id, name: typeof p.name === "string" ? p.name : "", number: i + 1 };
+  });
+}
+
 // ---- Shapes ----
 
-function resolveShape(ctx: Ctx, id: EntityId, kind: string, p: Record<string, unknown>): ResolvedShape | undefined {
+function resolveShape(ctx: Ctx, id: EntityId, kind: string, p: Record<string, unknown>, layer: EntityId): ResolvedShape | undefined {
   switch (kind) {
-    case KINDS.line: return resolveLine(ctx, id, p);
-    case KINDS.rect: return resolveRect(ctx, id, p);
-    case KINDS.circle: return resolveCircle(ctx, id, p);
+    case KINDS.line: return resolveLine(ctx, id, layer, p);
+    case KINDS.rect: return resolveRect(ctx, id, layer, p);
+    case KINDS.circle: return resolveCircle(ctx, id, layer, p);
     default: return undefined;
   }
 }
 
-function resolveLine(ctx: Ctx, id: EntityId, p: Record<string, unknown>): ResolvedLine {
+function resolveLine(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, unknown>): ResolvedLine {
   const x = num(ctx, id, "x", p.x), y = num(ctx, id, "y", p.y);
   const angle = num(ctx, id, "angle", p.angle);
   const length = resolveLength(ctx, id, "length", p.length);
-  return buildLine(id, [x, y], length, angle);
+  return buildLine(id, layer, [x, y], length, angle);
 }
 
-function buildLine(id: EntityId, from: Point, length: number, angle: number): ResolvedLine {
+function buildLine(id: EntityId, layer: EntityId, from: Point, length: number, angle: number): ResolvedLine {
   // Not .map(snapNumber): map's index would become the decimal places.
   const to = polar(from, length, angle).map((v) => snapNumber(v)) as Point;
   const seg = segment(from, to);
   return {
-    id, kind: "line", from, to, length, angle,
+    id, kind: "line", layer, from, to, length, angle,
     path: [seg],
     bounds: boundsOfPoints([from, to]),
     snaps: [
@@ -267,7 +326,7 @@ function buildLine(id: EntityId, from: Point, length: number, angle: number): Re
   };
 }
 
-function resolveRect(ctx: Ctx, id: EntityId, p: Record<string, unknown>): ResolvedRect {
+function resolveRect(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, unknown>): ResolvedRect {
   const x = num(ctx, id, "x", p.x), y = num(ctx, id, "y", p.y);
   const width = resolveLength(ctx, id, "width", p.width);
   const height = resolveLength(ctx, id, "height", p.height);
@@ -275,7 +334,7 @@ function resolveRect(ctx: Ctx, id: EntityId, p: Record<string, unknown>): Resolv
   const r = rawR.map((v, i) => Math.max(0, resolveLength(ctx, id, `r[${i}]`, v))) as [number, number, number, number];
   const clamped = clampRadii(r, width, height);
   if (clamped !== r) ctx.issues.push({ entity: id, code: "radius-clamped", message: "corner radii exceed the sides and were scaled down" });
-  return buildRect(id, x, y, width, height, clamped);
+  return buildRect(id, layer, x, y, width, height, clamped);
 }
 
 /**
@@ -296,7 +355,7 @@ export function clampRadii(r: [number, number, number, number], width: number, h
   return r.map((v) => snapNumber(v * Math.max(0, f))) as [number, number, number, number];
 }
 
-function buildRect(id: EntityId, x: number, y: number, width: number, height: number, r: [number, number, number, number]): ResolvedRect {
+function buildRect(id: EntityId, layer: EntityId, x: number, y: number, width: number, height: number, r: [number, number, number, number]): ResolvedRect {
   const [tl, tr, br, bl] = r;
   const corners: [Point, Point, Point, Point] = [[x, y], [x + width, y], [x + width, y + height], [x, y + height]];
 
@@ -343,22 +402,22 @@ function buildRect(id: EntityId, x: number, y: number, width: number, height: nu
   );
 
   return {
-    id, kind: "rect", x, y, width, height, r, corners, arcs, path, snaps,
+    id, kind: "rect", layer, x, y, width, height, r, corners, arcs, path, snaps,
     bounds: { minX: x, minY: y, maxX: x + width, maxY: y + height },
   };
 }
 
-function resolveCircle(ctx: Ctx, id: EntityId, p: Record<string, unknown>): ResolvedCircle {
+function resolveCircle(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, unknown>): ResolvedCircle {
   const cx = num(ctx, id, "cx", p.cx), cy = num(ctx, id, "cy", p.cy);
   const diameter = resolveLength(ctx, id, "diameter", p.diameter);
-  return buildCircle(id, [cx, cy], diameter);
+  return buildCircle(id, layer, [cx, cy], diameter);
 }
 
-function buildCircle(id: EntityId, centre: Point, diameter: number): ResolvedCircle {
+function buildCircle(id: EntityId, layer: EntityId, centre: Point, diameter: number): ResolvedCircle {
   const radius = diameter / 2;
   const [cx, cy] = centre;
   return {
-    id, kind: "circle", centre, diameter, radius,
+    id, kind: "circle", layer, centre, diameter, radius,
     path: [fullCircle(centre, radius)],
     bounds: { minX: cx - radius, minY: cy - radius, maxX: cx + radius, maxY: cy + radius },
     snaps: [
@@ -375,9 +434,9 @@ function buildCircle(id: EntityId, centre: Point, diameter: number): ResolvedCir
 export function translateShape(s: ResolvedShape, dx: number, dy: number): ResolvedShape {
   if (dx === 0 && dy === 0) return s;
   switch (s.kind) {
-    case "line": return buildLine(s.id, [s.from[0] + dx, s.from[1] + dy], s.length, s.angle);
-    case "rect": return buildRect(s.id, s.x + dx, s.y + dy, s.width, s.height, s.r);
-    case "circle": return buildCircle(s.id, [s.centre[0] + dx, s.centre[1] + dy], s.diameter);
+    case "line": return buildLine(s.id, s.layer, [s.from[0] + dx, s.from[1] + dy], s.length, s.angle);
+    case "rect": return buildRect(s.id, s.layer, s.x + dx, s.y + dy, s.width, s.height, s.r);
+    case "circle": return buildCircle(s.id, s.layer, [s.centre[0] + dx, s.centre[1] + dy], s.diameter);
   }
 }
 

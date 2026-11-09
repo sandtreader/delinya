@@ -3,6 +3,7 @@
 //
 // Print and PDF draw the same composed pages as the preview. SVG and DXF
 // are always full size in mm; DXF carries shapes only, for CNC and laser.
+// All of them follow what the viewer sees: layers they've hidden are left out.
 
 import { useEffect, useMemo, useState } from "react";
 import type { Resolved } from "../model";
@@ -20,6 +21,8 @@ const PREVIEW_LIMIT = 24;
 const STORAGE_KEY = "delinya.output";
 
 type Stored = Pick<PrintOptions, "orientation" | "dimensions"> & { paper: string };
+/** The dialog's own choices; the hidden layers come from the editor. */
+type Choices = Omit<PrintOptions, "hidden">;
 
 // Paper, orientation and dimensions are remembered per browser; scale only
 // for this session, since it belongs to the drawing.
@@ -39,7 +42,7 @@ function loadStored(): Stored {
   }
 }
 
-function saveStored(o: PrintOptions): void {
+function saveStored(o: Choices): void {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify({ paper: o.paper.name, orientation: o.orientation, dimensions: o.dimensions }));
   } catch { /* private mode: not remembered */ }
@@ -51,19 +54,22 @@ function fitToSheet(resolved: Resolved, o: PrintOptions, info: TitleInfo): numbe
 }
 
 export function OutputDialog() {
-  const { dispatch } = useEditor();
+  const { editor, dispatch } = useEditor();
+  const { hidden } = editor.layerView;
   useDocument();
   const resolved = store.resolved;
   const fileName = useFileName();
   const doc = resolved.document;
   const info = useMemo(() => titleInfo(doc, fileName), [doc, fileName]);
 
-  const [options, setOptions] = useState<PrintOptions>(() => {
+  const [choices, setChoices] = useState<Choices>(() => {
     const s = loadStored();
-    const base: PrintOptions = { paper: PAPERS.find((p) => p.name === s.paper) ?? PAPERS[0]!, orientation: s.orientation, dimensions: s.dimensions, scale: 1 };
-    return { ...base, scale: sessionScale ?? fitToSheet(resolved, base, info) };
+    const base: Choices = { paper: PAPERS.find((p) => p.name === s.paper) ?? PAPERS[0]!, orientation: s.orientation, dimensions: s.dimensions, scale: 1 };
+    return { ...base, scale: sessionScale ?? fitToSheet(resolved, { ...base, hidden }, info) };
   });
-  const update = (o: Partial<PrintOptions>) => setOptions((prev) => {
+  const options = useMemo<PrintOptions>(() => ({ ...choices, hidden }), [choices, hidden]);
+  const anyHidden = resolved.layers.some((l) => hidden.has(l.id));
+  const update = (o: Partial<Choices>) => setChoices((prev) => {
     const next = { ...prev, ...o };
     saveStored(next);
     sessionScale = next.scale;
@@ -85,8 +91,8 @@ export function OutputDialog() {
 
   const download = {
     pdf: () => composed && downloadBlob(exportPdf(composed.pages, { title: info.title, author: info.author }), `${fileName}.pdf`, "application/pdf"),
-    svg: () => { const s = exportSvg(resolved, { dimensions: options.dimensions }); if (s) downloadBlob(s, `${fileName}.svg`, "image/svg+xml"); },
-    dxf: () => { const s = exportDxf(resolved); if (s) downloadBlob(s, `${fileName}.dxf`, "application/dxf"); },
+    svg: () => { const s = exportSvg(resolved, { dimensions: options.dimensions, hidden }); if (s) downloadBlob(s, `${fileName}.svg`, "image/svg+xml"); },
+    dxf: () => { const s = exportDxf(resolved, hidden); if (s) downloadBlob(s, `${fileName}.dxf`, "application/dxf"); },
   };
 
   const plan = composed?.plan;
@@ -101,6 +107,7 @@ export function OutputDialog() {
         </header>
         <div className="modal-body">
           <div className="output-options">
+            {anyHidden && <p className="hint">Hidden layers are left out.</p>}
             <section>
               <h3>Print / PDF</h3>
               <label className="row">
@@ -162,7 +169,7 @@ export function OutputDialog() {
                 {sheets > PREVIEW_LIMIT && <p className="hint">Showing {PREVIEW_LIMIT} of {sheets} sheets.</p>}
               </>
             ) : (
-              <p className="hint">Draw something first.</p>
+              <p className="hint">{resolved.order.length > 0 ? "Every shape is on a hidden layer." : "Draw something first."}</p>
             )}
           </div>
         </div>

@@ -13,6 +13,7 @@ import {
 import { store, useDocument } from "../app/store";
 import { panelFor, useEditor } from "../app/editor";
 import { ShapeFields } from "./ShapeFields";
+import { LayerSelect, hasLayerChoice } from "./LayerSelect";
 
 const SHAPE_LABEL: Record<string, string> = { rect: "Rectangle", circle: "Circle", line: "Line" };
 
@@ -123,6 +124,12 @@ function Arrange({ shapes }: { shapes: EntityId[] }) {
           reference: {SHAPE_LABEL[state.entities[ref]!.kind] ?? "shape"}
         </span>
       </header>
+      {hasLayerChoice() && (
+        <div className="group">
+          <span className="label">Layer</span>
+          <LayerSelect ids={shapes} />
+        </div>
+      )}
       {(["x", "y"] as const).map((axis) => {
         const on = current(axis);
         return (

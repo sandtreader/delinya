@@ -4,7 +4,7 @@
 
 import {
   type Axis, type Bounds, type DocState, type EntityId, type Point, type Resolved, type Segment,
-  KINDS, boundsMax, boundsMin, midpoint, segment,
+  KINDS, boundsMax, boundsMin, isVisible, midpoint, segment,
 } from "../model";
 
 export interface LinkGuide {
@@ -21,10 +21,17 @@ export interface LinkGuide {
 }
 
 interface Placed { id: EntityId; b: Bounds }
+
+const NO_LAYERS: ReadonlySet<EntityId> = new Set();
 type Drawn = { placed: Placed[]; path: Segment[]; marks: Point[] };
 
-/** Guides for every drawable link, in link ID order. Malformed links are skipped. */
-export function linkGuides(state: DocState, resolved: Resolved, selection: EntityId[], overhang: number): LinkGuide[] {
+/**
+ * Guides for every drawable link, in link ID order. Malformed links are
+ * skipped, and so are links with a shape on one of the `hidden` layers.
+ */
+export function linkGuides(
+  state: DocState, resolved: Resolved, selection: EntityId[], overhang: number, hidden: ReadonlySet<EntityId> = NO_LAYERS,
+): LinkGuide[] {
   const active = new Set([...resolved.aligns, ...resolved.spacings].filter((l) => l.active).map((l) => l.id));
   const selected = new Set(selection);
   const links = Object.entries(state.entities)
@@ -33,6 +40,7 @@ export function linkGuides(state: DocState, resolved: Resolved, selection: Entit
   const out: LinkGuide[] = [];
   for (const [id, e] of links) {
     const p: Record<string, unknown> = e.props;
+    if (touchesHidden(resolved, p, hidden)) continue;
     const axis: Axis = p.axis === "y" ? "y" : "x";
     const align = e.kind === KINDS.align;
     const g = align ? alignGuide(resolved, p, axis, overhang) : spacingGuide(resolved, p, axis);
@@ -81,6 +89,12 @@ function spacingGuide(r: Resolved, p: Record<string, unknown>, axis: Axis): Draw
     path.push(segment(pt(axis, from, across), pt(axis, to, across)));
   }
   return { placed: all, path, marks: path.map((s) => midpoint(s.from, s.to)) };
+}
+
+/** Whether any of a link's anchors or items is a shape on a hidden layer. */
+function touchesHidden(r: Resolved, p: Record<string, unknown>, hidden: ReadonlySet<EntityId>): boolean {
+  const members = [p.anchor, p.anchorA, p.anchorB, ...(Array.isArray(p.items) ? p.items : [])];
+  return members.some((m) => typeof m === "string" && Object.hasOwn(r.shapes, m) && !isVisible(r, m, hidden));
 }
 
 /** A resolved shape by ID; own properties only, so a junk ID finds nothing. */

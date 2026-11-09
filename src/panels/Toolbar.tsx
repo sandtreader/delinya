@@ -3,7 +3,7 @@ import { useDocument, store } from "../app/store";
 import { useEditor } from "../app/editor";
 import { newDrawing, openDrawing, saveDrawing, saveDrawingAs, useDirty, useFileName } from "../app/file";
 import { DEFAULT_VIEW } from "../view/viewport";
-import { sendToolPaletteHome } from "./ToolPalette";
+import { sendPalettesHome } from "./floating";
 
 /**
  * File commands that also reset editor state when a drawing is replaced:
@@ -17,6 +17,8 @@ export function useFileCommands() {
       dispatch({ type: "select", ids: [] });
       dispatch({ type: "tool", tool: "select" });
       dispatch({ type: "view", view: DEFAULT_VIEW });
+      // Hidden and locked layers are this viewer's choice for the old drawing.
+      dispatch({ type: "resetLayers" });
     };
     const fail = (e: unknown) => window.alert(e instanceof Error ? e.message : String(e));
     return {
@@ -59,8 +61,8 @@ export function Toolbar() {
       <div className="group">
         <span className="zoom">{Math.round(editor.view.scale * 100) / 100} px/mm</span>
         <button
-          onClick={() => { dispatch({ type: "view", view: DEFAULT_VIEW }); sendToolPaletteHome(); }}
-          title="Reset zoom and pan, and put the tool palette back top left"
+          onClick={() => { dispatch({ type: "view", view: DEFAULT_VIEW }); sendPalettesHome(); }}
+          title="Reset zoom and pan, and put the tool and layer palettes back top left"
         >
           Reset view
         </button>

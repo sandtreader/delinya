@@ -22,7 +22,7 @@ export function LinkButtons() {
 
   const shapes = selection.filter((id) => store.resolved.shapes[id]);
   const onSelection = tool === "select" && shapes.length >= 2
-    ? linkButtons(state, store.resolved, shapes, GUIDE_OVERHANG_PX / view.scale)
+    ? linkButtons(state, store.resolved, shapes, GUIDE_OVERHANG_PX / view.scale, editor.layerView.hidden)
     : [];
   const popup = linkPopup && stillLinked(linkPopup.target) ? linkPopup : null;
 

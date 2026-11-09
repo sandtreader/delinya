@@ -8,7 +8,7 @@
 // Coordinates as in the model: x right, y down, angles in degrees from +x
 // towards +y. Page units are paper millimetres from the top-left corner.
 
-import type { Bounds, Path, Point } from "../model";
+import type { Bounds, EntityId, Path, Point } from "../model";
 
 /** What a primitive is; each renderer picks stroke width and dash from it. */
 export type Role = "shape" | "dimension" | "furniture" | "guide";
@@ -51,6 +51,8 @@ export interface PrintOptions {
   scale: number;
   /** Include dimensions and radius labels. */
   dimensions: boolean;
+  /** Layers the viewer has hidden: left out, so print is what they see. */
+  hidden?: ReadonlySet<EntityId>;
 }
 
 /** What the title block shows; the caller fills title from the file name if blank. */

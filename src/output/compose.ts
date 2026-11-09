@@ -5,7 +5,7 @@
 // Every page also gets furniture: a check ruler and title block in the
 // footer band, and dashed guides where it overlaps its neighbours.
 
-import { type Bounds, type Path, type Point, type Resolved, arc, segment } from "../model";
+import { type Bounds, type EntityId, type Path, type Point, type Resolved, arc, isVisible, segment } from "../model";
 import { planPages } from "./layout";
 import { formatScale } from "./paper";
 import { drawingPrimitives, primitivesBounds } from "./primitives";
@@ -14,9 +14,10 @@ import { textWidth, wrapText } from "./text";
 import type { PageDrawing, PagePlan, PageTile, PathPrim, Primitive, PrintOptions, Rect, TextPrim, TitleInfo } from "./types";
 
 export function composePages(resolved: Resolved, options: PrintOptions, info: TitleInfo): { plan: PagePlan; pages: PageDrawing[] } | null {
-  if (resolved.order.length === 0) return null;
+  const hidden = options.hidden ?? new Set<EntityId>();
+  if (!resolved.order.some((id) => isVisible(resolved, id, hidden))) return null;
   const { scale } = options;
-  const prims = drawingPrimitives(resolved, { dimensions: options.dimensions, textSize: STYLE.textSize / scale, tick: STYLE.tick / scale });
+  const prims = drawingPrimitives(resolved, { dimensions: options.dimensions, textSize: STYLE.textSize / scale, tick: STYLE.tick / scale, hidden });
   const b = primitivesBounds(prims);
   if (!b) return null;
   const plan = planPages(pad(b, STYLE.padding / scale), options);

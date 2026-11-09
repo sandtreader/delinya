@@ -4,12 +4,12 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent } from "react";
 import {
-  KINDS, addCircle, addDimension, addLine, addRect, batch, derivedAxes, dragHandle, entityAs, freeDelta, handlesFor, isRef, linkLocks,
+  KINDS, addCircle, addDimension, addLine, addRect, batch, derivedAxes, dragHandle, entityAs, freeDelta, handlesFor, isRef, isVisible, linkLocks,
   moveBy, newId, snapNumber,
   type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
-import { useEditor, type Tool } from "../app/editor";
+import { currentLayer, useEditor, type Tool } from "../app/editor";
 import { gridPitch, toModel, toScreen, type View } from "../view/viewport";
 import { pathToSvg } from "../view/svgPath";
 import { formatMm } from "../view/format";
@@ -23,13 +23,14 @@ type Drag =
   | { kind: "pan"; last: Point; start: Point; clearOnClick: boolean }
   | { kind: "move"; ids: EntityId[]; primary: EntityId; origin: Point; applied: Point; moved: boolean }
   | { kind: "resize"; id: EntityId; spot: HandleSpot; locks: LinkLocks; moved: boolean }
-  | { kind: "draw"; tool: Exclude<Tool, "select">; start: Point; current: Point };
+  | { kind: "draw"; tool: Exclude<Tool, "select">; layer: EntityId; start: Point; current: Point };
 
 export function Canvas() {
   useDocument();
   const resolved = store.resolved;
   const { editor, dispatch } = useEditor();
-  const { view, tool, selection } = editor;
+  const { view, tool, selection, layerView } = editor;
+  const hiddenLayers = layerView.hidden;
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<Drag | null>(null);
   const spaceRef = useRef(false);
@@ -59,6 +60,10 @@ export function Canvas() {
   };
   const tolerance = SNAP_PX / view.scale;
   const grid = gridPitch(view);
+
+  // New shapes go on the current layer; one this viewer has hidden or locked takes none.
+  const layerId = currentLayer(resolved, editor.layer);
+  const blocked = tool !== "select" && (hiddenLayers.has(layerId) || layerView.locked.has(layerId));
 
   const onPointerDown = (e: RPointerEvent<SVGSVGElement>) => {
     if (e.button !== 0 && e.button !== 1) return;
@@ -92,8 +97,9 @@ export function Canvas() {
       dragRef.current = { kind: "move", ids, primary: hit, origin: mp, applied: [0, 0], moved: false };
       return;
     }
-    const { point, snap } = snapPoint(resolved, mp, tolerance, new Set(), grid);
-    dragRef.current = { kind: "draw", tool, start: point, current: point };
+    if (blocked) return;
+    const { point, snap } = snapPoint(resolved, mp, tolerance, new Set(), grid, hiddenLayers);
+    dragRef.current = { kind: "draw", tool, layer: layerId, start: point, current: point };
     dispatch({ type: "pointer", cursor: point, snap });
     setPreview(dragRef.current);
   };
@@ -104,7 +110,7 @@ export function Canvas() {
     const d = dragRef.current;
     if (!d) {
       const exclude = new Set<EntityId>();
-      const { point, snap } = tool === "select" ? { point: mp, snap: null } : snapPoint(resolved, mp, tolerance, exclude, grid);
+      const { point, snap } = tool === "select" || blocked ? { point: mp, snap: null } : snapPoint(resolved, mp, tolerance, exclude, grid, hiddenLayers);
       dispatch({ type: "pointer", cursor: point, snap });
       return;
     }
@@ -116,7 +122,7 @@ export function Canvas() {
       case "move": {
         const raw: Point = [mp[0] - d.origin[0], mp[1] - d.origin[1]];
         const moving = new Set(d.ids);
-        const { delta, snap } = snapMove(store.resolved, d.primary, raw, tolerance, moving, grid);
+        const { delta, snap } = snapMove(store.resolved, d.primary, raw, tolerance, moving, grid, hiddenLayers);
         const step: Point = [delta[0] - d.applied[0], delta[1] - d.applied[1]];
         // A link owns some shapes' position on an axis: those don't move that way.
         // A shape locked both ways doesn't move at all, so it makes no edit or undo step.
@@ -135,7 +141,7 @@ export function Canvas() {
         return;
       }
       case "resize": {
-        const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid);
+        const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid, hiddenLayers);
         const change = dragHandle(store.state, d.id, d.spot, point, d.locks);
         if (change) {
           if (!d.moved) { store.beginGesture(); d.moved = true; }
@@ -145,7 +151,7 @@ export function Canvas() {
         return;
       }
       case "draw": {
-        const { point, snap } = snapPoint(resolved, mp, tolerance, new Set(), grid);
+        const { point, snap } = snapPoint(resolved, mp, tolerance, new Set(), grid, hiddenLayers);
         d.current = constrain(d, point, e.shiftKey);
         dispatch({ type: "pointer", cursor: d.current, snap });
         setPreview({ ...d });
@@ -195,13 +201,14 @@ export function Canvas() {
 
   const fontSize = 12 / view.scale;
   const hair = 1 / view.scale;
-  const guides = linkGuides(store.state, resolved, selection, GUIDE_OVERHANG_PX * hair);
+  const guides = linkGuides(store.state, resolved, selection, GUIDE_OVERHANG_PX * hair, hiddenLayers);
   const varName = linkedNames(selection);
+  const shown = (id: EntityId) => isVisible(resolved, id, hiddenLayers);
 
   return (
     <svg
       ref={svgRef}
-      className={`canvas tool-${tool}${dragRef.current?.kind === "pan" ? " panning" : ""}`}
+      className={`canvas tool-${tool}${blocked ? " blocked" : ""}${dragRef.current?.kind === "pan" ? " panning" : ""}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -213,16 +220,21 @@ export function Canvas() {
       <g transform={`translate(${view.ox} ${view.oy}) scale(${view.scale})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
         {/* Behind the shapes: live links, screen only. */}
         {guides.map((g) => <LinkGuideView key={g.link} guide={g} fontSize={fontSize} hair={hair} />)}
-        {resolved.order.map((id) => (
-          <ShapeView
-            key={id} shape={resolved.shapes[id]!} hair={hair}
-            selected={selection.includes(id)}
-            reference={selection.length > 1 && selection[0] === id}
-            locked={derivedAxes(resolved, id)}
-          />
-        ))}
-        {resolved.dimensions.map((d) => <DimensionView key={d.id} dim={d} fontSize={fontSize} hair={hair} link={varName(d.target, d.prop)} />)}
-        {resolved.radiusLabels.map((l) => <RadiusLabelView key={l.id} label={l} fontSize={fontSize} link={varName(l.target, "r", l.corner)} />)}
+        {/* Back layer first; hidden layers not at all; locked ones drawn but not hit-testable. */}
+        {resolved.order.filter(shown).map((id) => {
+          const shape = resolved.shapes[id]!;
+          return (
+            <ShapeView
+              key={id} shape={shape} hair={hair}
+              selected={selection.includes(id)}
+              reference={selection.length > 1 && selection[0] === id}
+              locked={derivedAxes(resolved, id)}
+              inert={layerView.locked.has(shape.layer)}
+            />
+          );
+        })}
+        {resolved.dimensions.filter((d) => shown(d.target)).map((d) => <DimensionView key={d.id} dim={d} fontSize={fontSize} hair={hair} link={varName(d.target, d.prop)} />)}
+        {resolved.radiusLabels.filter((l) => shown(l.target)).map((l) => <RadiusLabelView key={l.id} label={l} fontSize={fontSize} link={varName(l.target, "r", l.corner)} />)}
         {preview?.kind === "draw" && <DrawPreview d={preview} hair={hair} />}
       </g>
       {tool === "select" && selection.length === 1 && resolved.shapes[selection[0]!] && (
@@ -264,16 +276,16 @@ function constrain(d: Extract<Drag, { kind: "draw" }>, p: Point, shift: boolean)
   return p;
 }
 
-/** Commit the drawn shape with its standard dimension. Returns the new ID. */
+/** Commit the drawn shape, on its layer, with its standard dimension. Returns the new ID. */
 function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
-  const [x0, y0] = d.start, [x1, y1] = d.current;
+  const [x0, y0] = d.start, [x1, y1] = d.current, { layer } = d;
   const id = newId(d.tool);
   switch (d.tool) {
     case "rect": {
       const w = snapNumber(Math.abs(x1 - x0)), h = snapNumber(Math.abs(y1 - y0));
       if (w === 0 || h === 0) return undefined;
       store.commit(batch([
-        addRect(id, { x: Math.min(x0, x1), y: Math.min(y0, y1), width: w, height: h }),
+        addRect(id, { x: Math.min(x0, x1), y: Math.min(y0, y1), width: w, height: h, layer }),
         addDimension(newId("dim"), id, "width", DIMENSION_OFFSET),
         addDimension(newId("dim"), id, "height", DIMENSION_OFFSET),
       ]));
@@ -283,7 +295,7 @@ function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
       const r = snapNumber(Math.hypot(x1 - x0, y1 - y0));
       if (r === 0) return undefined;
       store.commit(batch([
-        addCircle(id, { cx: x0, cy: y0, diameter: snapNumber(r * 2) }),
+        addCircle(id, { cx: x0, cy: y0, diameter: snapNumber(r * 2), layer }),
         addDimension(newId("dim"), id, "diameter", DIMENSION_OFFSET),
       ]));
       return id;
@@ -293,7 +305,7 @@ function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
       if (length === 0) return undefined;
       const angle = snapNumber((Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI);
       store.commit(batch([
-        addLine(id, { x: x0, y: y0, length, angle }),
+        addLine(id, { x: x0, y: y0, length, angle, layer }),
         addDimension(newId("dim"), id, "length", DIMENSION_OFFSET),
       ]));
       return id;
@@ -306,9 +318,11 @@ function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
 /**
  * `reference`: first of a multi-selection, the one others align to; it gets a halo.
  * `locked`: axes a link controls, so the cursor says which way it can still be dragged.
+ * `inert`: on a locked layer, so clicks go through it and it never highlights.
  */
-function ShapeView({ shape, selected, reference, locked, hair }: { shape: ResolvedShape; selected: boolean; reference: boolean; locked: ReadonlySet<string>; hair: number }) {
+function ShapeView({ shape, selected, reference, locked, inert, hair }: { shape: ResolvedShape; selected: boolean; reference: boolean; locked: ReadonlySet<string>; inert: boolean; hair: number }) {
   const d = pathToSvg(shape.path);
+  if (inert) return <path d={d} className="shape inert" strokeWidth={hair * 1.2} />;
   const lock = locked.size === 2 ? " locked" : locked.has("x") ? " locked-x" : locked.has("y") ? " locked-y" : "";
   return (
     <g data-id={shape.id} className={`shape${selected ? " selected" : ""}${lock}`}>

@@ -7,7 +7,8 @@ is the print and export commit. Tree clean; Vitest tests and `tsc` pass.
 
 The abstract model is complete for the outline's v1 feature set and the
 first visual slice is usable: you can draw, move, resize, type exact values,
-link equal values and equal spacing, undo, save/load local files, print at
+link equal values and equal spacing, put shapes on layers, undo,
+save/load local files, print at
 scale (tiled if needed, with a check ruler and title block) and export PDF,
 SVG and DXF. The collab adapter is wired and tested against the real relay
 but has no UI.
@@ -88,9 +89,11 @@ through `useSyncExternalStore`.
   circle as icons in a palette floating over the canvas, top left by
   default, dragged by its grip. Its position is per browser in
   localStorage (`delinya.toolPalette`, via `app/floatPosition.ts`), never
-  in the document, and is kept on screen when the window shrinks. Reset
-  view also sends it home (`sendToolPaletteHome`). Undo and
-  redo are curved-arrow buttons in the header.
+  in the document, and is kept on screen when the window shrinks. The
+  position, grip drag and clamping are shared with the layer palette in
+  `panels/floating.tsx` (`useFloating`, `Grip`); Reset view sends both
+  palettes home (`sendPalettesHome`). Undo and redo are curved-arrow
+  buttons in the header.
 - **Tools**: select (V), line (L), rect (R), circle (C). Drawing a shape
   also adds its dimensions (rect: width and height; circle: diameter;
   line: length) and returns to select unless Shift is held. Shift
@@ -165,6 +168,67 @@ through `useSyncExternalStore`.
   standard Helvetica, no dependencies), `exportSvg` (1:1 mm) and
   `exportDxf` (R12, mm, y flipped, shapes only; rects become closed
   polylines with bulges so CAM gets whole contours).
+
+### Layers
+
+- **Model** (`model/layers.ts`, layer parts of `resolve.ts`/`types.ts`):
+  `layer` entities `{ name?, order }`, nothing else. Position comes from
+  a fractional `order` (lowest at the back, ties by ID), so
+  `moveLayer` changes only the moved layer's order (midway between its new
+  neighbours) and concurrent moves don't fight. A drawing with no layer
+  entities has one implicit base layer at `BASE_LAYER_ID` (`"layer"`);
+  actions that need it real (`addLayer`, `setLayerName`) materialise it
+  in the same change, so a drawing only grows layer entities once layers
+  are used. Shapes carry an optional `layer` prop; missing or dangling
+  falls back to the base (else the first) layer. `resolved.layers` is
+  back to front with 1-based `number`s; every resolved shape has `layer`;
+  `resolved.order` is draw order (layer 1 at the back, document order
+  within a layer).
+- **Hidden and locked are local to each viewer**: editor state
+  (`editor.layerView: { hidden, locked }`, sets of layer IDs; action
+  `toggleLayer`), never in the document, so not synced, saved, undoable
+  or marking the file dirty. New and Open clear them (`resetLayers`, which
+  also clears the current layer), so a drawing opens all shown and
+  unlocked. **Hidden** layers are not drawn, snapped to, selected or
+  output, and neither are their shapes' dimensions, radius labels or
+  "= name"s; link guides with any member on a hidden layer are skipped.
+  **Locked** layers are drawn and snapped to but not selectable (shapes
+  are click-through, no hover). Links still apply across layers whatever
+  their state. Queries take the view: `isVisible(r, id, hidden)`,
+  `isSelectable(r, id, layerView)`; snapping, link guides/buttons and
+  output take an optional `hidden` set (default: none hidden).
+  `layerChoice` is the other query.
+- **Current layer** is editor state (`editor.layer`, action `layer`),
+  never in the document. `currentLayer(r, wanted)` falls back to layer 1
+  when unset or gone (e.g. after deleting it). New shapes go on it; if it
+  is hidden or locked, drawing tools don't start (cursor not-allowed).
+- **Selection pruning**: the Shell drops any selected id that isn't
+  selectable (`selectableOnly(r, ids, layerView)`) whenever the document,
+  selection or layer view changes, which covers hiding/locking, moving
+  shapes to such a layer, undo and peers.
+- **Layer palette** (`panels/LayerPalette.tsx`): floating, below the tool
+  palette by default (`delinya.layerPalette`). A numbered button per
+  layer, 1 at the top; the current layer is highlighted like the active
+  tool; hidden layers' numbers are dimmed with an eye-off mark, locked
+  ones get a lock mark. Hover shows the name at once (CSS tooltip;
+  "Layer N" if unnamed). Clicking makes the layer current and opens its
+  card (click again, Escape or click outside closes it; Escape only
+  closes the card): name field, hide/show, lock/unlock, and delete, which
+  deletes the layer and its shapes as one undo step (confirm if it has
+  shapes; disabled for the only layer). "+" adds a layer in front and
+  makes it current. Dragging a button (after 4 px) reorders, others
+  making room; the drop index is `view/reorder.ts` `dropIndex`, committed
+  with `moveLayer`, and numbers follow the new order.
+- **Selection panels**: with more than one layer, the shape panel and
+  arrange panel have a Layer select ("N · name"); a mixed multi-selection
+  shows a disabled "mixed" until a layer is picked (`setShapesLayer`).
+- **Output** follows what you see: layers this viewer has hidden, with
+  their dimensions and labels, are left out of print, PDF, SVG and DXF
+  (`PrintOptions.hidden`, `exportSvg`'s `hidden`, `exportDxf(r, hidden)`),
+  and the dialog says "Hidden layers are left out." when any are. DXF gets
+  one layer per visible drawing layer, named after it ("Layer N" if
+  unnamed, sanitised to R12's 31-character names, duplicates suffixed
+  `_2`…).
 
 ## Decisions taken (not in the outline)
 

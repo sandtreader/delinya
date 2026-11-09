@@ -63,6 +63,8 @@ button.danger { color: #9b1c1c; }
 .canvas.tool-select .shape.locked-y { cursor: ew-resize; }
 .canvas.panning { cursor: grabbing; }
 .canvas.tool-line, .canvas.tool-rect, .canvas.tool-circle { cursor: crosshair; }
+/* Drawing tool on a hidden or locked current layer: nothing to draw. */
+.canvas.blocked { cursor: not-allowed; }
 
 .grid-minor { stroke: var(--grid-minor); stroke-width: 1; }
 .grid-major { stroke: var(--grid-major); stroke-width: 1; }
@@ -73,6 +75,8 @@ button.danger { color: #9b1c1c; }
 .shape.selected .stroke { stroke: var(--select); }
 .shape .ref-halo { stroke: var(--select); opacity: 0.25; pointer-events: none; }
 .shape:hover .stroke { stroke: var(--select); }
+/* On a locked layer: drawn, snapped to, but clicks go through. */
+.shape.inert { stroke: var(--shape); pointer-events: none; }
 
 /* Dimensions aren't interactive (yet): clicks go through to links and shapes below. */
 .dimension { stroke: var(--dimension); pointer-events: none; }
@@ -202,21 +206,62 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 /* An align link already joins the selection on this axis. */
 .selection-panel button.icon.linked { background: #efe6ff; border-color: var(--link); }
 .selection-panel button.icon.linked svg .guide { stroke: var(--link); }
+.selection-panel select { font: inherit; padding: 2px 4px; min-width: 0; flex: 1; }
 .selection-panel .keep-linked { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
 
-/* ---- Tool palette (floating, draggable) ---- */
+/* ---- Tool and layer palettes (floating, draggable) ---- */
 
-.tool-palette {
+.palette {
   position: absolute; z-index: 2;
   display: flex; flex-direction: column; gap: 4px; padding: 0 5px 5px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); user-select: none; -webkit-user-select: none;
 }
 /* touch-action: none so a touch drag moves the palette instead of scrolling. */
-.tool-palette .grip { display: flex; justify-content: center; padding: 5px 0 3px; color: var(--muted); cursor: grab; touch-action: none; }
-.tool-palette .grip:active { cursor: grabbing; }
-.tool-palette .grip svg { fill: currentColor; }
-.tool-palette button { padding: 5px; line-height: 0; }
+.palette .grip { display: flex; justify-content: center; padding: 5px 0 3px; color: var(--muted); cursor: grab; touch-action: none; }
+.palette .grip:active { cursor: grabbing; }
+.palette .grip svg { fill: currentColor; }
+.palette button { padding: 5px; line-height: 0; }
+
+/* Layer buttons: the number, dimmed when hidden, with small hidden/locked marks. */
+.layer-item { position: relative; }
+.layer-palette.dragging .layer-item { transition: transform 120ms ease; }
+.layer-palette.dragging .layer-item.lifted { transition: none; z-index: 1; }
+.layer-palette.dragging .layer-item.lifted .layer-button { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25); cursor: grabbing; }
+.layer-button { position: relative; display: block; touch-action: none; }
+.layer-number { display: block; width: 18px; height: 18px; line-height: 18px; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
+.layer-button.is-hidden .layer-number { opacity: 0.35; }
+.layer-button .mark { position: absolute; right: 1px; color: var(--muted); }
+.layer-button .mark-hidden { top: 1px; }
+.layer-button .mark-locked { bottom: 1px; }
+.layer-button.active .mark { color: rgba(255, 255, 255, 0.9); }
+.layer-add { color: var(--muted); }
+.layer-add:hover { color: var(--ink); }
+
+/* Name on hover, at once (a native title is slow). */
+.layer-tip {
+  position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%); z-index: 4;
+  display: none; pointer-events: none; white-space: nowrap;
+  background: var(--ink); color: white; font-size: 11px; line-height: 16px; padding: 2px 7px; border-radius: 4px;
+}
+.layer-tip .state { opacity: 0.7; }
+.layer-palette:not(.dragging) .layer-button:hover + .layer-tip { display: block; }
+
+/* A layer's card, out to the right of its button (left near the right edge). */
+.layer-card {
+  position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%); z-index: 5;
+  display: flex; align-items: center; gap: 4px; width: 250px; padding: 5px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); font-size: 12px;
+}
+.layer-card.flip { left: auto; right: calc(100% + 12px); }
+.layer-card-number { flex: none; min-width: 18px; text-align: center; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
+.layer-card .text { flex: 1; min-width: 0; font: inherit; padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; user-select: text; -webkit-user-select: text; }
+.layer-card .text:focus { outline: none; border-color: var(--accent); }
+.layer-card button.icon { flex: none; padding: 4px; }
+.layer-card button.icon.on { background: #e3f0f6; border-color: var(--accent); color: var(--accent); }
+.layer-card button.danger { margin-left: 4px; }
+.layer-card button.danger:not(:disabled):hover { border-color: #9b1c1c; }
 
 /* ---- Delink buttons (canvas overlay) ---- */
 

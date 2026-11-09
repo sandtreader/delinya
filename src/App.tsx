@@ -1,6 +1,6 @@
 import { useEffect, useReducer, type CSSProperties } from "react";
-import { EditorContext, editorReducer, initialEditor, useEditor, type Tool } from "./app/editor";
-import { store } from "./app/store";
+import { EditorContext, editorReducer, initialEditor, selectableOnly, useEditor, type Tool } from "./app/editor";
+import { store, useDocument } from "./app/store";
 import { Canvas } from "./canvas/Canvas";
 import { StatusBar } from "./panels/StatusBar";
 import { OutputDialog } from "./panels/OutputDialog";
@@ -8,6 +8,7 @@ import { PropertiesDialog } from "./panels/PropertiesDialog";
 import { SelectionPanel, deleteSelection } from "./panels/SelectionPanel";
 import { LinkButtons } from "./panels/LinkButtons";
 import { ToolPalette } from "./panels/ToolPalette";
+import { LayerPalette } from "./panels/LayerPalette";
 import { Toolbar, useFileCommands } from "./panels/Toolbar";
 import { useDirty, useFileName } from "./app/file";
 import { STYLE } from "./output/style";
@@ -33,6 +34,14 @@ function Shell() {
   const file = useFileCommands();
   const name = useFileName();
   const dirty = useDirty();
+  const state = useDocument();
+
+  // Only shapes on shown, unlocked layers stay selected: hiding or locking a
+  // layer, moving shapes onto one, undo and peers can all strand a selection.
+  useEffect(() => {
+    const keep = selectableOnly(store.resolved, editor.selection, editor.layerView);
+    if (keep.length !== editor.selection.length) dispatch({ type: "select", ids: keep });
+  }, [state, editor.selection, editor.layerView, dispatch]);
 
   useEffect(() => { document.title = `${dirty ? "• " : ""}${name} — Delinya`; }, [name, dirty]);
 
@@ -92,6 +101,7 @@ function Shell() {
         <SelectionPanel />
         <LinkButtons />
         <ToolPalette />
+        <LayerPalette />
       </div>
       <StatusBar />
       {editor.dialog === "output" && <OutputDialog />}

@@ -1,7 +1,7 @@
 // SVG output: a true-size export of the drawing, and composed pages for the
 // print preview and printout (inlined into one HTML document).
 
-import type { Resolved } from "../model";
+import type { EntityId, Resolved } from "../model";
 import { pathToSvg } from "../view/svgPath";
 import { drawingPrimitives, primitivesBounds } from "./primitives";
 import { STYLE, SVG_PADDING } from "./style";
@@ -9,9 +9,14 @@ import type { PageDrawing, Primitive, Role } from "./types";
 
 const FONT = "Helvetica, Arial, sans-serif";
 
-/** The drawing at true size: model mm in the viewBox, mm on the root. Null for nothing. */
-export function exportSvg(resolved: Resolved, { dimensions }: { dimensions: boolean }): string | null {
-  const prims = drawingPrimitives(resolved, { dimensions, textSize: STYLE.textSize, tick: STYLE.tick });
+/**
+ * The drawing at true size: model mm in the viewBox, mm on the root. Shapes
+ * on `hidden` layers are left out. Null for nothing.
+ */
+export function exportSvg(
+  resolved: Resolved, { dimensions, hidden }: { dimensions: boolean; hidden?: ReadonlySet<EntityId> },
+): string | null {
+  const prims = drawingPrimitives(resolved, { dimensions, textSize: STYLE.textSize, tick: STYLE.tick, hidden });
   const b = primitivesBounds(prims);
   if (!b) return null;
   const x = num(b.minX - SVG_PADDING), y = num(b.minY - SVG_PADDING);

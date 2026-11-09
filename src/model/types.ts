@@ -35,6 +35,7 @@ export const KINDS = {
   dimension: "dimension",
   radiusLabel: "radius-label",
   document: "document",
+  layer: "layer",
 } as const;
 
 export type Kind = (typeof KINDS)[keyof typeof KINDS];
@@ -49,6 +50,7 @@ export interface LineProps {
   y: number;
   length: Length;
   angle: number;
+  layer?: EntityId;
 }
 
 /** Axis-aligned rectangle; r is one corner radius per corner [tl, tr, br, bl]. */
@@ -58,12 +60,14 @@ export interface RectProps {
   width: Length;
   height: Length;
   r?: [Length, Length, Length, Length];
+  layer?: EntityId;
 }
 
 export interface CircleProps {
   cx: number;
   cy: number;
   diameter: Length;
+  layer?: EntityId;
 }
 
 // ---- Non-shape entities ----
@@ -130,6 +134,24 @@ export type DocumentField = keyof DocumentProps;
 export const DOCUMENT_FIELDS: readonly DocumentField[] = ["title", "author", "revision", "notes"];
 export const DOCUMENT_ID = "document";
 
+/**
+ * A layer: shapes on it draw together, above lower-numbered layers. Position
+ * comes from `order` (lowest at the back); ties go by ID. Shapes name their
+ * layer in their `layer` prop. Hiding and locking are each viewer's own
+ * choice, held in editor state, never here.
+ */
+export interface LayerProps {
+  name?: string;
+  order: number;
+}
+
+/**
+ * The base layer's well-known ID. A drawing with no layer entities has one
+ * implicit base layer at this ID; shapes with no (or a dangling) layer prop
+ * resolve onto it.
+ */
+export const BASE_LAYER_ID = "layer";
+
 // ---- Typed access ----
 
 export interface PropsByKind {
@@ -142,6 +164,7 @@ export interface PropsByKind {
   dimension: DimensionProps;
   "radius-label": RadiusLabelProps;
   document: DocumentProps;
+  layer: LayerProps;
 }
 
 /** Typed read of an entity's props; undefined if missing or of another kind. */

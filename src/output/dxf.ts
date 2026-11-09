@@ -11,22 +11,29 @@
 // Each shape's path becomes CIRCLE, LINE or ARC when it is one element, or a
 // POLYLINE with bulges for a connected run of several. Disconnected runs
 // become separate entities.
+//
+// Each visible drawing layer becomes a DXF layer, in layer order, and each
+// entity goes on its shape's layer. Layers the viewer has hidden, and their
+// shapes, are left out. See dxfLayerNames for how layers are named.
 
 import {
-  type Arc, type Path, type PathElement, type Point,
-  arcEnd, arcStart, elementLength, pointsNear, unionBounds,
+  type Arc, type Path, type PathElement, type Point, type ResolvedLayer,
+  arcEnd, arcStart, elementLength, isVisible, pointsNear, unionBounds,
 } from "../model";
-import type { Resolved } from "../model";
+import type { EntityId, Resolved } from "../model";
 
 /** Endpoints closer than this (mm) count as joined. */
 const JOIN = 1e-6;
 
-const LAYER = "0";
+/** Longest layer name R12 allows. */
+const MAX_NAME = 31;
 
-/** The drawing's shapes as DXF text, or null when there are none. */
-export function exportDxf(resolved: Resolved): string | null {
-  const shapes = resolved.order.map((id) => resolved.shapes[id]).filter((s) => s !== undefined);
+/** The shapes not on `hidden` layers as DXF text, or null when there are none. */
+export function exportDxf(resolved: Resolved, hidden: ReadonlySet<EntityId> = new Set()): string | null {
+  const shapes = resolved.order.filter((id) => isVisible(resolved, id, hidden)).map((id) => resolved.shapes[id]!);
   if (shapes.length === 0) return null;
+  const layers = resolved.layers.filter((l) => !hidden.has(l.id));
+  const names = dxfLayerNames(layers);
 
   const out = new Writer();
   const b = unionBounds(shapes.map((s) => s.bounds));
@@ -44,26 +51,48 @@ export function exportDxf(resolved: Resolved): string | null {
   out.pair(0, "LTYPE").pair(2, "CONTINUOUS").pair(70, 0).pair(3, "Solid line")
     .pair(72, 65).pair(73, 0).pair(40, 0);
   out.pair(0, "ENDTAB");
-  out.pair(0, "TABLE").pair(2, "LAYER").pair(70, 1);
-  out.pair(0, "LAYER").pair(2, LAYER).pair(70, 0).pair(62, 7).pair(6, "CONTINUOUS");
+  out.pair(0, "TABLE").pair(2, "LAYER").pair(70, layers.length);
+  for (const l of layers) out.pair(0, "LAYER").pair(2, names.get(l.id)!).pair(70, 0).pair(62, 7).pair(6, "CONTINUOUS");
   out.pair(0, "ENDTAB");
   out.endsec();
 
   out.section("ENTITIES");
-  for (const s of shapes) writePath(out, s.path);
+  for (const s of shapes) writePath(out, s.path, names.get(s.layer)!);
   out.endsec();
 
   out.pair(0, "EOF");
   return out.text();
 }
 
-function writePath(out: Writer, path: Path): void {
+/**
+ * DXF layer names by layer ID: the layer's name, or "Layer N" if it has
+ * none, with anything but letters, digits, "_", "$" and "-" made "_" and cut
+ * to 31 characters. A name already taken (ignoring case, as CAD does) gets
+ * "_2", "_3"... and stays within 31.
+ */
+function dxfLayerNames(layers: ResolvedLayer[]): Map<EntityId, string> {
+  const out = new Map<EntityId, string>();
+  const taken = new Set<string>();
+  for (const l of layers) {
+    const base = (l.name.trim() || `Layer ${l.number}`).replace(/[^A-Za-z0-9_$-]/g, "_").slice(0, MAX_NAME);
+    let name = base;
+    for (let n = 2; taken.has(name.toUpperCase()); n++) {
+      const suffix = `_${n}`;
+      name = base.slice(0, MAX_NAME - suffix.length) + suffix;
+    }
+    taken.add(name.toUpperCase());
+    out.set(l.id, name);
+  }
+  return out;
+}
+
+function writePath(out: Writer, path: Path, layer: string): void {
   for (const run of runs(path)) {
     const e = run[0]!;
-    if (run.length > 1) writePolyline(out, run);
-    else if (e.kind === "segment") writeLine(out, e.from, e.to);
-    else if (isFullCircle(e)) writeCircle(out, e);
-    else writeArc(out, e);
+    if (run.length > 1) writePolyline(out, run, layer);
+    else if (e.kind === "segment") writeLine(out, e.from, e.to, layer);
+    else if (isFullCircle(e)) writeCircle(out, e, layer);
+    else writeArc(out, e, layer);
   }
 }
 
@@ -86,33 +115,33 @@ function runs(path: Path): PathElement[][] {
   return out;
 }
 
-function writeLine(out: Writer, from: Point, to: Point): void {
-  out.entity("LINE").point(from).point(to, 1);
+function writeLine(out: Writer, from: Point, to: Point, layer: string): void {
+  out.entity("LINE", layer).point(from).point(to, 1);
 }
 
-function writeCircle(out: Writer, a: Arc): void {
-  out.entity("CIRCLE").point(a.centre).pair(40, a.radius);
+function writeCircle(out: Writer, a: Arc, layer: string): void {
+  out.entity("CIRCLE", layer).point(a.centre).pair(40, a.radius);
 }
 
-function writeArc(out: Writer, a: Arc): void {
+function writeArc(out: Writer, a: Arc, layer: string): void {
   // Negating y negates angles and reverses direction: the clockwise
   // start→end becomes counter-clockwise from −end to −start.
   const lo = Math.min(a.start, a.end), hi = Math.max(a.start, a.end);
-  out.entity("ARC").point(a.centre).pair(40, a.radius).pair(50, angle(-hi)).pair(51, angle(-lo));
+  out.entity("ARC", layer).point(a.centre).pair(40, a.radius).pair(50, angle(-hi)).pair(51, angle(-lo));
 }
 
-function writePolyline(out: Writer, run: PathElement[]): void {
+function writePolyline(out: Writer, run: PathElement[], layer: string): void {
   const closed = pointsNear(endOf(run[run.length - 1]!), startOf(run[0]!), JOIN);
-  out.entity("POLYLINE").pair(66, 1).point([0, 0]).pair(70, closed ? 1 : 0);
+  out.entity("POLYLINE", layer).pair(66, 1).point([0, 0]).pair(70, closed ? 1 : 0);
   for (const e of run) {
-    out.entity("VERTEX").point(startOf(e));
+    out.entity("VERTEX", layer).point(startOf(e));
     // Bulge is tan(sweep/4), positive counter-clockwise in DXF's frame;
     // our arcs are clockwise as drawn, hence the minus. It is small for
     // shallow arcs, so it keeps more places than a length.
     if (e.kind === "arc") out.pair(42, fmt(-Math.tan(((e.end - e.start) * Math.PI) / 180 / 4), 9));
   }
-  if (!closed) out.entity("VERTEX").point(endOf(run[run.length - 1]!));
-  out.entity("SEQEND");
+  if (!closed) out.entity("VERTEX", layer).point(endOf(run[run.length - 1]!));
+  out.entity("SEQEND", layer);
 }
 
 function isFullCircle(e: PathElement): e is Arc {
@@ -154,8 +183,9 @@ class Writer {
     return this.pair(10 + k, x).pair(20 + k, -y).pair(30 + k, 0);
   }
 
-  entity(type: string): this {
-    return this.pair(0, type).pair(8, LAYER);
+  /** An entity record's start, on DXF layer `layer`. */
+  entity(type: string, layer: string): this {
+    return this.pair(0, type).pair(8, layer);
   }
 
   section(name: string): this {

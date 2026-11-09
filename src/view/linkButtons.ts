@@ -31,10 +31,12 @@ const CORNERS = [0, 1, 2, 3] as const;
  * (at its dimension line's midpoint or radius label). Lengths with nowhere
  * to put a button are skipped.
  */
-export function linkButtons(state: DocState, resolved: Resolved, ids: EntityId[], pad: number): LinkButton[] {
+export function linkButtons(
+  state: DocState, resolved: Resolved, ids: EntityId[], pad: number, hidden: ReadonlySet<EntityId> = new Set(),
+): LinkButton[] {
   const sel = new Set<unknown>(ids);
   const out: LinkButton[] = [];
-  for (const g of linkGuides(state, resolved, ids, pad)) {
+  for (const g of linkGuides(state, resolved, ids, pad, hidden)) {
     const at = g.kind === "align" ? g.path[0]?.from : g.marks[0];
     const target: LinkTarget = { kind: "link", id: g.link };
     if (at && joins(state, g.link, sel)) out.push({ target, at, label: describeLink(state, target) });

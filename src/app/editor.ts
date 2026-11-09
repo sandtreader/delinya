@@ -1,7 +1,8 @@
-// Editor (non-document) state: tool, selection, view, open dialog. Never synced.
+// Editor (non-document) state: tool, selection, current layer, hidden and
+// locked layers, view, open dialog. Never synced, saved or undoable.
 
 import { createContext, useContext, type Dispatch } from "react";
-import type { EntityId, LinkTarget, SnapPoint } from "../model";
+import { isSelectable, type EntityId, type LayerView, type LinkTarget, type Resolved, type SnapPoint } from "../model";
 import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
 
 export type Tool = "select" | "line" | "rect" | "circle";
@@ -10,6 +11,13 @@ export type Dialog = "output" | "properties";
 export interface EditorState {
   tool: Tool;
   selection: EntityId[];
+  /** The layer new shapes go on; null or gone means the first (see currentLayer). */
+  layer: EntityId | null;
+  /**
+   * Layers this viewer has hidden or locked: their own choice, so not
+   * synced, saved or undoable; cleared for a new or opened drawing.
+   */
+  layerView: LayerView;
   view: View;
   /** Current pointer position in model mm, for the status bar. */
   cursor: [number, number] | null;
@@ -25,6 +33,8 @@ export interface EditorState {
 export const initialEditor: EditorState = {
   tool: "select",
   selection: [],
+  layer: null,
+  layerView: { hidden: new Set(), locked: new Set() },
   view: DEFAULT_VIEW,
   cursor: null,
   snap: null,
@@ -37,6 +47,9 @@ export type EditorAction =
   | { type: "tool"; tool: Tool }
   | { type: "select"; ids: EntityId[] }
   | { type: "toggleSelect"; id: EntityId }
+  | { type: "layer"; id: EntityId }
+  | { type: "toggleLayer"; id: EntityId; flag: "hidden" | "locked" }
+  | { type: "resetLayers" }
   | { type: "view"; view: View }
   | { type: "panBy"; dx: number; dy: number }
   | { type: "zoomAt"; factor: number; at: [number, number] }
@@ -52,6 +65,13 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "select": return { ...s, selection: a.ids, linkPopup: null };
     case "toggleSelect":
       return { ...s, linkPopup: null, selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id] };
+    case "layer": return { ...s, layer: a.id };
+    case "toggleLayer": {
+      const set = new Set(s.layerView[a.flag]);
+      if (!set.delete(a.id)) set.add(a.id);
+      return { ...s, layerView: { ...s.layerView, [a.flag]: set } };
+    }
+    case "resetLayers": return { ...s, layer: null, layerView: initialEditor.layerView };
     case "view": return { ...s, view: a.view };
     // Deltas, not absolute views: several pointer or wheel events can arrive
     // between renders and each must build on the last.
@@ -74,6 +94,16 @@ export function panelFor(tool: Tool, selection: EntityId[], shapes: Record<strin
   if (n === 0) return null;
   if (n === 1) return "shape";
   return tool === "select" ? "arrange" : null;
+}
+
+/** The layer new shapes go on: the chosen one while it exists, else the first (back) layer. */
+export function currentLayer(r: Resolved, wanted: EntityId | null): EntityId {
+  return wanted !== null && r.layers.some((l) => l.id === wanted) ? wanted : r.layers[0]!.id;
+}
+
+/** The ids a selection may keep: shapes that exist on a layer this viewer has neither hidden nor locked. */
+export function selectableOnly(r: Resolved, ids: EntityId[], view: LayerView): EntityId[] {
+  return ids.filter((id) => isSelectable(r, id, view));
 }
 
 export const EditorContext = createContext<{ editor: EditorState; dispatch: Dispatch<EditorAction> } | null>(null);

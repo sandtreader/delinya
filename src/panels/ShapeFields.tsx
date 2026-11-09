@@ -11,6 +11,7 @@ import { store, useDocument } from "../app/store";
 import { ALIGN_LABELS } from "../view/linkButtons";
 import { formatMm } from "../view/format";
 import { Num, Row } from "./fields";
+import { LayerSelect, hasLayerChoice } from "./LayerSelect";
 
 export function ShapeFields({ id }: { id: EntityId }) {
   const state = useDocument();
@@ -32,6 +33,7 @@ export function ShapeFields({ id }: { id: EntityId }) {
   return (
     <section>
       <h2>{kindLabel(e.kind)} <small>{id}</small></h2>
+      {hasLayerChoice() && <Row label="layer"><LayerSelect ids={[id]} /></Row>}
       {e.kind === KINDS.rect && (
         <>
           <Row label="x"><Num value={at("x")} onCommit={(v) => commit({ x: v })} disabled={derived.has("x")} /></Row>
