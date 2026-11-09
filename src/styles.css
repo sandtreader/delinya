@@ -8,6 +8,8 @@
   --warn: #b35c00;
   --shape: #1d1d1b;
   --select: #e8730c;      /* canvas selection, hover, handles, preview, snap */
+  --link: #8a3ffc;        /* live links on the canvas (never printed) */
+  --broken: #c62828;      /* links not in force: conflicts, cycles */
   --dimension: #3070c0;   /* overridden from STYLE.colour.dimension in App */
   --grid-minor: #ececea;
   --grid-major: #dcdcd8;
@@ -74,6 +76,13 @@ button.danger { color: #9b1c1c; }
 
 .dimension { stroke: var(--dimension); }
 .dimension text { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
+.link-guide { stroke: var(--link); fill: none; opacity: 0.4; pointer-events: none; }
+.link-guide.emphasis { opacity: 1; }
+.link-guide.broken { stroke: var(--broken); opacity: 0.8; }
+.link-guide text { fill: var(--link); stroke: none; font-family: system-ui, sans-serif; font-weight: 600; }
+.link-guide.broken text { fill: var(--broken); }
+.link-name { fill: var(--link); opacity: 0.7; }
+.link-name.emphasis { opacity: 1; font-weight: 600; }
 .radius-label { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
 .preview { stroke: var(--select); stroke-dasharray: 4 3; fill: none; }
 

@@ -154,6 +154,12 @@ through `useSyncExternalStore`.
 - Deleting a link's anchor writes its items' derived positions back before
   removing the link, so they stay where the link put them (one undo step).
   An align link emptied of items is removed; a spacing link is not.
+- **Live links on the canvas** (screen only, never printed), in purple:
+  dashed guides along aligned edges/centre lines, a line with "=" marks
+  across each equal gap or pitch, and "= name" after linked dimension and
+  radius values. All links are faint; links touching the selection are
+  strong; links not in force (conflict, cycle) are red. Geometry is the
+  pure `view/linkGuides.ts`.
 - Resize handles respect links (`linkLocks`, `dragHandle`): the point a
   link holds (edge or centre; spacing counts as centre) stays put and the
   handle follows the pointer from it; a handle that would have to move the
@@ -189,9 +195,11 @@ through `useSyncExternalStore`.
    synflo.net, port 2901 on st1).
 3. **Fit view to drawing** (on open, and as a button); opening resets to
    the default view for now.
-4. Links: show live links on the canvas (e.g. faint guide lines when a
-   linked shape is selected). Resizing one of several gap-spaced items
-   drifts its centre slightly (the held point is approximated as centre).
+4. Links: resizing one of several gap-spaced items drifts its centre
+   slightly (the held point is approximated as centre). Spacing a
+   selection that includes a containing shape (e.g. the panel with its
+   holes) makes the panel an anchor and overflows; it could exclude
+   shapes that contain the others.
 5. Print refinements: a date in the title block, dimensions in DXF on
    their own layer, a custom scale.
 6. Rotation of rects, text, named variables/expressions, woodwork extras

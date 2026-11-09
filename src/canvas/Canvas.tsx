@@ -4,7 +4,8 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent } from "react";
 import {
-  addCircle, addDimension, addLine, addRect, batch, derivedAxes, dragHandle, freeDelta, handlesFor, linkLocks, moveBy, newId, snapNumber,
+  KINDS, addCircle, addDimension, addLine, addRect, batch, derivedAxes, dragHandle, entityAs, freeDelta, handlesFor, isRef, linkLocks,
+  moveBy, newId, snapNumber,
   type EntityId, type HandleSpot, type LinkLocks, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
@@ -13,6 +14,7 @@ import { gridPitch, toModel, toScreen, type View } from "../view/viewport";
 import { pathToSvg } from "../view/svgPath";
 import { formatMm } from "../view/format";
 import { snapMove, snapPoint } from "./snap";
+import { linkGuides, type LinkGuide } from "../view/linkGuides";
 
 const SNAP_PX = 10;
 const DIMENSION_OFFSET = 10;
@@ -190,6 +192,8 @@ export function Canvas() {
 
   const fontSize = 12 / view.scale;
   const hair = 1 / view.scale;
+  const guides = linkGuides(store.state, resolved, selection, 8 * hair);
+  const varName = linkedNames(selection);
 
   return (
     <svg
@@ -204,6 +208,8 @@ export function Canvas() {
     >
       <Grid view={view} size={size} />
       <g transform={`translate(${view.ox} ${view.oy}) scale(${view.scale})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
+        {/* Behind the shapes: live links, screen only. */}
+        {guides.map((g) => <LinkGuideView key={g.link} guide={g} fontSize={fontSize} hair={hair} />)}
         {resolved.order.map((id) => (
           <ShapeView
             key={id} shape={resolved.shapes[id]!} hair={hair}
@@ -212,8 +218,8 @@ export function Canvas() {
             locked={derivedAxes(resolved, id)}
           />
         ))}
-        {resolved.dimensions.map((d) => <DimensionView key={d.id} dim={d} fontSize={fontSize} hair={hair} />)}
-        {resolved.radiusLabels.map((l) => <RadiusLabelView key={l.id} label={l} fontSize={fontSize} />)}
+        {resolved.dimensions.map((d) => <DimensionView key={d.id} dim={d} fontSize={fontSize} hair={hair} link={varName(d.target, d.prop)} />)}
+        {resolved.radiusLabels.map((l) => <RadiusLabelView key={l.id} label={l} fontSize={fontSize} link={varName(l.target, "r", l.corner)} />)}
         {preview?.kind === "draw" && <DrawPreview d={preview} hair={hair} />}
       </g>
       {tool === "select" && selection.length === 1 && resolved.shapes[selection[0]!] && (
@@ -300,7 +306,52 @@ function ShapeView({ shape, selected, reference, locked, hair }: { shape: Resolv
   );
 }
 
-function DimensionView({ dim, fontSize, hair }: { dim: ResolvedDimension; fontSize: number; hair: number }) {
+interface LinkName { name: string; emphasis: boolean }
+
+/** " = name" after a label whose value is a linked length; on screen only. */
+function LinkNameSpan({ link }: { link?: LinkName }) {
+  return link ? <tspan className={link.emphasis ? "link-name emphasis" : "link-name"}> = {link.name}</tspan> : null;
+}
+
+/**
+ * Looks up the variable behind a length prop (or one corner radius), with
+ * emphasis when a selected shape shares that variable.
+ */
+function linkedNames(selection: EntityId[]): (id: EntityId, prop: string, corner?: number) => LinkName | undefined {
+  const state = store.state;
+  const shared = new Set<EntityId>();
+  for (const id of selection) {
+    for (const v of Object.values(state.entities[id]?.props ?? {})) {
+      for (const x of Array.isArray(v) ? v : [v]) if (isRef(x)) shared.add(x.ref);
+    }
+  }
+  return (id, prop, corner) => {
+    const v = state.entities[id]?.props[prop];
+    const raw = corner === undefined ? v : Array.isArray(v) ? v[corner] : undefined;
+    if (!isRef(raw)) return undefined;
+    return { name: entityAs(state, raw.ref, KINDS.variable)?.name ?? raw.ref, emphasis: shared.has(raw.ref) };
+  };
+}
+
+/** A live link: dashed guides, "=" across equal spacings. Faint unless it touches the selection. */
+function LinkGuideView({ guide, fontSize, hair }: { guide: LinkGuide; fontSize: number; hair: number }) {
+  const cls = `link-guide${guide.emphasis ? " emphasis" : ""}${guide.broken ? " broken" : ""}`;
+  return (
+    <g className={cls}>
+      <path d={pathToSvg(guide.path)} strokeWidth={hair * (guide.emphasis ? 1.5 : 1)} strokeDasharray={`${5 * hair} ${3 * hair}`} />
+      {guide.marks.map((m, i) => {
+        // Beside the segment it marks: above a horizontal one, right of a vertical one.
+        const s = guide.path[i];
+        const vertical = s && Math.abs(s.to[0] - s.from[0]) < Math.abs(s.to[1] - s.from[1]);
+        return vertical
+          ? <text key={i} x={m[0] + fontSize * 0.4} y={m[1]} fontSize={fontSize} dominantBaseline="middle">=</text>
+          : <text key={i} x={m[0]} y={m[1] - fontSize * 0.35} fontSize={fontSize} textAnchor="middle">=</text>;
+      })}
+    </g>
+  );
+}
+
+function DimensionView({ dim, fontSize, hair, link }: { dim: ResolvedDimension; fontSize: number; hair: number; link?: LinkName }) {
   const { line, anchors } = dim;
   const [ax, ay] = line.from, [bx, by] = line.to;
   const mid: Point = [(ax + bx) / 2, (ay + by) / 2];
@@ -322,16 +373,16 @@ function DimensionView({ dim, fontSize, hair }: { dim: ResolvedDimension; fontSi
         dy={-fontSize * 0.3}
         transform={`rotate(${textAngle} ${mid[0]} ${mid[1]})`}
       >
-        {formatMm(dim.value)}
+        {formatMm(dim.value)}<LinkNameSpan link={link} />
       </text>
     </g>
   );
 }
 
-function RadiusLabelView({ label, fontSize }: { label: ResolvedRadiusLabel; fontSize: number }) {
+function RadiusLabelView({ label, fontSize, link }: { label: ResolvedRadiusLabel; fontSize: number; link?: LinkName }) {
   return (
     <text className="radius-label" x={label.at[0]} y={label.at[1]} fontSize={fontSize} dy={-fontSize * 0.4}>
-      R{formatMm(label.radius)}
+      R{formatMm(label.radius)}<LinkNameSpan link={link} />
     </text>
   );
 }
