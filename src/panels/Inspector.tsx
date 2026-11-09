@@ -5,18 +5,21 @@ import { useEffect, useState } from "react";
 import { applyChange } from "@sandtreader/collab/protocol";
 import {
   KINDS, batch, deleteEntity, entityAs, isRef, lengthValue, linkLengths, linkSpacing, newId, propsChanged,
-  setCornerRadius, setLength, unlinkLength, unlinkSpacing,
-  type Axis, type EntityId, type Length, type ResolvedRect, type SpacingMode,
+  setCornerRadius, setDocumentProps, setLength, unlinkLength, unlinkSpacing,
+  type Axis, type DocumentField, type EntityId, type Length, type ResolvedRect, type SpacingMode,
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { useEditor } from "../app/editor";
+import { useFileName } from "../app/file";
 import { formatMm } from "../canvas/Canvas";
 
 export function Inspector() {
   const state = useDocument();
   const { editor } = useEditor();
   const ids = editor.selection.filter((id) => state.entities[id]);
-  if (ids.length === 0) return <aside className="inspector"><p className="hint">Select a shape, or draw one.</p><Variables /></aside>;
+  if (ids.length === 0) {
+    return <aside className="inspector"><p className="hint">Select a shape, or draw one.</p><Properties /><Variables /></aside>;
+  }
   if (ids.length === 1) return <aside className="inspector"><Single id={ids[0]!} /><Variables /></aside>;
   return <aside className="inspector"><Multi ids={ids} /><Variables /></aside>;
 }
@@ -198,6 +201,31 @@ export function deleteSelection(ids: EntityId[]) {
   else if (changes.length > 1) store.commit(batch(changes));
 }
 
+// ---- Document properties ----
+
+/** Shown with nothing selected; printed in the title block. */
+function Properties() {
+  useDocument();
+  const fileName = useFileName();
+  const d = store.resolved.document;
+  const set = (field: DocumentField) => (v: string) => {
+    const c = setDocumentProps(store.state, { [field]: v });
+    if (c) store.commit(c);
+  };
+  return (
+    <section className="properties">
+      <h2>Properties</h2>
+      <Row label="Title"><Text value={d.title} placeholder={fileName} onCommit={set("title")} /></Row>
+      <Row label="Author"><Text value={d.author} onCommit={set("author")} /></Row>
+      <Row label="Revision"><Text value={d.revision} onCommit={set("revision")} /></Row>
+      <label className="row stacked">
+        <span className="label">Notes</span>
+        <Text value={d.notes} onCommit={set("notes")} multiline />
+      </label>
+    </section>
+  );
+}
+
 // ---- Variables ----
 
 function Variables() {
@@ -241,6 +269,22 @@ function Num({ value, onCommit, disabled, unit = "mm" }: { value: number; onComm
       <span className="unit">{unit}</span>
     </span>
   );
+}
+
+/** Free text, committed on blur or Enter (⌘Enter in a multi-line field). */
+function Text({ value, onCommit, placeholder, multiline }: { value: string; onCommit: (v: string) => void; placeholder?: string; multiline?: boolean }) {
+  const [text, setText] = useState(value);
+  useEffect(() => { setText(value); }, [value]);
+  const props = {
+    className: "text", value: text, placeholder,
+    onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setText(e.target.value),
+    onBlur: () => { if (text !== value) onCommit(text); },
+    onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+      if (e.key === "Enter" && (!multiline || e.metaKey || e.ctrlKey)) { e.preventDefault(); e.currentTarget.blur(); }
+      if (e.key === "Escape") { setText(value); e.currentTarget.blur(); }
+    },
+  };
+  return multiline ? <textarea rows={4} {...props} /> : <input type="text" {...props} />;
 }
 
 function kindLabel(kind: string): string {

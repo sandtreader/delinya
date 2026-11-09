@@ -11,6 +11,7 @@
 import { useSyncExternalStore } from "react";
 import { emptyState } from "@sandtreader/collab/protocol";
 import { parseDrawing, serializeDrawing } from "../model";
+import { downloadBlob } from "./download";
 import { store } from "./store";
 
 export const EXTENSION = ".delinya";
@@ -151,13 +152,7 @@ async function writeTo(handle: FileSystemFileHandle, name: string): Promise<bool
 
 /** Fallback save: the browser's download, which we can't confirm landed. */
 function download(): void {
-  const blob = new Blob([serializeDrawing(store.state)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = current.name + EXTENSION;
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
+  downloadBlob(serializeDrawing(store.state), current.name + EXTENSION, "application/json");
   store.markSaved();
 }
 

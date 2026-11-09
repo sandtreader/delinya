@@ -4,6 +4,7 @@ import { store } from "./app/store";
 import { Canvas } from "./canvas/Canvas";
 import { Inspector, deleteSelection } from "./panels/Inspector";
 import { StatusBar } from "./panels/StatusBar";
+import { OutputDialog } from "./panels/OutputDialog";
 import { Toolbar, useFileCommands } from "./panels/Toolbar";
 import { useDirty, useFileName } from "./app/file";
 import "./styles.css";
@@ -37,6 +38,14 @@ function Shell() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
+      // An open dialog handles its own keys.
+      if (editor.dialog) return;
+      if (mod && e.key.toLowerCase() === "p") {
+        e.preventDefault();
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        dispatch({ type: "dialog", dialog: "output" });
+        return;
+      }
       // File keys work from inside a field too; blurring first commits its value.
       if (mod && (e.key.toLowerCase() === "s" || e.key.toLowerCase() === "o")) {
         e.preventDefault();
@@ -66,7 +75,7 @@ function Shell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editor.selection, dispatch, file]);
+  }, [editor.selection, editor.dialog, dispatch, file]);
 
   return (
     <div className="app">
@@ -74,6 +83,7 @@ function Shell() {
       <Canvas />
       <Inspector />
       <StatusBar />
+      {editor.dialog === "output" && <OutputDialog />}
     </div>
   );
 }

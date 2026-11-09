@@ -11,6 +11,7 @@ import { store, useDocument } from "../app/store";
 import { useEditor, type Tool } from "../app/editor";
 import { gridPitch, toModel, toScreen, type View } from "../view/viewport";
 import { pathToSvg } from "../view/svgPath";
+import { formatMm } from "../view/format";
 import { snapMove, snapPoint } from "./snap";
 
 const SNAP_PX = 10;
@@ -381,6 +382,4 @@ function isMajor(v: number, major: number): boolean {
   return Math.abs(v / major - Math.round(v / major)) < 1e-9;
 }
 
-export function formatMm(v: number): string {
-  return (Math.round(v * 100) / 100).toString();
-}
+export { formatMm } from "../view/format";

@@ -17,14 +17,14 @@ import {
 import {
   type Axis, type DimensionProp, type DimensionProps, type EntityId, type Length,
   type RadiusLabelProps, type SpacingProps,
-  KINDS, entitiesOfKind, isRef,
+  DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, isRef,
 } from "./types";
 
 // ---- Output types ----
 
 export type IssueCode =
   | "dangling-ref"          // a { ref } points at a missing or non-variable entity
-  | "bad-value"             // a prop that must be a number isn't
+  | "bad-value"             // a prop has the wrong type (not a number, not text)
   | "radius-clamped"        // corner radii were too big for the rectangle
   | "dangling-target"       // dimension / label / link refers to a missing shape
   | "spacing-inactive"      // a spacing link could not be computed
@@ -112,7 +112,16 @@ export interface ResolvedSpacing {
   step: number;
 }
 
+/** Document properties, "" where unset. */
+export interface ResolvedDocument {
+  title: string;
+  author: string;
+  revision: string;
+  notes: string;
+}
+
 export interface Resolved {
+  document: ResolvedDocument;
   /** Shapes by ID, positions already adjusted by spacing links. */
   shapes: Record<EntityId, ResolvedShape>;
   /** Shape IDs in document (draw) order. */
@@ -141,8 +150,9 @@ export function resolve(state: DocState): Resolved {
   const spacings = applySpacings(ctx, shapes);
   const dimensions = resolveDimensions(ctx, shapes);
   const radiusLabels = resolveRadiusLabels(ctx, shapes);
+  const document = resolveDocument(ctx);
 
-  return { shapes, order, variables, dimensions, radiusLabels, spacings, issues };
+  return { document, shapes, order, variables, dimensions, radiusLabels, spacings, issues };
 }
 
 interface Ctx {
@@ -188,6 +198,20 @@ export function lengthValue(state: DocState, v: Length): number | undefined {
   if (!e || e.kind !== KINDS.variable) return undefined;
   const n = e.props.value;
   return typeof n === "number" ? n : undefined;
+}
+
+// ---- Document properties ----
+
+function resolveDocument(ctx: Ctx): ResolvedDocument {
+  const out: ResolvedDocument = { title: "", author: "", revision: "", notes: "" };
+  const e = ctx.state.entities[DOCUMENT_ID];
+  if (!e || e.kind !== KINDS.document) return out;
+  for (const k of DOCUMENT_FIELDS) {
+    const v = e.props[k];
+    if (typeof v === "string") out[k] = v;
+    else if (v != null) ctx.issues.push({ entity: DOCUMENT_ID, code: "bad-value", message: `${k} is not text` });
+  }
+  return out;
 }
 
 // ---- Shapes ----

@@ -33,6 +33,7 @@ export const KINDS = {
   spacing: "link.spacing",
   dimension: "dimension",
   radiusLabel: "radius-label",
+  document: "document",
 } as const;
 
 export type Kind = (typeof KINDS)[keyof typeof KINDS];
@@ -102,6 +103,18 @@ export interface RadiusLabelProps {
   corner: 0 | 1 | 2 | 3;
 }
 
+/** Title-block text for the whole drawing, on the singleton DOCUMENT_ID. */
+export interface DocumentProps {
+  title?: string;
+  author?: string;
+  revision?: string;
+  notes?: string;
+}
+
+export type DocumentField = keyof DocumentProps;
+export const DOCUMENT_FIELDS: readonly DocumentField[] = ["title", "author", "revision", "notes"];
+export const DOCUMENT_ID = "document";
+
 // ---- Typed access ----
 
 export interface PropsByKind {
@@ -112,6 +125,7 @@ export interface PropsByKind {
   "link.spacing": SpacingProps;
   dimension: DimensionProps;
   "radius-label": RadiusLabelProps;
+  document: DocumentProps;
 }
 
 /** Typed read of an entity's props; undefined if missing or of another kind. */

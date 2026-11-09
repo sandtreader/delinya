@@ -7,9 +7,9 @@
 import type { Change, DocState, Props } from "@sandtreader/collab/protocol";
 import { lengthValue, resolve } from "./resolve";
 import {
-  type Axis, type CircleProps, type DimensionProp, type EntityId, type Length, type LineProps,
-  type RectProps, type SpacingMode, type SpacingProps,
-  KINDS, entitiesOfKind, entityAs, isRef, kindOf, toProps,
+  type Axis, type CircleProps, type DimensionProp, type DocumentField, type EntityId, type Length,
+  type LineProps, type RectProps, type SpacingMode, type SpacingProps,
+  DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, entityAs, isRef, kindOf, toProps,
 } from "./types";
 
 export interface Gesture {
@@ -173,6 +173,24 @@ export function unlinkSpacing(state: DocState, id: EntityId): Change | undefined
   }
   changes.push({ type: "entity_removed", id });
   return batch(changes);
+}
+
+// ---- Document properties ----
+
+/**
+ * Set title-block text. Adds the singleton entity on first use, otherwise
+ * sends only the props that differ; undefined if none do. Absent counts as "".
+ */
+export function setDocumentProps(state: DocState, props: Partial<Record<DocumentField, string>>): Change | undefined {
+  const e = state.entities[DOCUMENT_ID];
+  const changed: Props = {};
+  for (const k of DOCUMENT_FIELDS) {
+    const v = props[k];
+    if (v !== undefined && v !== (e?.props[k] ?? "")) changed[k] = v;
+  }
+  if (Object.keys(changed).length === 0) return undefined;
+  if (!e) return { type: "entity_added", id: DOCUMENT_ID, kind: KINDS.document, props: changed };
+  return propsChanged(DOCUMENT_ID, changed);
 }
 
 // ---- Deleting ----

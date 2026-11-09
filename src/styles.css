@@ -91,6 +91,10 @@ fieldset .row { width: 100%; }
 .num input { width: 80px; font: inherit; padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; text-align: right; font-variant-numeric: tabular-nums; }
 .num input:focus { outline: none; border-color: var(--accent); }
 .num input:disabled { background: var(--bg); color: var(--muted); }
+.row .text { flex: 1; min-width: 0; font: inherit; padding: 3px 6px; border: 1px solid var(--line); border-radius: 4px; }
+.row .text:focus { outline: none; border-color: var(--accent); }
+.row.stacked { flex-direction: column; align-items: stretch; }
+.row.stacked .text { resize: vertical; }
 .unit { color: var(--muted); }
 .linked { color: var(--accent); white-space: nowrap; }
 .hint { color: var(--muted); }
@@ -102,3 +106,52 @@ fieldset .row { width: 100%; }
   font-variant-numeric: tabular-nums;
 }
 .status .grow { flex: 1; }
+
+/* ---- Dialogs ---- */
+
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 10;
+  background: rgba(29, 29, 27, 0.35);
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+}
+.modal {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.18);
+  display: flex; flex-direction: column; max-width: 100%; max-height: 100%;
+}
+.modal header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px; border-bottom: 1px solid var(--line);
+}
+.modal h2 { font-size: 14px; margin: 0; }
+.modal h3 { font-size: 13px; margin: 0 0 8px; }
+.modal .close { border: none; font-size: 18px; line-height: 1; padding: 2px 6px; }
+.modal-body { display: flex; min-height: 0; flex: 1; }
+.modal select { font: inherit; padding: 2px 4px; min-width: 0; flex: 1; }
+.modal .hint { color: var(--muted); margin: 8px 0; }
+.modal .buttons { display: flex; gap: 6px; margin-top: 10px; }
+button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+
+.output-dialog { width: min(1400px, 100%); height: min(1000px, 100%); }
+.output-options { width: 320px; flex: none; padding: 14px; overflow: auto; border-right: 1px solid var(--line); }
+.output-options section + section { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+.output-options .row .label { width: 84px; }
+.output-options .row.check { gap: 8px; }
+.output-preview { flex: 1; min-width: 0; overflow: auto; padding: 16px; background: var(--bg); }
+.output-preview .sheets { display: grid; gap: 12px; align-items: start; }
+.output-preview .sheet svg { display: block; width: 100%; height: auto; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); }
+/* One row of sheets fits the pane's height, so a whole sheet is visible. */
+.output-preview .sheets.one-row { height: 100%; grid-template-rows: 100%; grid-auto-flow: column; grid-template-columns: none !important; justify-content: center; }
+.output-preview .sheets.one-row .sheet { height: 100%; min-width: 0; display: flex; align-items: center; justify-content: center; }
+.output-preview .sheets.one-row .sheet svg { width: auto; height: auto; max-width: 100%; max-height: 100%; }
+
+/* ---- Printing: only the composed pages ---- */
+
+.print-pages { display: none; }
+@media print {
+  html, body, #root { height: auto; }
+  body.printing #root { display: none; }
+  body.printing .print-pages { display: block; }
+  .print-pages svg { display: block; break-after: page; }
+  .print-pages svg:last-child { break-after: auto; }
+}

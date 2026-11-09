@@ -1,10 +1,11 @@
-// Editor (non-document) state: tool, selection, view. Never synced.
+// Editor (non-document) state: tool, selection, view, open dialog. Never synced.
 
 import { createContext, useContext, type Dispatch } from "react";
 import type { EntityId, SnapPoint } from "../model";
 import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
 
 export type Tool = "select" | "line" | "rect" | "circle";
+export type Dialog = "output";
 
 export interface EditorState {
   tool: Tool;
@@ -14,6 +15,7 @@ export interface EditorState {
   cursor: [number, number] | null;
   /** Snap point the pointer is currently locked to. */
   snap: SnapPoint | null;
+  dialog: Dialog | null;
 }
 
 export const initialEditor: EditorState = {
@@ -22,6 +24,7 @@ export const initialEditor: EditorState = {
   view: DEFAULT_VIEW,
   cursor: null,
   snap: null,
+  dialog: null,
 };
 
 export type EditorAction =
@@ -31,7 +34,8 @@ export type EditorAction =
   | { type: "view"; view: View }
   | { type: "panBy"; dx: number; dy: number }
   | { type: "zoomAt"; factor: number; at: [number, number] }
-  | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null };
+  | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null }
+  | { type: "dialog"; dialog: Dialog | null };
 
 export function editorReducer(s: EditorState, a: EditorAction): EditorState {
   switch (a.type) {
@@ -45,6 +49,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "panBy": return { ...s, view: pan(s.view, a.dx, a.dy) };
     case "zoomAt": return { ...s, view: zoomAt(s.view, a.factor, a.at) };
     case "pointer": return { ...s, cursor: a.cursor, snap: a.snap };
+    case "dialog": return { ...s, dialog: a.dialog };
   }
 }
 

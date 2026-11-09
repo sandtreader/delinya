@@ -1,15 +1,16 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-09. Repo `sandtreader/delinya`, branch `main`, head
-is the file save/load commit. Tree clean; 67 Vitest tests and `tsc` pass.
+is the print and export commit. Tree clean; Vitest tests and `tsc` pass.
 
 ## Where we are
 
 The abstract model is complete for the outline's v1 feature set and the
 first visual slice is usable: you can draw, move, resize, type exact values,
-link equal values and equal spacing, and undo. The collab adapter is wired
-and tested against the real relay but has no UI. Nothing persists: there is
-save/load to local files but no print or export yet.
+link equal values and equal spacing, undo, save/load local files, print at
+scale (tiled if needed, with a check ruler and title block) and export PDF,
+SVG and DXF. The collab adapter is wired and tested against the real relay
+but has no UI.
 
 ## What is built
 
@@ -17,7 +18,10 @@ save/load to local files but no print or export yet.
 
 - **Document** is `@sandtreader/collab`'s `DocState` (flat `{kind, props}`
   map). Kinds: `line`, `rect`, `circle`, `variable`, `link.spacing`,
-  `dimension`, `radius-label`. Typed props in `types.ts`.
+  `dimension`, `radius-label`, and the singleton `document` (id
+  `DOCUMENT_ID`) holding title, author, revision and notes for the title
+  block. Typed props in `types.ts`; `setDocumentProps` edits them and
+  `resolved.document` reads them ("" when unset).
 - **Lengths** are `number | { ref: variableId }`. Equal-value links are
   refs (outline option A). There is no `link.equal` entity.
 - **Line** is stored as `{ x, y, length, angle }` so its length can be a
@@ -84,7 +88,9 @@ through `useSyncExternalStore`.
   radii with a clamped indicator, spacing membership. Multi-selection can
   link widths/heights/diameters/lengths (names the variable via
   `window.prompt`) and space evenly by gaps or centres along x or y, with
-  the outer two items as anchors. Variables are listed.
+  the outer two items as anchors. Variables are listed. With nothing
+  selected it shows the document Properties (title, author, revision,
+  notes).
 - **Files** (`app/file.ts`): New, Open…, Save, Save as… in the toolbar;
   ⌘O, ⌘S, ⇧⌘S. Uses the File System Access API where present (Chromium),
   so Save writes back to the opened file; elsewhere Save downloads and
@@ -92,12 +98,41 @@ through `useSyncExternalStore`.
   opens). The toolbar and tab title show the file name and a • when
   dirty; New/Open confirm before discarding, and closing the tab warns.
   Loading clears selection, returns to select and resets the view.
+- **Print / Export** (`panels/OutputDialog.tsx`, ⌘P): paper (A0–A4,
+  Letter, Legal, Tabloid), orientation (auto picks fewer sheets), scale
+  (2:1 … 1:100, Fit = largest that fits one sheet), dimensions on/off,
+  live preview of every sheet. Print uses `window.print()` on true-size
+  page SVGs with an `@page` rule (`app/print.ts`); Download PDF writes the
+  same pages. SVG and DXF download at 1:1 mm. Paper, orientation and
+  dimensions are remembered in localStorage; scale only for the session.
 - **Keys**: ⌘Z / ⇧⌘Z (Ctrl+Y) undo/redo, Delete/Backspace, Escape to
-  select and clear. File keys work from inside a field: they blur it
-  first so its value commits.
+  select and clear, ⌘P print/export. File keys work from inside a field:
+  they blur it first so its value commits.
+
+### Output (`src/output/`, all pure, fully tested)
+
+- `drawingPrimitives(resolved)` turns the drawing into paths and text with
+  roles (shape, dimension, furniture, guide) once; every format renders
+  those. Text is measured with Helvetica metrics (`text.ts`) everywhere.
+- `planPages` lays the drawing onto sheets at a scale: margins 10 mm, a
+  30 mm footer band, tiles overlapping 10 mm and labelled A1, A2, … B1.
+- `composePages` gives each sheet in paper mm: the drawing (clipped to
+  the area), a 100 mm check ruler, overlap guides, and an 80 × 30 mm
+  title block bottom right (title, author, revision, scale, sheet,
+  notes; title falls back to the file name).
+- `pageToSvg` (preview and print), `exportPdf` (hand-written PDF 1.4,
+  standard Helvetica, no dependencies), `exportSvg` (1:1 mm) and
+  `exportDxf` (R12, mm, y flipped, shapes only; rects become closed
+  polylines with bulges so CAM gets whole contours).
 
 ## Decisions taken (not in the outline)
 
+- Print and PDF share one page model; the PDF and DXF writers are
+  hand-written (no jsPDF / dxf libraries). Exact print scale depends on the
+  print dialog being at 100%; the check ruler is how users verify it.
+  Verified on paper 2026-11-09: the ruler measured exactly 100 mm.
+- Document properties are a singleton entity, so they save, sync and undo
+  like everything else.
 - Equal-value links are refs, not link entities.
 - Lines store length and angle, not two endpoints.
 - Corner radii clamp (CSS rule) and flag rather than reject.
@@ -111,15 +146,15 @@ through `useSyncExternalStore`.
 
 ## Not built yet (in rough priority order)
 
-1. **Print at scale** with a check ruler; **export** SVG, DXF, PDF.
-   `view/svgPath.ts` already turns paths into SVG `d` strings.
-2. **Manual dimension and radius-label tools**, and dragging dimension
+1. **Manual dimension and radius-label tools**, and dragging dimension
    offsets.
-3. **Collaboration UI**: connect, session panel, presence cursors. Needs
+2. **Collaboration UI**: connect, session panel, presence cursors. Needs
    the MUI decision and `ProxyPass` lines on a delinya.net vhost (same as
    synflo.net, port 2901 on st1).
-4. **Fit view to drawing** (on open, and as a button); opening resets to
+3. **Fit view to drawing** (on open, and as a button); opening resets to
    the default view for now.
+4. Print refinements: a date in the title block, dimensions in DXF on
+   their own layer, a custom scale.
 5. Rotation of rects, text, named variables/expressions, woodwork extras
    (see outline "Later").
 
