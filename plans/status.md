@@ -84,6 +84,13 @@ Vite 6, React 19, TypeScript, plain CSS. SVG canvas with a model-space
 lives in a reducer and is never part of the document; the document is read
 through `useSyncExternalStore`.
 
+- **Tool palette** (`panels/ToolPalette.tsx`): select, line, rectangle and
+  circle as icons in a palette floating over the canvas, top left by
+  default, dragged by its grip. Its position is per browser in
+  localStorage (`delinya.toolPalette`, via `app/floatPosition.ts`), never
+  in the document, and is kept on screen when the window shrinks. Reset
+  view also sends it home (`sendToolPaletteHome`). Undo and
+  redo are curved-arrow buttons in the header.
 - **Tools**: select (V), line (L), rect (R), circle (C). Drawing a shape
   also adds its dimensions (rect: width and height; circle: diameter;
   line: length) and returns to select unless Shift is held. Shift

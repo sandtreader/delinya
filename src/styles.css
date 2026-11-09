@@ -40,6 +40,7 @@ body { background: var(--bg); }
 .filename { color: var(--muted); margin-right: 8px; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .filename .dirty { color: var(--warn); }
 .group { display: flex; gap: 4px; align-items: center; }
+.toolbar button.icon { padding: 4px 8px; line-height: 0; }
 .zoom { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
 
 button {
@@ -189,3 +190,17 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
 .selection-panel button.icon svg rect { fill: var(--ink); }
 .selection-panel button.icon svg .guide { stroke: var(--select); stroke-width: 1.5; }
 .selection-panel .keep-linked { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+
+/* ---- Tool palette (floating, draggable) ---- */
+
+.tool-palette {
+  position: absolute; z-index: 2;
+  display: flex; flex-direction: column; gap: 4px; padding: 0 5px 5px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); user-select: none; -webkit-user-select: none;
+}
+/* touch-action: none so a touch drag moves the palette instead of scrolling. */
+.tool-palette .grip { display: flex; justify-content: center; padding: 5px 0 3px; color: var(--muted); cursor: grab; touch-action: none; }
+.tool-palette .grip:active { cursor: grabbing; }
+.tool-palette .grip svg { fill: currentColor; }
+.tool-palette button { padding: 5px; line-height: 0; }

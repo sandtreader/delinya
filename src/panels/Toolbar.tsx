@@ -1,15 +1,9 @@
 import { useMemo } from "react";
 import { useDocument, store } from "../app/store";
-import { useEditor, type Tool } from "../app/editor";
+import { useEditor } from "../app/editor";
 import { newDrawing, openDrawing, saveDrawing, saveDrawingAs, useDirty, useFileName } from "../app/file";
 import { DEFAULT_VIEW } from "../view/viewport";
-
-const TOOLS: Array<{ tool: Tool; label: string; key: string }> = [
-  { tool: "select", label: "Select", key: "V" },
-  { tool: "line", label: "Line", key: "L" },
-  { tool: "rect", label: "Rectangle", key: "R" },
-  { tool: "circle", label: "Circle", key: "C" },
-];
+import { sendToolPaletteHome } from "./ToolPalette";
 
 /**
  * File commands that also reset editor state when a drawing is replaced:
@@ -54,25 +48,34 @@ export function Toolbar() {
         <button onClick={() => dispatch({ type: "dialog", dialog: "output" })} title="Print and export (⌘P)">Print / Export…</button>
       </div>
       <div className="group">
-        {TOOLS.map((t) => (
-          <button
-            key={t.tool}
-            className={editor.tool === t.tool ? "active" : ""}
-            onClick={() => dispatch({ type: "tool", tool: t.tool })}
-            title={`${t.label} (${t.key})`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-      <div className="group">
-        <button disabled={!store.canUndo} onClick={() => store.undo()} title="Undo (⌘Z)">Undo</button>
-        <button disabled={!store.canRedo} onClick={() => store.redo()} title="Redo (⇧⌘Z)">Redo</button>
+        <button className="icon" disabled={!store.canUndo} onClick={() => store.undo()} title="Undo (⌘Z)" aria-label="Undo">
+          <HistoryIcon />
+        </button>
+        <button className="icon" disabled={!store.canRedo} onClick={() => store.redo()} title="Redo (⇧⌘Z)" aria-label="Redo">
+          <HistoryIcon redo />
+        </button>
       </div>
       <div className="group">
         <span className="zoom">{Math.round(editor.view.scale * 100) / 100} px/mm</span>
-        <button onClick={() => dispatch({ type: "view", view: DEFAULT_VIEW })} title="Reset view">Reset view</button>
+        <button
+          onClick={() => { dispatch({ type: "view", view: DEFAULT_VIEW }); sendToolPaletteHome(); }}
+          title="Reset zoom and pan, and put the tool palette back top left"
+        >
+          Reset view
+        </button>
       </div>
     </header>
+  );
+}
+
+/** A curved arrow back (undo) or, mirrored, forward (redo). */
+function HistoryIcon({ redo = false }: { redo?: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <g transform={redo ? "matrix(-1 0 0 1 16 0)" : undefined}>
+        <path d="M5.5 3.5 2.5 6.5l3 3" />
+        <path d="M2.5 6.5H10a3.5 3.5 0 0 1 0 7H6.5" />
+      </g>
+    </svg>
   );
 }
