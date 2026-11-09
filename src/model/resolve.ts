@@ -616,6 +616,32 @@ export function derivedAxes(r: Resolved, id: EntityId): Set<Axis> {
   return out;
 }
 
+/** The point a live link holds a shape by on one axis: its start, centre or end, and where that is now. */
+export interface LinkLock {
+  mode: AlignMode;
+  at: number;
+}
+export type LinkLocks = Partial<Record<Axis, LinkLock>>;
+
+/**
+ * Per axis, the point a live link holds this shape at, so resizing can keep
+ * it still rather than have the link snap the shape back. Spacing counts as
+ * holding the centre: exact for centres mode; for gaps, growing an item also
+ * shrinks the gaps, so its centre drifts unless it is the only item.
+ */
+export function linkLocks(r: Resolved, id: EntityId): LinkLocks {
+  const s = shapeAt(r.shapes, id);
+  if (!s) return {};
+  const out: LinkLocks = {};
+  const hold = (axis: Axis, mode: AlignMode) => {
+    const min = boundsMin(s.bounds, axis), max = boundsMax(s.bounds, axis);
+    out[axis] = { mode, at: mode === "start" ? min : mode === "end" ? max : snapNumber((min + max) / 2) };
+  };
+  for (const l of r.aligns) if (l.active && Object.hasOwn(l.positions, id)) hold(l.axis, l.mode);
+  for (const l of r.spacings) if (l.active && Object.hasOwn(l.positions, id)) hold(l.axis, "centre");
+  return out;
+}
+
 /** A drag delta with the components dropped on axes a live link controls for this shape; [0, 0] if it is not a shape. */
 export function freeDelta(r: Resolved, id: EntityId, delta: Point): Point {
   if (!Object.hasOwn(r.shapes, id)) return [0, 0];

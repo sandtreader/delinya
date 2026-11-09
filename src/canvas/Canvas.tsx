@@ -4,8 +4,8 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent } from "react";
 import {
-  addCircle, addDimension, addLine, addRect, batch, derivedAxes, freeDelta, handlesFor, moveBy, newId, resizeTo, snapNumber,
-  type EntityId, type HandleSpot, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
+  addCircle, addDimension, addLine, addRect, batch, derivedAxes, dragHandle, freeDelta, handlesFor, linkLocks, moveBy, newId, snapNumber,
+  type EntityId, type HandleSpot, type LinkLocks, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { useEditor, type Tool } from "../app/editor";
@@ -20,7 +20,7 @@ const DIMENSION_OFFSET = 10;
 type Drag =
   | { kind: "pan"; last: Point; start: Point; clearOnClick: boolean }
   | { kind: "move"; ids: EntityId[]; primary: EntityId; origin: Point; applied: Point; moved: boolean }
-  | { kind: "resize"; id: EntityId; spot: HandleSpot; moved: boolean }
+  | { kind: "resize"; id: EntityId; spot: HandleSpot; locks: LinkLocks; moved: boolean }
   | { kind: "draw"; tool: Exclude<Tool, "select">; start: Point; current: Point };
 
 export function Canvas() {
@@ -69,8 +69,14 @@ export function Canvas() {
       const handleIndex = (e.target as Element).closest<SVGElement>("[data-handle]")?.dataset.handle;
       if (handleIndex !== undefined && selection.length === 1) {
         const shape = resolved.shapes[selection[0]!];
-        const spot = shape && handlesFor(shape)[Number(handleIndex)];
-        if (spot) { dragRef.current = { kind: "resize", id: shape.id, spot, moved: false }; return; }
+        // Links hold some points of the shape still; the handles know which.
+        const locks = shape ? linkLocks(resolved, shape.id) : {};
+        const spot = shape && handlesFor(shape, locks)[Number(handleIndex)];
+        if (spot) {
+          // A handle that can't move at all starts nothing (and doesn't fall through to a move).
+          if (spot.cursor !== "not-allowed") dragRef.current = { kind: "resize", id: shape.id, spot, locks, moved: false };
+          return;
+        }
       }
       const hit = (e.target as Element).closest<SVGElement>("[data-id]")?.dataset.id;
       // Dragging the background pans; a plain click on it clears the selection.
@@ -125,7 +131,7 @@ export function Canvas() {
       }
       case "resize": {
         const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid);
-        const change = resizeTo(store.state, d.id, d.spot.handle, point, d.spot.anchor);
+        const change = dragHandle(store.state, d.id, d.spot, point, d.locks);
         if (change) {
           if (!d.moved) { store.beginGesture(); d.moved = true; }
           store.commit(change);
@@ -345,9 +351,10 @@ function DrawPreview({ d, hair }: { d: Extract<Drag, { kind: "draw" }>; hair: nu
 
 /** Resize handles in screen space, so they stay the same size at any zoom. */
 function Handles({ shape, view }: { shape: ResolvedShape; view: View }) {
+  const { resolved } = store;
   return (
     <g className="handles">
-      {handlesFor(shape).map((spot, i) => {
+      {handlesFor(shape, linkLocks(resolved, shape.id)).map((spot, i) => {
         const [x, y] = toScreen(view, spot.point);
         const round = spot.handle.kind === "circle-centre" || spot.handle.kind === "line-end";
         return round

@@ -154,6 +154,11 @@ through `useSyncExternalStore`.
 - Deleting a link's anchor writes its items' derived positions back before
   removing the link, so they stay where the link put them (one undo step).
   An align link emptied of items is removed; a spacing link is not.
+- Resize handles respect links (`linkLocks`, `dragHandle`): the point a
+  link holds (edge or centre; spacing counts as centre) stays put and the
+  handle follows the pointer from it; a handle that would have to move the
+  held point can't move that way. Cursors show no-entry or the free
+  direction, and a right-edge-held circle's radius handle sits on its left.
 - Drags can't move a shape along an axis a link controls (`freeDelta`);
   a shape locked both ways makes no edit or undo step. The cursor says so:
   no-entry when locked both ways, an up-down or left-right arrow when
@@ -185,8 +190,8 @@ through `useSyncExternalStore`.
 3. **Fit view to drawing** (on open, and as a button); opening resets to
    the default view for now.
 4. Links: show live links on the canvas (e.g. faint guide lines when a
-   linked shape is selected); resize handles still act on linked shapes
-   (e.g. a left-aligned rect's left handle).
+   linked shape is selected). Resizing one of several gap-spaced items
+   drifts its centre slightly (the held point is approximated as centre).
 5. Print refinements: a date in the title block, dimensions in DXF on
    their own layer, a custom scale.
 6. Rotation of rects, text, named variables/expressions, woodwork extras
