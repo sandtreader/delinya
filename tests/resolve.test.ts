@@ -60,6 +60,14 @@ describe("resolve shapes", () => {
     expect(l.snaps.find((s) => s.type === "midpoint")?.point).toEqual([0, 50]);
   });
 
+  it("keeps an angled line's end point to the micron, not whole millimetres", () => {
+    const l = resolve(doc(addLine("l", { x: 0, y: 80, length: 120, angle: -30 }))).shapes.l as ResolvedLine;
+    expect(l.to[0]).toBeCloseTo(120 * Math.cos(Math.PI / 6), 6);
+    expect(l.to[1]).toBeCloseTo(80 - 60, 6);
+    const steep = resolve(doc(addLine("l", { x: 0, y: 0, length: 10, angle: 37 }))).shapes.l as ResolvedLine;
+    expect(steep.to[1]).toBeCloseTo(10 * Math.sin((37 * Math.PI) / 180), 6);
+  });
+
   it("keeps shapes in document order and ignores non-shape entities", () => {
     const res = resolve(doc(addVariable("v", 5), addRect("b", { x: 0, y: 0, width: 1, height: 1 }), addCircle("a", { cx: 0, cy: 0, diameter: 1 })));
     expect(res.order).toEqual(["b", "a"]);

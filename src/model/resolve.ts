@@ -209,7 +209,8 @@ function resolveLine(ctx: Ctx, id: EntityId, p: Record<string, unknown>): Resolv
 }
 
 function buildLine(id: EntityId, from: Point, length: number, angle: number): ResolvedLine {
-  const to = polar(from, length, angle).map(snapNumber) as Point;
+  // Not .map(snapNumber): map's index would become the decimal places.
+  const to = polar(from, length, angle).map((v) => snapNumber(v)) as Point;
   const seg = segment(from, to);
   return {
     id, kind: "line", from, to, length, angle,
