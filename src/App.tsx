@@ -1,4 +1,4 @@
-import { useEffect, useReducer } from "react";
+import { useEffect, useReducer, type CSSProperties } from "react";
 import { EditorContext, editorReducer, initialEditor, useEditor, type Tool } from "./app/editor";
 import { store } from "./app/store";
 import { Canvas } from "./canvas/Canvas";
@@ -7,7 +7,11 @@ import { StatusBar } from "./panels/StatusBar";
 import { OutputDialog } from "./panels/OutputDialog";
 import { Toolbar, useFileCommands } from "./panels/Toolbar";
 import { useDirty, useFileName } from "./app/file";
+import { STYLE } from "./output/style";
 import "./styles.css";
+
+// Dimensions look the same on screen as on paper: one colour, from the output style.
+const APP_COLOURS = { "--dimension": STYLE.colour.dimension } as CSSProperties;
 
 const TOOL_KEYS: Record<string, Tool> = { v: "select", l: "line", r: "rect", c: "circle" };
 
@@ -78,7 +82,7 @@ function Shell() {
   }, [editor.selection, editor.dialog, dispatch, file]);
 
   return (
-    <div className="app">
+    <div className="app" style={APP_COLOURS}>
       <Toolbar />
       <Canvas />
       <Inspector />

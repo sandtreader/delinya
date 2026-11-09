@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { exportPdf } from "../../src/output/pdf";
+import { STYLE } from "../../src/output/style";
 import type { PageDrawing } from "../../src/output/types";
 
 const PT = 72 / 25.4;
@@ -96,5 +97,53 @@ describe("exportPdf", () => {
   it("handles no pages by making an empty one rather than an invalid file", () => {
     const empty = latin1(exportPdf([], { title: "", author: "" }));
     expect(empty).toMatch(/\/Count 1\b/);
+  });
+});
+
+describe("exportPdf colours", () => {
+  /** Walks each content stream, recording the stroke colour at every moveto and the fill colour at every Tj. */
+  function inks(pdf: string) {
+    const moves: Record<string, number[]> = {};
+    const texts: Record<string, number[]> = {};
+    for (const m of pdf.matchAll(/stream\r?\n([^]*?)endstream/g)) {
+      let stroke = [0, 0, 0], fill = [0, 0, 0];
+      const saved: Array<[number[], number[]]> = [];
+      for (const line of m[1]!.split(/\r?\n/)) {
+        const t = line.trim().split(/\s+/);
+        const op = t[t.length - 1];
+        const n = t.slice(0, -1).map(Number);
+        if (op === "q") saved.push([stroke, fill]);
+        else if (op === "Q") [stroke, fill] = saved.pop() ?? [stroke, fill];
+        else if (op === "RG") stroke = n;
+        else if (op === "G") stroke = [n[0]!, n[0]!, n[0]!];
+        else if (op === "rg") fill = n;
+        else if (op === "g") fill = [n[0]!, n[0]!, n[0]!];
+        else if (op === "m") moves[`${n[0]} ${n[1]}`] = stroke;
+        else if (op === "Tj") texts[line.slice(line.indexOf("("), line.lastIndexOf(")") + 1)] = fill;
+      }
+    }
+    return { moves, texts };
+  }
+
+  const hex = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  const expectInk = (got: number[] | undefined, want: number[]) => {
+    expect(got).toBeDefined();
+    got!.forEach((v, i) => expect(v).toBeCloseTo(want[i]!, 2));
+  };
+
+  it("strokes and fills dimensions in the dimension colour, everything else in black", () => {
+    const p = page(210, 297);
+    p.content.push(
+      { kind: "path", role: "dimension", path: [{ kind: "segment", from: [30, 15], to: [110, 15] }] },
+      { kind: "path", role: "shape", path: [{ kind: "segment", from: [25, 200], to: [125, 200] }] },
+    );
+    const { moves, texts } = inks(latin1(exportPdf([p], { title: "", author: "" })));
+    const blue = hex(STYLE.colour.dimension);
+    expectInk(moves["30 15"], blue);
+    expectInk(texts["(R10)"], blue);
+    expectInk(moves["20 20"], [0, 0, 0]);
+    expectInk(moves["25 200"], [0, 0, 0]);     // back to black after a dimension
+    expectInk(moves["190 10"], [0, 0, 0]);     // guide
+    expectInk(texts["(f\\(x\\) \\\\ 5\\260)"], [0, 0, 0]);
   });
 });

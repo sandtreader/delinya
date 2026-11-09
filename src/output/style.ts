@@ -4,6 +4,11 @@
 export const STYLE = {
   /** Stroke widths by role. */
   stroke: { shape: 0.35, dimension: 0.18, furniture: 0.2, guide: 0.2 },
+  /**
+   * Ink by role, for strokes and text alike. Dimensions are a mid blue so
+   * they read as annotation, not part (and print lighter in greyscale).
+   */
+  colour: { shape: "#000000", dimension: "#3070c0", furniture: "#000000", guide: "#000000" },
   /** Dash pattern for "guide" paths (tile overlap lines). */
   guideDash: [2, 1.5] as const,
   /** Dimension and radius-label text size. */

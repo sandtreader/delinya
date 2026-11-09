@@ -7,7 +7,8 @@
   --accent: #0b6e99;
   --warn: #b35c00;
   --shape: #1d1d1b;
-  --dimension: #5a6b7a;
+  --select: #e8730c;      /* canvas selection, hover, handles, preview, snap */
+  --dimension: #3070c0;   /* overridden from STYLE.colour.dimension in App */
   --grid-minor: #ececea;
   --grid-major: #dcdcd8;
   --grid-axis: #c4c4bf;
@@ -62,18 +63,18 @@ button.danger { color: #9b1c1c; }
 
 .shape .stroke { stroke: var(--shape); }
 .shape .hit { pointer-events: stroke; }
-.shape.selected .stroke { stroke: var(--accent); }
-.shape:hover .stroke { stroke: var(--accent); }
+.shape.selected .stroke { stroke: var(--select); }
+.shape:hover .stroke { stroke: var(--select); }
 
 .dimension { stroke: var(--dimension); }
 .dimension text { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
 .radius-label { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
-.preview { stroke: var(--accent); stroke-dasharray: 4 3; fill: none; }
+.preview { stroke: var(--select); stroke-dasharray: 4 3; fill: none; }
 
-.handle { fill: white; stroke: var(--accent); stroke-width: 1.5; }
-.handle:hover { fill: var(--accent); }
+.handle { fill: white; stroke: var(--select); stroke-width: 1.5; }
+.handle:hover { fill: var(--select); }
 
-.snap { fill: none; stroke: var(--accent); stroke-width: 1.5; pointer-events: none; }
+.snap { fill: none; stroke: var(--select); stroke-width: 1.5; pointer-events: none; }
 
 .inspector {
   grid-area: inspector; overflow: auto;

@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { addCircle, addDimension, addRect, resolve } from "../../src/model";
 import { exportSvg, pageToSvg } from "../../src/output/svg";
-import { SVG_PADDING } from "../../src/output/style";
+import { STYLE, SVG_PADDING } from "../../src/output/style";
 import type { PageDrawing } from "../../src/output/types";
 import { pathToSvg } from "../../src/view/svgPath";
 import { doc } from "../helpers";
@@ -43,6 +43,18 @@ describe("exportSvg", () => {
     for (const id of r.order) expect(svg).toContain(`d="${pathToSvg(r.shapes[id]!.path)}"`);
   });
 
+  it("draws dimensions in the dimension colour and shapes in black", () => {
+    const r = sample();
+    const svg = exportSvg(r, { dimensions: true })!;
+    const blue = STYLE.colour.dimension;
+    expect(svg).toMatch(new RegExp(`<text[^>]*fill="${blue}"[^>]*>100</text>`));
+    expect(svg).toMatch(new RegExp(`<path[^>]*stroke="${blue}"`));
+    for (const id of r.order) {
+      const tag = svg.match(new RegExp(`<path d="${pathToSvg(r.shapes[id]!.path)}"[^>]*>`))![0];
+      expect(tag).not.toContain(blue);
+    }
+  });
+
   it("includes dimension text only when asked", () => {
     expect(exportSvg(sample(), { dimensions: true })).toMatch(/<text[^>]*>100<\/text>/);
     expect(exportSvg(sample(), { dimensions: false })).not.toContain("<text");
@@ -67,6 +79,22 @@ describe("pageToSvg", () => {
     expect(attr(svg, "viewBox")).toBe("0 0 210 297");
     expect(svg).toMatch(/<clipPath[^>]*>\s*<rect[^>]*x="10"[^>]*y="10"[^>]*width="190"[^>]*height="247"/);
     expect(svg).toContain('d="M20 20L120 20"');
+  });
+
+  it("colours dimension paths and text but not shapes or furniture", () => {
+    const blue = STYLE.colour.dimension;
+    const svg = pageToSvg({
+      ...page,
+      content: [
+        ...page.content,
+        { kind: "path", role: "dimension", path: [{ kind: "segment", from: [20, 10], to: [120, 10] }] },
+        { kind: "text", role: "dimension", at: [70, 9], text: "100", angle: 0, size: 3, anchor: "middle" },
+      ],
+    });
+    expect(svg).toMatch(new RegExp(`<path d="M20 10L120 10"[^>]*stroke="${blue}"`));
+    expect(svg).toMatch(new RegExp(`<text[^>]*fill="${blue}"[^>]*>100</text>`));
+    expect(svg.match(/<path d="M20 20L120 20"[^>]*>/)![0]).not.toContain(blue);
+    expect(svg.match(/<text[^>]*>A&amp;B &lt;1&gt;<\/text>/)![0]).not.toContain(blue);
   });
 
   it("escapes text and dashes guides", () => {

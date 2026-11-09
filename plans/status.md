@@ -114,6 +114,9 @@ through `useSyncExternalStore`.
 - `drawingPrimitives(resolved)` turns the drawing into paths and text with
   roles (shape, dimension, furniture, guide) once; every format renders
   those. Text is measured with Helvetica metrics (`text.ts`) everywhere.
+  Ink is per role in `STYLE.colour`: dimensions mid blue (`#3070c0`),
+  everything else black. The canvas takes its `--dimension` colour from
+  the same constant, so screen and paper match.
 - `planPages` lays the drawing onto sheets at a scale: margins 10 mm, a
   30 mm footer band, tiles overlapping 10 mm and labelled A1, A2, … B1.
 - `composePages` gives each sheet in paper mm: the drawing (clipped to

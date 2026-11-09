@@ -73,6 +73,9 @@ function blankPage(width: number, height: number): PageDrawing {
 interface GState {
   width: number | null;
   dashed: boolean;
+  /** Stroke and fill colours as written: "r g b", 0..1. */
+  stroke: string;
+  fill: string;
 }
 
 /** `height` is the page height in points, exactly as in the MediaBox. */
@@ -82,10 +85,10 @@ function pageContent(page: PageDrawing, height: string): string {
     `${f(PT, 8)} 0 0 ${f(-PT, 8)} 0 ${height} cm`,
     "1 J",
     "1 j",
-    "0 G",
-    "0 g",
+    `${BLACK} RG`,
+    `${BLACK} rg`,
   ];
-  let state: GState = { width: null, dashed: false };
+  let state: GState = { width: null, dashed: false, stroke: BLACK, fill: BLACK };
 
   const c = page.clip;
   const saved = { ...state };
@@ -100,7 +103,7 @@ function pageContent(page: PageDrawing, height: string): string {
 
 function primitive(p: Primitive, ops: string[], state: GState): void {
   if (p.kind === "path") pathOps(p, ops, state);
-  else textOps(p, ops);
+  else textOps(p, ops, state);
 }
 
 function pathOps(p: PathPrim, ops: string[], state: GState): void {
@@ -115,6 +118,11 @@ function pathOps(p: PathPrim, ops: string[], state: GState): void {
   if (state.dashed !== dashed) {
     ops.push(dashed ? `[${STYLE.guideDash.map((d) => f(d)).join(" ")}] 0 d` : "[] 0 d");
     state.dashed = dashed;
+  }
+  const colour = rgb(STYLE.colour[p.role]);
+  if (state.stroke !== colour) {
+    ops.push(`${colour} RG`);
+    state.stroke = colour;
   }
   ops.push(...draw, "S");
 }
@@ -180,8 +188,13 @@ function bezier(a: Arc, from: number, to: number): [Point, Point, Point] {
   ];
 }
 
-function textOps(t: TextPrim, ops: string[]): void {
+function textOps(t: TextPrim, ops: string[], state: GState): void {
   if (!t.text || !finite(...t.at, t.angle, t.size) || t.size <= 0) return;
+  const colour = rgb(STYLE.colour[t.role]);
+  if (state.fill !== colour) {
+    ops.push(`${colour} rg`);
+    state.fill = colour;
+  }
   const cos = Math.cos(t.angle * DEG);
   const sin = Math.sin(t.angle * DEG);
   const w = textWidth(t.text, t.size);
@@ -201,6 +214,16 @@ function f(n: number, places = 3): string {
   if (!Number.isFinite(n)) return "0";
   const s = n.toFixed(places).replace(/\.?0+$/, "");
   return s === "-0" || s === "" ? "0" : s;
+}
+
+const BLACK = "0 0 0";
+
+/** "#rrggbb" (or "#rgb") as PDF "r g b" operands, 0..1; black if it won't parse. */
+function rgb(hex: string): string {
+  let h = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex)?.[1];
+  if (!h) return BLACK;
+  if (h.length === 3) h = [...h].map((c) => c + c).join("");
+  return [0, 2, 4].map((i) => f(parseInt(h.slice(i, i + 2), 16) / 255)).join(" ");
 }
 
 function pt(p: Point): string {
