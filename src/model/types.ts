@@ -5,8 +5,9 @@
 // gives each one a typed view of its props. Nothing here is derived; the
 // derived geometry lives in resolve.ts and is never stored or synced.
 //
-// Units: every length is millimetres. Angles are degrees, anticlockwise
-// from the positive x axis. Scale is a view/print setting, not model state.
+// Units: every length is millimetres. Angles are degrees from +x towards
+// +y; y is down, so positive angles turn clockwise on screen. Scale is a
+// view/print setting, not model state.
 
 import type { DocState, Entity, Props, PropValue } from "@sandtreader/collab/protocol";
 

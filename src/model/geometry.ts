@@ -10,9 +10,9 @@ export interface Segment {
 }
 
 /**
- * Circular arc. Angles in degrees, anticlockwise from +x, measured at the
- * centre; the arc runs from `start` to `end` anticlockwise. A full circle
- * is start 0, end 360.
+ * Circular arc. Angles in degrees from +x towards +y, measured at the
+ * centre; the arc runs from `start` to `end` with increasing angle, which
+ * is clockwise on a y-down screen. A full circle is start 0, end 360.
  */
 export interface Arc {
   kind: "arc";

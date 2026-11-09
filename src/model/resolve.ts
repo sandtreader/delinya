@@ -256,8 +256,8 @@ function buildRect(id: EntityId, x: number, y: number, width: number, height: nu
   const [tl, tr, br, bl] = r;
   const corners: [Point, Point, Point, Point] = [[x, y], [x + width, y], [x + width, y + height], [x, y + height]];
 
-  // Corner arcs run anticlockwise in angle terms, which is clockwise on a
-  // y-down screen, matching the clockwise walk below.
+  // Corner arcs run with increasing angle, which is clockwise on a y-down
+  // screen, matching the clockwise walk below.
   const arcs: [Arc | null, Arc | null, Arc | null, Arc | null] = [
     tl > 0 ? arc([x + tl, y + tl], tl, 180, 270) : null,
     tr > 0 ? arc([x + width - tr, y + tr], tr, 270, 360) : null,
