@@ -1,7 +1,8 @@
 # Delinya
 
 2D drawing tool with real units (mm). General purpose; woodwork is the first
-use case, not a limit. Plans live in `plans/`.
+use case, not a limit. Plans live in `plans/`; `plans/status.md` is the
+handoff: what is built, decisions taken, what is next. Keep it current.
 
 ## Architecture rules
 
@@ -22,6 +23,10 @@ use case, not a limit. Plans live in `plans/`.
   never part of the document.
 - Plain CSS, no component library yet. The collab React entry needs MUI, so
   adding the session panel later means deciding on MUI then.
+
+## Working agreements
+
+- Do not commit or push until asked; "cp" means commit and push.
 
 ## Commands
 

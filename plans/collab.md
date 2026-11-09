@@ -276,6 +276,11 @@ rules.
 
 ## Delinya mapping
 
+**Implemented 2026-11-08** in `src/collab/index.ts` (`collabDocument`,
+`bindCollab`, app namespace `delinya`) and tested in `tests/collab.test.ts`
+through the real relay. The choices below marked *chosen* are what the code
+does; see `plans/status.md` for the overall state.
+
 Only the model is synced. Each client recomputes links and derived positions
 locally; because the calculations are deterministic and pure over the
 document, every client shows the same drawing.
@@ -283,11 +288,11 @@ document, every client shows the same drawing.
 ### Entity kinds and props
 
 ```
-line           { x1, y1, x2, y2 }                               // or { x, y, length, angle }
+line           { x, y, length, angle }                           // chosen: length can be a ref
 rect           { x, y, width, height, r: [tl, tr, br, bl] }
 circle         { cx, cy, diameter }
 variable       { name?, value }
-link.equal     { items: [{ id, prop }...], variable: id }        // or model as refs, see below
+                                                                 // no link.equal: refs chosen, see below
 link.spacing   { anchorA: id, anchorB: id, items: [id...], axis: "x"|"y", mode: "gaps"|"centres" }
 dimension      { target: id, prop: "width"|"height"|"diameter"|..., offset }
 radius-label   { target: id, corner: 0..3 }
@@ -304,7 +309,7 @@ Lengths in mm throughout. Scale is view/print state and never synced.
 **B. Link entity.** Values stay numeric on the shapes; a `link.equal` entity
 lists the members and the recompute overwrites them from the variable.
 
-Recommend **A**. It's smaller, the document is self-describing, and "unlink"
+**A chosen and implemented.** It's smaller, the document is self-describing, and "unlink"
 is just replacing the ref with the resolved number. It also sets up the
 later named-variables/expressions feature (`{ expr: "carcass_w - 2*t" }`)
 without a protocol change.
@@ -340,10 +345,13 @@ inactive, never throw.
   drawing tool argues for phase 2 earlier than SynFlo ever needed it.
 - **Who may edit.** SynFlo sessions are open to anyone with the link. Fine for
   a jam; probably fine for a shared drawing too, but note it.
-- **Undo across users.** Local-only undo is the standard choice and what
-  SynFlo plans. Confirm.
-- **Package hosting.** npm publish vs git dependency vs `pnpm link` across
-  the repos during development. Not yet decided; nothing is published.
+- **Undo across users.** Local-only undo, confirmed: `DrawingStore` records
+  only local commits; `applyRemote` bypasses history.
+- **Package hosting.** Settled: published to npm as `@sandtreader/collab`
+  (0.1.3 at the time of writing); Delinya depends on `^0.1.3`.
+- **Delinya relay endpoint.** When delinya.net exists, add the same two
+  `ProxyPass` lines as synflo.net to its vhost (relay on st1, port 2901)
+  and connect with `app: "delinya"`. No connect UI yet.
 
 ## Migration from SynFlo
 

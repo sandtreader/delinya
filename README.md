@@ -7,9 +7,11 @@ for the goal and `plans/collab.md` for the collaboration design.
 ## Status
 
 First working slice: draw lines, rectangles and circles with snapping, move
-them, type exact values and corner radii in the inspector, link equal
-values and equal spacing from a multi-selection, undo/redo. Dimensions are
-attached automatically. No file save, print, export or collaboration UI yet.
+and resize them with handles, type exact values and corner radii in the
+inspector, link equal values and equal spacing from a multi-selection,
+undo/redo. Dimensions are attached automatically. The collaboration adapter
+is wired and tested but has no UI. No file save, print or export yet. Full
+state, decisions and next steps: `plans/status.md`.
 
 Keys: V select, L line, R rectangle, C circle, Shift constrains while
 drawing, Delete removes the selection, ⌘Z / ⇧⌘Z undo and redo. Wheel or
@@ -25,12 +27,13 @@ in any tool).
 | `src/model/resolve.ts` | `resolve(state)`: the pure pass from document to geometry, dimensions, labels and issues. |
 | `src/model/actions.ts` | User operations as pure `(state, …) → Change` functions. |
 | `src/model/store.ts` | `DrawingStore`: the single point of mutation, with change-based undo/redo. |
+| `src/model/resize.ts` | Resize handles per shape and the change a handle drag produces. |
 | `src/collab/` | Adapter binding a store to a `CollabClient`. |
 | `src/view/` | Screen/model mapping and geometry to SVG path. |
 | `src/canvas/` | The SVG canvas: tools, snapping, rendering of shapes, dimensions and labels. |
 | `src/panels/` | Toolbar, inspector, status bar. |
 | `src/app/` | The app's store instance and editor (non-document) state. |
-| `tests/` | Vitest: resolve, actions, store, and two stores through the real relay. |
+| `tests/` | Vitest: resolve, actions, store, resize, and two stores through the real relay. |
 
 ## Model in one paragraph
 
