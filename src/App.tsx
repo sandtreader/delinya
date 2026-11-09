@@ -5,6 +5,7 @@ import { Canvas } from "./canvas/Canvas";
 import { Inspector, deleteSelection } from "./panels/Inspector";
 import { StatusBar } from "./panels/StatusBar";
 import { OutputDialog } from "./panels/OutputDialog";
+import { SelectionPanel } from "./panels/SelectionPanel";
 import { Toolbar, useFileCommands } from "./panels/Toolbar";
 import { useDirty, useFileName } from "./app/file";
 import { STYLE } from "./output/style";
@@ -84,7 +85,10 @@ function Shell() {
   return (
     <div className="app" style={APP_COLOURS}>
       <Toolbar />
-      <Canvas />
+      <div className="canvas-area">
+        <Canvas />
+        <SelectionPanel />
+      </div>
       <Inspector />
       <StatusBar />
       {editor.dialog === "output" && <OutputDialog />}

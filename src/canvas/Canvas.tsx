@@ -4,7 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent } from "react";
 import {
-  addCircle, addDimension, addLine, addRect, batch, handlesFor, moveBy, newId, resizeTo, snapNumber,
+  addCircle, addDimension, addLine, addRect, batch, derivedAxes, freeDelta, handlesFor, moveBy, newId, resizeTo, snapNumber,
   type EntityId, type HandleSpot, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
@@ -107,14 +107,19 @@ export function Canvas() {
         const moving = new Set(d.ids);
         const { delta, snap } = snapMove(store.resolved, d.primary, raw, tolerance, moving, grid);
         const step: Point = [delta[0] - d.applied[0], delta[1] - d.applied[1]];
-        if (step[0] !== 0 || step[1] !== 0) {
+        // A link owns some shapes' position on an axis: those don't move that way.
+        // A shape locked both ways doesn't move at all, so it makes no edit or undo step.
+        const moves = d.ids
+          .map((id) => [id, freeDelta(store.resolved, id, step)] as const)
+          .filter(([, [dx, dy]]) => dx !== 0 || dy !== 0);
+        if (moves.length > 0) {
           if (!d.moved) { store.beginGesture(); d.moved = true; }
-          for (const id of d.ids) {
-            const c = moveBy(store.state, id, step[0], step[1], { start: d.applied[0] === 0 && d.applied[1] === 0 });
+          for (const [id, [dx, dy]] of moves) {
+            const c = moveBy(store.state, id, dx, dy, { start: d.applied[0] === 0 && d.applied[1] === 0 });
             if (c) store.commit(c);
           }
-          d.applied = delta;
         }
+        d.applied = delta;
         dispatch({ type: "pointer", cursor: mp, snap });
         return;
       }
@@ -194,7 +199,12 @@ export function Canvas() {
       <Grid view={view} size={size} />
       <g transform={`translate(${view.ox} ${view.oy}) scale(${view.scale})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
         {resolved.order.map((id) => (
-          <ShapeView key={id} shape={resolved.shapes[id]!} selected={selection.includes(id)} hair={hair} />
+          <ShapeView
+            key={id} shape={resolved.shapes[id]!} hair={hair}
+            selected={selection.includes(id)}
+            reference={selection.length > 1 && selection[0] === id}
+            locked={derivedAxes(resolved, id)}
+          />
         ))}
         {resolved.dimensions.map((d) => <DimensionView key={d.id} dim={d} fontSize={fontSize} hair={hair} />)}
         {resolved.radiusLabels.map((l) => <RadiusLabelView key={l.id} label={l} fontSize={fontSize} />)}
@@ -268,10 +278,16 @@ function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
 
 // ---- Sub-views ----
 
-function ShapeView({ shape, selected, hair }: { shape: ResolvedShape; selected: boolean; hair: number }) {
+/**
+ * `reference`: first of a multi-selection, the one others align to; it gets a halo.
+ * `locked`: axes a link controls, so the cursor says which way it can still be dragged.
+ */
+function ShapeView({ shape, selected, reference, locked, hair }: { shape: ResolvedShape; selected: boolean; reference: boolean; locked: ReadonlySet<string>; hair: number }) {
   const d = pathToSvg(shape.path);
+  const lock = locked.size === 2 ? " locked" : locked.has("x") ? " locked-x" : locked.has("y") ? " locked-y" : "";
   return (
-    <g data-id={shape.id} className={selected ? "shape selected" : "shape"}>
+    <g data-id={shape.id} className={`shape${selected ? " selected" : ""}${lock}`}>
+      {reference && <path d={d} className="ref-halo" strokeWidth={hair * 7} />}
       <path d={d} className="hit" strokeWidth={hair * 12} stroke="transparent" />
       <path d={d} className="stroke" strokeWidth={hair * (selected ? 2 : 1.2)} />
     </g>

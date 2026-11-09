@@ -5,10 +5,14 @@
 // in plans/collab.md.
 
 import type { Change, DocState, Props } from "@sandtreader/collab/protocol";
-import { lengthValue, resolve } from "./resolve";
+import { EPS, boundsMin } from "./geometry";
 import {
-  type Axis, type CircleProps, type DimensionProp, type DocumentField, type EntityId, type Length,
-  type LineProps, type RectProps, type SpacingMode, type SpacingProps,
+  type Resolved, type ResolvedShape,
+  alignedPosition, derivedAxes, lengthValue, placeAlong, resolve, spacedPositions,
+} from "./resolve";
+import {
+  type AlignMode, type AlignProps, type Axis, type CircleProps, type DimensionProp, type DocumentField,
+  type EntityId, type Length, type LineProps, type RectProps, type SpacingMode, type SpacingProps,
   DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, entityAs, isRef, kindOf, toProps,
 } from "./types";
 
@@ -161,18 +165,88 @@ export function linkSpacing(id: EntityId, anchorA: EntityId, anchorB: EntityId, 
  * the shape so nothing moves on screen.
  */
 export function unlinkSpacing(state: DocState, id: EntityId): Change | undefined {
-  const link = entityAs(state, id, KINDS.spacing);
-  if (!link) return undefined;
+  if (!entityAs(state, id, KINDS.spacing)) return undefined;
+  const r = resolve(state);
+  return batch(writeBackAndRemove(id, r, r.spacings.find((l) => l.id === id)));
+}
+
+/**
+ * Space shapes once, where a live spacing link would put them (the outer
+ * two along the axis are the anchors), leaving no link. Items a live link
+ * already places on that axis can't move, so they are left out. Undefined
+ * with fewer than three shapes or if nothing moves.
+ */
+export function spaceOnce(state: DocState, ids: EntityId[], axis: Axis, mode: SpacingMode): Change | undefined {
+  const r = resolve(state);
+  const { anchorA, anchorB, items } = outerAnchors(r, ids, axis);
+  const free = items.filter((i) => !derivedAxes(r, i).has(axis));
+  if (free.length === 0) return undefined;
+  const { positions } = spacedPositions(r.shapes[anchorA]!.bounds, r.shapes[anchorB]!.bounds, free.map((i) => r.shapes[i]!.bounds), axis, mode);
+  return placeOnce(r, axis, free.map((i, k) => [i, positions[k]!]));
+}
+
+/**
+ * The outermost two shapes along an axis (by their minimum there) as
+ * spacing anchors, and the rest in order between them. IDs that are not
+ * shapes are dropped and ties keep the given order. Needs two shapes; a
+ * missing anchor is "".
+ */
+export function outerAnchors(r: Resolved, ids: EntityId[], axis: Axis): { anchorA: EntityId; anchorB: EntityId; items: EntityId[] } {
+  const sorted = [...new Set(ids)]
+    .filter((id) => Object.hasOwn(r.shapes, id))
+    .sort((a, b) => boundsMin(r.shapes[a]!.bounds, axis) - boundsMin(r.shapes[b]!.bounds, axis));
+  return { anchorA: sorted[0] ?? "", anchorB: sorted.length > 1 ? sorted[sorted.length - 1]! : "", items: sorted.slice(1, -1) };
+}
+
+// ---- Alignment ----
+
+export function linkAlign(id: EntityId, anchor: EntityId, items: EntityId[], axis: Axis, mode: AlignMode): Change {
+  return { type: "entity_added", id, kind: KINDS.align, props: toProps<AlignProps>({ anchor, items, axis, mode }) };
+}
+
+/** Remove an align link, writing each item's derived position back so nothing moves. */
+export function unlinkAlign(state: DocState, id: EntityId): Change | undefined {
+  if (!entityAs(state, id, KINDS.align)) return undefined;
+  const r = resolve(state);
+  return batch(writeBackAndRemove(id, r, r.aligns.find((l) => l.id === id)));
+}
+
+/**
+ * Move items once so their start, centre or end on an axis meets the
+ * reference's, leaving no link. Items a live link places on that axis are
+ * skipped: their stored position there is ignored. Undefined if nothing moves.
+ */
+export function alignOnce(state: DocState, reference: EntityId, items: EntityId[], axis: Axis, mode: AlignMode): Change | undefined {
+  const r = resolve(state);
+  const ref = r.shapes[reference];
+  if (!ref) return undefined;
+  const free = items.filter((i) => i !== reference && r.shapes[i] && !derivedAxes(r, i).has(axis));
+  return placeOnce(r, axis, free.map((i) => [i, alignedPosition(ref.bounds, r.shapes[i]!.bounds, axis, mode)]));
+}
+
+/**
+ * Give each item the reference's current width, height, diameter or length,
+ * once. Goes through setLength, so a linked prop edits its variable. Items
+ * whose kind lacks the prop are skipped. Undefined if nothing changes.
+ */
+export function equaliseOnce(state: DocState, reference: EntityId, items: EntityId[], prop: string): Change | undefined {
+  const r = resolve(state);
+  const ref = r.shapes[reference];
+  const value = ref && sizeOf(ref, prop);
+  if (value === undefined) return undefined;
   const changes: Change[] = [];
-  const resolved = resolve(state);
-  for (const item of link.items) {
-    const s = resolved.shapes[item];
-    if (!s) continue;
-    const c = moveTo(state, item, ...authoredPosition(s));
-    if (c) changes.push(c);
+  const edited = new Set<EntityId>();
+  for (const id of items) {
+    const s = r.shapes[id];
+    const current = s && id !== reference ? sizeOf(s, prop) : undefined;
+    if (current === undefined || current === value) continue;
+    const c = setLength(state, id, prop, value);
+    // Items sharing a variable would each edit it; once is enough.
+    if (!c || c.type !== "props_changed" || edited.has(c.id)) continue;
+    edited.add(c.id);
+    changes.push(c);
   }
-  changes.push({ type: "entity_removed", id });
-  return batch(changes);
+  return single(changes);
 }
 
 // ---- Document properties ----
@@ -197,13 +271,19 @@ export function setDocumentProps(state: DocState, props: Partial<Record<Document
 
 /**
  * Delete an entity and everything that only makes sense with it: its
- * dimensions and radius labels, and its membership of spacing links (a
- * link loses an anchor, it goes too). Variables are left; an unused one is
- * harmless and may be relinked.
+ * dimensions and radius labels, and its membership of spacing and align
+ * links. A link that loses an anchor goes too, its items' derived positions
+ * written back first (as unlinking does) so nothing that hung off the
+ * deleted shape moves; an align link left with no items just goes.
+ * Variables are left; an unused one is harmless and may be relinked. One
+ * batch, so it undoes in one step.
  */
 export function deleteEntity(state: DocState, id: EntityId): Change | undefined {
   if (!state.entities[id]) return undefined;
   const changes: Change[] = [];
+  // Positions as they stand before the delete; resolved only if a link loses an anchor.
+  let r: Resolved | undefined;
+  const before = () => (r ??= resolve(state));
   for (const [dimId, d] of entitiesOfKind(state, KINDS.dimension)) {
     if (d.target === id) changes.push({ type: "entity_removed", id: dimId });
   }
@@ -211,8 +291,16 @@ export function deleteEntity(state: DocState, id: EntityId): Change | undefined 
     if (l.target === id) changes.push({ type: "entity_removed", id: labelId });
   }
   for (const [linkId, l] of entitiesOfKind(state, KINDS.spacing)) {
-    if (l.anchorA === id || l.anchorB === id) changes.push({ type: "entity_removed", id: linkId });
-    else if (l.items.includes(id)) changes.push(propsChanged(linkId, { items: l.items.filter((i) => i !== id) }));
+    const items = idList(l.items);
+    if (l.anchorA === id || l.anchorB === id) changes.push(...writeBackAndRemove(linkId, before(), before().spacings.find((s) => s.id === linkId)));
+    else if (items.includes(id)) changes.push(propsChanged(linkId, { items: items.filter((i) => i !== id) }));
+  }
+  for (const [linkId, l] of entitiesOfKind(state, KINDS.align)) {
+    const items = idList(l.items);
+    const rest = items.filter((i) => i !== id);
+    if (l.anchor === id) changes.push(...writeBackAndRemove(linkId, before(), before().aligns.find((a) => a.id === linkId)));
+    else if (rest.length === 0 && items.length > 0) changes.push({ type: "entity_removed", id: linkId });
+    else if (rest.length < items.length) changes.push(propsChanged(linkId, { items: rest }));
   }
   changes.push({ type: "entity_removed", id });
   return changes.length === 1 ? changes[0]! : batch(changes);
@@ -231,11 +319,60 @@ export function batch(changes: Change[]): Change {
   return { type: "batch", changes };
 }
 
-/** The stored position a resolved shape would need to sit where it is. */
-function authoredPosition(s: ReturnType<typeof resolve>["shapes"][string]): [number, number] {
+function single(changes: Change[]): Change | undefined {
+  return changes.length === 0 ? undefined : changes.length === 1 ? changes[0] : batch(changes);
+}
+
+/** A link's items as stored, tolerating a malformed list. */
+function idList(v: unknown): EntityId[] {
+  return Array.isArray(v) ? v.filter((i): i is EntityId => typeof i === "string") : [];
+}
+
+/** The stored prop holding a shape's position on one axis, set to where it now resolves. */
+function storedAlong(s: ResolvedShape, axis: Axis): Props {
+  const at = axis === "x" ? 0 : 1;
   switch (s.kind) {
-    case "line": return s.from;
-    case "rect": return [s.x, s.y];
-    case "circle": return s.centre;
+    case "line": return { [axis]: s.from[at] };
+    case "rect": return { [axis]: axis === "x" ? s.x : s.y };
+    case "circle": return { [axis === "x" ? "cx" : "cy"]: s.centre[at] };
+  }
+}
+
+/**
+ * Remove a link after storing its items' derived positions, so nothing
+ * moves. Only the link's own axis is written: the other may belong to
+ * another link, and an inactive link derived nothing.
+ */
+function writeBackAndRemove(id: EntityId, r: Resolved, link: { axis: Axis; positions: Record<EntityId, number> } | undefined): Change[] {
+  const changes: Change[] = [];
+  if (link) for (const item of Object.keys(link.positions)) {
+    const s = r.shapes[item];
+    if (s) changes.push(propsChanged(item, storedAlong(s, link.axis)));
+  }
+  changes.push({ type: "entity_removed", id });
+  return changes;
+}
+
+/**
+ * Store new along-axis minimums, moving each shape the way resolve() would
+ * so a one-off lands exactly where a live link puts it. Shapes already in
+ * place are skipped; undefined if none move.
+ */
+function placeOnce(r: Resolved, axis: Axis, targets: Array<[EntityId, number]>): Change | undefined {
+  const changes: Change[] = [];
+  for (const [id, at] of targets) {
+    const s = r.shapes[id]!;
+    if (Math.abs(at - boundsMin(s.bounds, axis)) < EPS) continue;
+    changes.push(propsChanged(id, storedAlong(placeAlong(s, axis, at), axis)));
+  }
+  return single(changes);
+}
+
+/** A shape's resolved size by prop name, or undefined if its kind has none. */
+function sizeOf(s: ResolvedShape, prop: string): number | undefined {
+  switch (s.kind) {
+    case "rect": return prop === "width" ? s.width : prop === "height" ? s.height : undefined;
+    case "circle": return prop === "diameter" ? s.diameter : undefined;
+    case "line": return prop === "length" ? s.length : undefined;
   }
 }

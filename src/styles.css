@@ -50,10 +50,15 @@ button:disabled { opacity: 0.45; cursor: default; }
 button.small { padding: 1px 6px; font-size: 11px; margin-left: 6px; }
 button.danger { color: #9b1c1c; }
 
-.canvas { grid-area: canvas; width: 100%; height: 100%; display: block; background: var(--bg); touch-action: none; user-select: none; -webkit-user-select: none; }
+.canvas-area { grid-area: canvas; position: relative; min-width: 0; min-height: 0; }
+.canvas { width: 100%; height: 100%; display: block; background: var(--bg); touch-action: none; user-select: none; -webkit-user-select: none; }
 .canvas text { pointer-events: none; }
 .canvas.tool-select { cursor: grab; }
 .canvas.tool-select .shape { cursor: move; }
+/* A link owns the position: no entry, or only the free direction. */
+.canvas.tool-select .shape.locked { cursor: not-allowed; }
+.canvas.tool-select .shape.locked-x { cursor: ns-resize; }
+.canvas.tool-select .shape.locked-y { cursor: ew-resize; }
 .canvas.panning { cursor: grabbing; }
 .canvas.tool-line, .canvas.tool-rect, .canvas.tool-circle { cursor: crosshair; }
 
@@ -64,6 +69,7 @@ button.danger { color: #9b1c1c; }
 .shape .stroke { stroke: var(--shape); }
 .shape .hit { pointer-events: stroke; }
 .shape.selected .stroke { stroke: var(--select); }
+.shape .ref-halo { stroke: var(--select); opacity: 0.25; pointer-events: none; }
 .shape:hover .stroke { stroke: var(--select); }
 
 .dimension { stroke: var(--dimension); }
@@ -156,3 +162,21 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
   .print-pages svg { display: block; break-after: page; }
   .print-pages svg:last-child { break-after: auto; }
 }
+
+/* ---- Arrange panel (multi-selection) ---- */
+
+.selection-panel {
+  position: absolute; top: 10px; right: 10px; z-index: 2; width: 250px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); padding: 8px 10px; font-size: 12px;
+}
+.selection-panel header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.selection-panel .hint { color: var(--muted); }
+.selection-panel .group { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; }
+.selection-panel .group > .label { width: 46px; flex: none; color: var(--muted); padding-top: 4px; }
+.selection-panel .icons, .selection-panel .buttons { display: flex; flex-wrap: wrap; gap: 4px; }
+.selection-panel button { padding: 3px 7px; font-size: 12px; }
+.selection-panel button.icon { padding: 3px; line-height: 0; }
+.selection-panel button.icon svg rect { fill: var(--ink); }
+.selection-panel button.icon svg .guide { stroke: var(--select); stroke-width: 1.5; }
+.selection-panel .keep-linked { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }

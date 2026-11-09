@@ -37,6 +37,18 @@ but has no UI.
 - **Spacing links** derive along-axis positions between the anchors' inner
   faces, by gaps or by centres. Items' stored along-axis position is
   ignored while linked; `unlinkSpacing` writes the derived value back.
+- **Align links** (`link.align`: anchor, items, axis, mode start/centre/
+  end) put items' left/centre/right or top/middle/bottom on the anchor's.
+  Centring both ways is two links. `unlinkAlign` writes back like spacing.
+- **Link rules** (both kinds, in `resolve.ts`): a shape's position on an
+  axis can come from only one link — the first by ID wins and a later
+  claimant is inactive with `link-conflict`. Links are applied per axis in
+  dependency order (a link waits for whichever links place its anchors),
+  ties by ID, so chains work whatever the IDs; cycles go inactive with
+  `link-cycle`. `derivedAxes(resolved, id)` says which axes a link controls.
+- **One-shot arranging**: `alignOnce`, `spaceOnce` and `equaliseOnce` move
+  or resize once, using the same arithmetic as the live links, and leave
+  no link. They skip shapes a live link already places on that axis.
 - **Actions** (`actions.ts`) are `(state, …) → Change`. `setLength` edits
   the variable when the prop is a ref. `deleteEntity` cascades to
   dimensions, labels and spacing membership/anchors. `resize.ts` has
@@ -85,10 +97,17 @@ through `useSyncExternalStore`.
 - **Resize handles** on a single selection: rect corners (anchor opposite
   corner, flips across it), circle centre and radius, line ends.
 - **Inspector**: x/y, each length with a linked badge and unlink, corner
-  radii with a clamped indicator, spacing membership. Multi-selection can
-  link widths/heights/diameters/lengths (names the variable via
-  `window.prompt`) and space evenly by gaps or centres along x or y, with
-  the outer two items as anchors. Variables are listed. With nothing
+  radii with a clamped indicator, spacing and alignment membership with
+  remove. Position fields a link controls are locked and show the derived
+  position. Variables are listed.
+- **Arrange panel** (`panels/SelectionPanel.tsx`), floating top right of
+  the canvas with two or more shapes selected. The first-selected shape is
+  the reference (drawn with a halo). Align (six icons), Centre on
+  reference, Space (gaps/centres across/down, three or more shapes, the
+  outer two as anchors) and Equal (width/height, diameter or length for
+  same-kind selections). "Keep linked" (editor state, off by default)
+  switches every action from a one-off move/resize to a live link; equal
+  values then go through a named variable. With nothing
   selected it shows the document Properties (title, author, revision,
   notes).
 - **Files** (`app/file.ts`): New, Open…, Save, Save as… in the toolbar;
@@ -130,6 +149,15 @@ through `useSyncExternalStore`.
 
 ## Decisions taken (not in the outline)
 
+- Arranging moves once by default; "Keep linked" makes live links. The
+  first-selected shape is the reference (Illustrator's key object).
+- Deleting a link's anchor writes its items' derived positions back before
+  removing the link, so they stay where the link put them (one undo step).
+  An align link emptied of items is removed; a spacing link is not.
+- Drags can't move a shape along an axis a link controls (`freeDelta`);
+  a shape locked both ways makes no edit or undo step. The cursor says so:
+  no-entry when locked both ways, an up-down or left-right arrow when
+  only one way is free.
 - Print and PDF share one page model; the PDF and DXF writers are
   hand-written (no jsPDF / dxf libraries). Exact print scale depends on the
   print dialog being at 100%; the check ruler is how users verify it.
@@ -156,9 +184,12 @@ through `useSyncExternalStore`.
    synflo.net, port 2901 on st1).
 3. **Fit view to drawing** (on open, and as a button); opening resets to
    the default view for now.
-4. Print refinements: a date in the title block, dimensions in DXF on
+4. Links: show live links on the canvas (e.g. faint guide lines when a
+   linked shape is selected); resize handles still act on linked shapes
+   (e.g. a left-aligned rect's left handle).
+5. Print refinements: a date in the title block, dimensions in DXF on
    their own layer, a custom scale.
-5. Rotation of rects, text, named variables/expressions, woodwork extras
+6. Rotation of rects, text, named variables/expressions, woodwork extras
    (see outline "Later").
 
 ## Gotchas for whoever picks this up

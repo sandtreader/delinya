@@ -31,6 +31,7 @@ export const KINDS = {
   circle: "circle",
   variable: "variable",
   spacing: "link.spacing",
+  align: "link.align",
   dimension: "dimension",
   radiusLabel: "radius-label",
   document: "document",
@@ -88,6 +89,20 @@ export interface SpacingProps {
   mode: SpacingMode;
 }
 
+export type AlignMode = "start" | "centre" | "end";
+
+/**
+ * Line `items` up with `anchor` along `axis`: start (min) edges, centres or
+ * end (max) edges. As with spacing, each item's along-axis position is
+ * derived while linked and the cross axis stays authored.
+ */
+export interface AlignProps {
+  anchor: EntityId;
+  items: EntityId[];
+  axis: Axis;
+  mode: AlignMode;
+}
+
 export type DimensionProp = "width" | "height" | "diameter" | "length";
 
 /** A dimension label attached to one measurable prop of a shape. */
@@ -123,6 +138,7 @@ export interface PropsByKind {
   circle: CircleProps;
   variable: VariableProps;
   "link.spacing": SpacingProps;
+  "link.align": AlignProps;
   dimension: DimensionProps;
   "radius-label": RadiusLabelProps;
   document: DocumentProps;

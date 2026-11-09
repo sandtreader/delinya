@@ -16,6 +16,8 @@ export interface EditorState {
   /** Snap point the pointer is currently locked to. */
   snap: SnapPoint | null;
   dialog: Dialog | null;
+  /** Arrange actions create live links instead of moving shapes once. */
+  keepLinked: boolean;
 }
 
 export const initialEditor: EditorState = {
@@ -25,6 +27,7 @@ export const initialEditor: EditorState = {
   cursor: null,
   snap: null,
   dialog: null,
+  keepLinked: false,
 };
 
 export type EditorAction =
@@ -35,7 +38,8 @@ export type EditorAction =
   | { type: "panBy"; dx: number; dy: number }
   | { type: "zoomAt"; factor: number; at: [number, number] }
   | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null }
-  | { type: "dialog"; dialog: Dialog | null };
+  | { type: "dialog"; dialog: Dialog | null }
+  | { type: "keepLinked"; on: boolean };
 
 export function editorReducer(s: EditorState, a: EditorAction): EditorState {
   switch (a.type) {
@@ -50,6 +54,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "zoomAt": return { ...s, view: zoomAt(s.view, a.factor, a.at) };
     case "pointer": return { ...s, cursor: a.cursor, snap: a.snap };
     case "dialog": return { ...s, dialog: a.dialog };
+    case "keepLinked": return { ...s, keepLinked: a.on };
   }
 }
 

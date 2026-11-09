@@ -4,9 +4,9 @@
 import { useEffect, useState } from "react";
 import { applyChange } from "@sandtreader/collab/protocol";
 import {
-  KINDS, batch, deleteEntity, entityAs, isRef, lengthValue, linkLengths, linkSpacing, newId, propsChanged,
-  setCornerRadius, setDocumentProps, setLength, unlinkLength, unlinkSpacing,
-  type Axis, type DocumentField, type EntityId, type Length, type ResolvedRect, type SpacingMode,
+  KINDS, batch, deleteEntity, derivedAxes, entitiesOfKind, entityAs, isRef, lengthValue, propsChanged,
+  setCornerRadius, setDocumentProps, setLength, unlinkAlign, unlinkLength, unlinkSpacing,
+  type DocumentField, type EntityId, type Length, type ResolvedRect,
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { useEditor } from "../app/editor";
@@ -32,15 +32,24 @@ function Single({ id }: { id: EntityId }) {
   const p = e.props as Record<string, unknown>;
   const num = (k: string) => (typeof p[k] === "number" ? (p[k] as number) : 0);
   const commit = (props: Record<string, number>) => store.commit(propsChanged(id, props));
-  const spacing = spacingsHolding(id);
+  const derived = derivedAxes(store.resolved, id);
+  /** Position fields show where the shape is; a link's derived value wins over the stored one. */
+  const at = (k: "x" | "y" | "cx" | "cy") => {
+    const i = k.endsWith("x") ? 0 : 1;
+    const s = store.resolved.shapes[id];
+    if (!s || !derived.has(i === 0 ? "x" : "y")) return num(k);
+    if (s.kind === "rect") return i === 0 ? s.x : s.y;
+    if (s.kind === "circle") return s.centre[i];
+    return s.from[i];
+  };
 
   return (
     <section>
       <h2>{kindLabel(e.kind)} <small>{id}</small></h2>
       {e.kind === KINDS.rect && (
         <>
-          <Row label="x"><Num value={num("x")} onCommit={(v) => commit({ x: v })} disabled={spacing.has("x")} /></Row>
-          <Row label="y"><Num value={num("y")} onCommit={(v) => commit({ y: v })} disabled={spacing.has("y")} /></Row>
+          <Row label="x"><Num value={at("x")} onCommit={(v) => commit({ x: v })} disabled={derived.has("x")} /></Row>
+          <Row label="y"><Num value={at("y")} onCommit={(v) => commit({ y: v })} disabled={derived.has("y")} /></Row>
           <LengthRow id={id} prop="width" label="width" />
           <LengthRow id={id} prop="height" label="height" />
           <Corners id={id} />
@@ -48,21 +57,22 @@ function Single({ id }: { id: EntityId }) {
       )}
       {e.kind === KINDS.circle && (
         <>
-          <Row label="cx"><Num value={num("cx")} onCommit={(v) => commit({ cx: v })} disabled={spacing.has("x")} /></Row>
-          <Row label="cy"><Num value={num("cy")} onCommit={(v) => commit({ cy: v })} disabled={spacing.has("y")} /></Row>
+          <Row label="cx"><Num value={at("cx")} onCommit={(v) => commit({ cx: v })} disabled={derived.has("x")} /></Row>
+          <Row label="cy"><Num value={at("cy")} onCommit={(v) => commit({ cy: v })} disabled={derived.has("y")} /></Row>
           <LengthRow id={id} prop="diameter" label="diameter" />
         </>
       )}
       {e.kind === KINDS.line && (
         <>
-          <Row label="x"><Num value={num("x")} onCommit={(v) => commit({ x: v })} disabled={spacing.has("x")} /></Row>
-          <Row label="y"><Num value={num("y")} onCommit={(v) => commit({ y: v })} disabled={spacing.has("y")} /></Row>
+          <Row label="x"><Num value={at("x")} onCommit={(v) => commit({ x: v })} disabled={derived.has("x")} /></Row>
+          <Row label="y"><Num value={at("y")} onCommit={(v) => commit({ y: v })} disabled={derived.has("y")} /></Row>
           <LengthRow id={id} prop="length" label="length" />
           <Row label="angle"><Num value={num("angle")} onCommit={(v) => commit({ angle: v })} unit="°" /></Row>
         </>
       )}
-      {spacing.size > 0 && <p className="hint">Position along {[...spacing].join("/")} is set by an equal-spacing link.</p>}
+      {derived.size > 0 && <p className="hint">Position along {[...derived].sort().join(" and ")} is set by a link.</p>}
       <SpacingMembership id={id} />
+      <AlignMembership id={id} />
     </section>
   );
 }
@@ -128,63 +138,35 @@ function SpacingMembership({ id }: { id: EntityId }) {
   );
 }
 
-/** Axes along which this shape's position is derived by a spacing link. */
-function spacingsHolding(id: EntityId): Set<Axis> {
-  const out = new Set<Axis>();
-  for (const sp of store.resolved.spacings) {
-    if (sp.active && sp.positions[id] !== undefined) out.add(sp.axis);
-  }
-  return out;
+const ALIGN_LABEL: Record<string, string> = {
+  "x start": "left edges", "x centre": "centres across", "x end": "right edges",
+  "y start": "top edges", "y centre": "centres down", "y end": "bottom edges",
+};
+
+function AlignMembership({ id }: { id: EntityId }) {
+  const state = useDocument();
+  const links = entitiesOfKind(state, KINDS.align).filter(([, l]) => l.anchor === id || (Array.isArray(l.items) && l.items.includes(id)));
+  if (links.length === 0) return null;
+  return (
+    <fieldset>
+      <legend>aligned</legend>
+      {links.map(([lid, l]) => (
+        <Row key={lid} label={ALIGN_LABEL[`${l.axis} ${l.mode}`] ?? "aligned"}>
+          <span className="hint">{l.anchor === id ? `reference for ${l.items.length}` : `to ${kindLabel(state.entities[l.anchor]?.kind ?? "")}`}</span>
+          <button className="small" onClick={() => { const c = unlinkAlign(store.state, lid); if (c) store.commit(c); }}>remove</button>
+        </Row>
+      ))}
+    </fieldset>
+  );
 }
 
 // ---- Several shapes ----
 
 function Multi({ ids }: { ids: EntityId[] }) {
-  const state = useDocument();
-  const kinds = new Set(ids.map((id) => state.entities[id]!.kind));
-  const shapes = ids.filter((id) => [KINDS.rect, KINDS.circle, KINDS.line].includes(state.entities[id]!.kind as never));
-
-  const linkable: Array<{ prop: string; label: string }> = [];
-  if (kinds.size === 1) {
-    const [kind] = kinds;
-    if (kind === KINDS.rect) linkable.push({ prop: "width", label: "Link widths" }, { prop: "height", label: "Link heights" });
-    if (kind === KINDS.circle) linkable.push({ prop: "diameter", label: "Link diameters" });
-    if (kind === KINDS.line) linkable.push({ prop: "length", label: "Link lengths" });
-  }
-
-  const link = (prop: string) => {
-    const name = window.prompt("Variable name", prop) ?? undefined;
-    const c = linkLengths(store.state, ids.map((id) => ({ id, prop })), newId("var"), name || undefined);
-    if (c) store.commit(c);
-  };
-
-  const space = (axis: Axis, mode: SpacingMode) => {
-    // The two outermost shapes along the axis are the anchors; the rest are spaced between them.
-    const r = store.resolved;
-    const sorted = [...shapes].sort((a, b) => (axis === "x" ? r.shapes[a]!.bounds.minX - r.shapes[b]!.bounds.minX : r.shapes[a]!.bounds.minY - r.shapes[b]!.bounds.minY));
-    const anchorA = sorted[0]!, anchorB = sorted[sorted.length - 1]!;
-    const items = sorted.slice(1, -1);
-    store.commit(linkSpacing(newId("spacing"), anchorA, anchorB, items, axis, mode));
-  };
-
   return (
     <section>
       <h2>{ids.length} selected</h2>
-      {linkable.length > 0 && (
-        <fieldset>
-          <legend>equal values</legend>
-          {linkable.map((l) => <button key={l.prop} onClick={() => link(l.prop)}>{l.label}</button>)}
-        </fieldset>
-      )}
-      {shapes.length >= 3 && (
-        <fieldset>
-          <legend>equal spacing (outer two are the anchors)</legend>
-          <button onClick={() => space("x", "gaps")}>Gaps along x</button>
-          <button onClick={() => space("y", "gaps")}>Gaps along y</button>
-          <button onClick={() => space("x", "centres")}>Centres along x</button>
-          <button onClick={() => space("y", "centres")}>Centres along y</button>
-        </fieldset>
-      )}
+      <p className="hint">Align, centre, space and link them from the panel on the canvas. The first one you selected is the reference.</p>
       <button className="danger" onClick={() => deleteSelection(ids)}>Delete</button>
     </section>
   );

@@ -5,6 +5,10 @@
 // It must never throw on a malformed or half-arrived document: dangling
 // references make the dependent piece inactive and add an Issue.
 //
+// Order of work: variables, shapes as authored, position links (spacing and
+// align) in dependency order, then dimensions and labels on the placed
+// shapes. "Position links" below says how links are ordered.
+//
 // Coordinates: x to the right, y increasing downwards (as SVG and canvas),
 // angles in degrees from +x towards +y. "Top" means smaller y.
 
@@ -16,7 +20,7 @@ import {
 } from "./geometry";
 import {
   type Axis, type DimensionProp, type DimensionProps, type EntityId, type Length,
-  type RadiusLabelProps, type SpacingProps,
+  type AlignMode, type RadiusLabelProps, type SpacingMode, type SpacingProps,
   DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, isRef,
 } from "./types";
 
@@ -28,7 +32,10 @@ export type IssueCode =
   | "radius-clamped"        // corner radii were too big for the rectangle
   | "dangling-target"       // dimension / label / link refers to a missing shape
   | "spacing-inactive"      // a spacing link could not be computed
-  | "spacing-overflow";     // items wider than the span between anchors
+  | "spacing-overflow"      // items wider than the span between anchors
+  | "align-inactive"        // an align link is malformed or has nothing to align
+  | "link-conflict"         // another link already positions an item on that axis
+  | "link-cycle";           // links position each other's anchors in a loop
 
 export interface Issue {
   entity: EntityId;
@@ -112,6 +119,16 @@ export interface ResolvedSpacing {
   step: number;
 }
 
+export interface ResolvedAlign {
+  id: EntityId;
+  active: boolean;
+  anchor: EntityId;
+  axis: Axis;
+  mode: AlignMode;
+  /** Derived along-axis minimum for each placed item. */
+  positions: Record<EntityId, number>;
+}
+
 /** Document properties, "" where unset. */
 export interface ResolvedDocument {
   title: string;
@@ -122,14 +139,16 @@ export interface ResolvedDocument {
 
 export interface Resolved {
   document: ResolvedDocument;
-  /** Shapes by ID, positions already adjusted by spacing links. */
+  /** Shapes by ID, positions already adjusted by spacing and align links. */
   shapes: Record<EntityId, ResolvedShape>;
   /** Shape IDs in document (draw) order. */
   order: EntityId[];
   variables: Record<EntityId, number>;
   dimensions: ResolvedDimension[];
   radiusLabels: ResolvedRadiusLabel[];
+  /** Links in ID order, inactive ones included. */
   spacings: ResolvedSpacing[];
+  aligns: ResolvedAlign[];
   issues: Issue[];
 }
 
@@ -147,12 +166,12 @@ export function resolve(state: DocState): Resolved {
     if (shape) { shapes[id] = shape; order.push(id); }
   }
 
-  const spacings = applySpacings(ctx, shapes);
+  const { spacings, aligns } = applyLinks(ctx, shapes);
   const dimensions = resolveDimensions(ctx, shapes);
   const radiusLabels = resolveRadiusLabels(ctx, shapes);
   const document = resolveDocument(ctx);
 
-  return { document, shapes, order, variables, dimensions, radiusLabels, spacings, issues };
+  return { document, shapes, order, variables, dimensions, radiusLabels, spacings, aligns, issues };
 }
 
 interface Ctx {
@@ -362,57 +381,246 @@ export function translateShape(s: ResolvedShape, dx: number, dy: number): Resolv
   }
 }
 
-// ---- Spacing links ----
+// ---- Position links ----
+//
+// Spacing and align links derive their items' along-axis position from
+// their anchors. Rules, so every client gets the same answer whatever order
+// entities arrived in:
+//
+// 1. Claims. A shape's position on an axis comes from at most one link.
+//    Links are taken in ID order; one wanting an item already claimed on
+//    its axis is switched off whole ("link-conflict").
+// 2. Order. L depends on M when M places one of L's anchors on L's axis.
+//    Kahn's algorithm, lowest ready ID first, gives the apply order; links
+//    on a cycle are switched off ("link-cycle"). Links downstream of a
+//    cycle still run: a switched-off link moves nothing, so they read the
+//    anchor as authored.
+// 3. Apply. Translating along one axis never moves the other, and an item
+//    is moved only by its one claimant, so x and y never interact and any
+//    dependency order gives the same geometry. The ID tie-break just keeps
+//    the order (and so the issue list) identical everywhere.
 
-function applySpacings(ctx: Ctx, shapes: Record<EntityId, ResolvedShape>): ResolvedSpacing[] {
-  const out: ResolvedSpacing[] = [];
-  // Sorted by ID so the result doesn't depend on entity arrival order.
-  const links = entitiesOfKind(ctx.state, KINDS.spacing).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  for (const [id, link] of links) out.push(applySpacing(ctx, id, link, shapes));
+interface LinkPlan {
+  id: EntityId;
+  axis: Axis;
+  anchors: EntityId[];
+  /** Present shapes, each once, never an anchor. */
+  items: EntityId[];
+  report: { active: boolean; positions: Record<EntityId, number> };
+  /** Along-axis minimum per item, from the anchors as they stand when called. */
+  place: () => Record<EntityId, number>;
+}
+
+function applyLinks(ctx: Ctx, shapes: Record<EntityId, ResolvedShape>): { spacings: ResolvedSpacing[]; aligns: ResolvedAlign[] } {
+  const spacings: ResolvedSpacing[] = [];
+  const aligns: ResolvedAlign[] = [];
+  const plans: LinkPlan[] = [];
+  const links = Object.entries(ctx.state.entities)
+    .filter(([, e]) => e.kind === KINDS.spacing || e.kind === KINDS.align)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  for (const [id, e] of links) {
+    const plan = e.kind === KINDS.spacing
+      ? planSpacing(ctx, id, e.props as unknown as SpacingProps, shapes, spacings)
+      : planAlign(ctx, id, e.props, shapes, aligns);
+    if (plan) plans.push(plan);
+  }
+
+  for (const plan of orderLinks(ctx, claimItems(ctx, plans))) {
+    const positions = plan.place();
+    for (const i of plan.items) shapes[i] = placeAlong(shapes[i]!, plan.axis, positions[i]!);
+    plan.report.active = true;
+    plan.report.positions = positions;
+  }
+  return { spacings, aligns };
+}
+
+function planSpacing(ctx: Ctx, id: EntityId, link: SpacingProps, shapes: Record<EntityId, ResolvedShape>, out: ResolvedSpacing[]): LinkPlan | undefined {
+  const axis: Axis = link.axis === "y" ? "y" : "x";
+  const mode: SpacingMode = link.mode === "centres" ? "centres" : "gaps";
+  const report: ResolvedSpacing = { id, active: false, axis, positions: {}, step: 0 };
+  out.push(report);
+  const inactive = (why: string) => { ctx.issues.push({ entity: id, code: "spacing-inactive", message: why }); return undefined; };
+
+  if (!shapeAt(shapes, link.anchorA) || !shapeAt(shapes, link.anchorB)) return inactive("anchor shape missing");
+  const items = linkItems(ctx, id, "spacing", link.items, shapes, [link.anchorA, link.anchorB]);
+  if (items.length === 0) return inactive("no items");
+
+  const place = () => {
+    const { positions, step } = spacedPositions(
+      shapes[link.anchorA]!.bounds, shapes[link.anchorB]!.bounds, items.map((i) => shapes[i]!.bounds), axis, mode);
+    if (step < 0) ctx.issues.push({ entity: id, code: "spacing-overflow", message: "items do not fit between the anchors" });
+    report.step = snapNumber(step);
+    return Object.fromEntries(items.map((i, k) => [i, positions[k]!]));
+  };
+  return { id, axis, anchors: [link.anchorA, link.anchorB], items, report, place };
+}
+
+// Props arrive unchecked: this kind is newer, so it is validated strictly
+// rather than defaulted like spacing.
+function planAlign(ctx: Ctx, id: EntityId, p: Record<string, unknown>, shapes: Record<EntityId, ResolvedShape>, out: ResolvedAlign[]): LinkPlan | undefined {
+  const axis: Axis = p.axis === "y" ? "y" : "x";
+  const mode: AlignMode = p.mode === "centre" || p.mode === "end" ? p.mode : "start";
+  const anchor = typeof p.anchor === "string" ? p.anchor : "";
+  const report: ResolvedAlign = { id, active: false, anchor, axis, mode, positions: {} };
+  out.push(report);
+  const inactive = (why: string) => { ctx.issues.push({ entity: id, code: "align-inactive", message: why }); return undefined; };
+
+  if (p.axis !== axis) return inactive("axis is not x or y");
+  if (p.mode !== mode) return inactive("mode is not start, centre or end");
+  if (!shapeAt(shapes, anchor)) return inactive("anchor shape missing");
+  if (!Array.isArray(p.items)) return inactive("items is not a list");
+  const items = linkItems(ctx, id, "align", p.items, shapes, [anchor]);
+  if (items.length === 0) return inactive("no items");
+
+  const place = () => Object.fromEntries(items.map((i) => [i, alignedPosition(shapes[anchor]!.bounds, shapes[i]!.bounds, axis, mode)]));
+  return { id, axis, anchors: [anchor], items, report, place };
+}
+
+/** A link's items that are shapes, each once, anchors left out; missing ones are flagged. */
+function linkItems(ctx: Ctx, id: EntityId, what: string, raw: unknown, shapes: Record<EntityId, ResolvedShape>, anchors: EntityId[]): EntityId[] {
+  const seen = new Set<string>(anchors);
+  const out: EntityId[] = [];
+  for (const i of Array.isArray(raw) ? raw : []) {
+    if (typeof i !== "string" || seen.has(i)) continue;
+    seen.add(i);
+    if (shapeAt(shapes, i)) out.push(i);
+    else ctx.issues.push({ entity: id, code: "dangling-target", message: `${what} item ${i} missing` });
+  }
   return out;
 }
 
-function applySpacing(ctx: Ctx, id: EntityId, link: SpacingProps, shapes: Record<EntityId, ResolvedShape>): ResolvedSpacing {
-  const axis: Axis = link.axis === "y" ? "y" : "x";
-  const inactive = (why: string): ResolvedSpacing => {
-    ctx.issues.push({ entity: id, code: "spacing-inactive", message: why });
-    return { id, active: false, axis, positions: {}, step: 0 };
-  };
+/** Own-property lookup, so a bad ID such as "toString" can't find a prototype method. */
+function shapeAt(shapes: Record<EntityId, ResolvedShape>, id: unknown): ResolvedShape | undefined {
+  return typeof id === "string" && Object.hasOwn(shapes, id) ? shapes[id] : undefined;
+}
 
-  const a = shapes[link.anchorA], b = shapes[link.anchorB];
-  if (!a || !b) return inactive("anchor shape missing");
-  const items = (Array.isArray(link.items) ? link.items : []).filter((i): i is EntityId => typeof i === "string");
-  const present = items.filter((i) => shapes[i] !== undefined && i !== link.anchorA && i !== link.anchorB);
-  for (const i of items) if (!shapes[i]) ctx.issues.push({ entity: id, code: "dangling-target", message: `spacing item ${i} missing` });
-  if (present.length === 0) return inactive("no items");
-
-  // Span is the clear space between the anchors' inner edges.
-  const [lower, upper] = boundsMin(a.bounds, axis) <= boundsMin(b.bounds, axis) ? [a, b] : [b, a];
-  const start = boundsMax(lower.bounds, axis);
-  const end = boundsMin(upper.bounds, axis);
-  const span = end - start;
-  const sizes = present.map((i) => boundsSize(shapes[i]!.bounds, axis));
-  const n = present.length;
-  const positions: Record<EntityId, number> = {};
-  let step: number;
-
-  if (link.mode === "centres") {
-    step = span / (n + 1);
-    present.forEach((i, k) => { positions[i] = snapNumber(start + step * (k + 1) - sizes[k]! / 2); });
-  } else {
-    const total = sizes.reduce((s, v) => s + v, 0);
-    step = (span - total) / (n + 1);
-    let cursor = start + step;
-    present.forEach((i, k) => { positions[i] = snapNumber(cursor); cursor += sizes[k]! + step; });
+/**
+ * Rule 1: the first link by ID to place a shape on an axis keeps it. Returns
+ * the live links in ID order, each with the links that place its anchors.
+ */
+function claimItems(ctx: Ctx, plans: LinkPlan[]): Map<LinkPlan, LinkPlan[]> {
+  const owner: Record<Axis, Map<EntityId, LinkPlan>> = { x: new Map(), y: new Map() };
+  const live: LinkPlan[] = [];
+  for (const p of plans) {
+    const taken = p.items.find((i) => owner[p.axis].has(i));
+    if (taken !== undefined) {
+      const by = owner[p.axis].get(taken)!.id;
+      ctx.issues.push({ entity: p.id, code: "link-conflict", message: `${taken} is already positioned along ${p.axis} by ${by}` });
+      continue;
+    }
+    for (const i of p.items) owner[p.axis].set(i, p);
+    live.push(p);
   }
-  if (step < 0) ctx.issues.push({ entity: id, code: "spacing-overflow", message: "items do not fit between the anchors" });
+  return new Map(live.map((p) => [p, [...new Set(p.anchors.flatMap((a) => owner[p.axis].get(a) ?? []))]]));
+}
 
-  for (const i of present) {
-    const s = shapes[i]!;
-    const delta = positions[i]! - boundsMin(s.bounds, axis);
-    shapes[i] = axis === "x" ? translateShape(s, delta, 0) : translateShape(s, 0, delta);
+/** Rule 2: dependency order; links on a cycle are reported and left out. */
+function orderLinks(ctx: Ctx, deps: Map<LinkPlan, LinkPlan[]>): LinkPlan[] {
+  const all = [...deps.keys()];
+  const sorted = topoSort(all, deps);
+  if (sorted.length === all.length) return sorted;
+  // Kahn leaves out links on a cycle and those behind one; only the former are broken.
+  const done = new Set(sorted);
+  const cyclic = new Set(all.filter((p) => !done.has(p) && dependsOnItself(p, deps)));
+  for (const p of cyclic) ctx.issues.push({ entity: p.id, code: "link-cycle", message: "links position each other's anchors in a loop" });
+  return topoSort(all.filter((p) => !cyclic.has(p)), deps);
+}
+
+/** Kahn's algorithm over `nodes` (in ID order), lowest ready ID first. Deps outside `nodes` are ignored. */
+function topoSort(nodes: LinkPlan[], deps: Map<LinkPlan, LinkPlan[]>): LinkPlan[] {
+  const included = new Set(nodes);
+  const waiting = new Map<LinkPlan, number>();
+  const next = new Map<LinkPlan, LinkPlan[]>();
+  for (const n of nodes) {
+    const ds = deps.get(n)!.filter((d) => included.has(d));
+    waiting.set(n, ds.length);
+    for (const d of ds) {
+      const list = next.get(d);
+      if (list) list.push(n);
+      else next.set(d, [n]);
+    }
   }
-  return { id, active: true, axis, positions, step: snapNumber(step) };
+  const ready = nodes.filter((n) => waiting.get(n) === 0);
+  const out: LinkPlan[] = [];
+  while (ready.length > 0) {
+    const n = ready.shift()!;
+    out.push(n);
+    for (const m of next.get(n) ?? []) {
+      const w = waiting.get(m)! - 1;
+      waiting.set(m, w);
+      if (w > 0) continue;
+      const at = ready.findIndex((r) => r.id > m.id);
+      ready.splice(at < 0 ? ready.length : at, 0, m);
+    }
+  }
+  return out;
+}
+
+/** Whether a chain of dependencies leads from `p` back to itself. Iterative, so a long chain can't overflow the stack. */
+function dependsOnItself(p: LinkPlan, deps: Map<LinkPlan, LinkPlan[]>): boolean {
+  const stack = [...deps.get(p)!];
+  const seen = new Set<LinkPlan>();
+  while (stack.length > 0) {
+    const q = stack.pop()!;
+    if (q === p) return true;
+    if (seen.has(q)) continue;
+    seen.add(q);
+    stack.push(...deps.get(q)!);
+  }
+  return false;
+}
+
+// Placement arithmetic, shared with the one-shot actions so a one-off
+// align or space lands exactly where the live link would put it.
+
+/**
+ * Along-axis minimum for each item spaced between two anchors' inner faces,
+ * by equal gaps or equal centre pitch, and that gap or pitch (negative if
+ * the items don't fit). Anchor order doesn't matter.
+ */
+export function spacedPositions(a: Bounds, b: Bounds, items: Bounds[], axis: Axis, mode: SpacingMode): { positions: number[]; step: number } {
+  const [lower, upper] = boundsMin(a, axis) <= boundsMin(b, axis) ? [a, b] : [b, a];
+  const start = boundsMax(lower, axis);
+  const span = boundsMin(upper, axis) - start;
+  const sizes = items.map((i) => boundsSize(i, axis));
+  const n = items.length;
+  if (mode === "centres") {
+    const step = span / (n + 1);
+    return { step, positions: sizes.map((size, k) => snapNumber(start + step * (k + 1) - size / 2)) };
+  }
+  const step = (span - sizes.reduce((s, v) => s + v, 0)) / (n + 1);
+  let cursor = start + step;
+  const positions = sizes.map((size) => { const at = snapNumber(cursor); cursor += size + step; return at; });
+  return { step, positions };
+}
+
+/** Along-axis minimum that lines an item's start, centre or end up with the anchor's. */
+export function alignedPosition(anchor: Bounds, item: Bounds, axis: Axis, mode: AlignMode): number {
+  switch (mode) {
+    case "start": return snapNumber(boundsMin(anchor, axis));
+    case "centre": return snapNumber((boundsMin(anchor, axis) + boundsMax(anchor, axis) - boundsSize(item, axis)) / 2);
+    case "end": return snapNumber(boundsMax(anchor, axis) - boundsSize(item, axis));
+  }
+}
+
+/** Translate a shape along one axis so its minimum there is `at`. */
+export function placeAlong(s: ResolvedShape, axis: Axis, at: number): ResolvedShape {
+  const delta = at - boundsMin(s.bounds, axis);
+  return axis === "x" ? translateShape(s, delta, 0) : translateShape(s, 0, delta);
+}
+
+/** Axes on which a live link derives this shape's position, so its stored value there is ignored. */
+export function derivedAxes(r: Resolved, id: EntityId): Set<Axis> {
+  const out = new Set<Axis>();
+  for (const l of [...r.spacings, ...r.aligns]) if (l.active && Object.hasOwn(l.positions, id)) out.add(l.axis);
+  return out;
+}
+
+/** A drag delta with the components dropped on axes a live link controls for this shape; [0, 0] if it is not a shape. */
+export function freeDelta(r: Resolved, id: EntityId, delta: Point): Point {
+  if (!Object.hasOwn(r.shapes, id)) return [0, 0];
+  const axes = derivedAxes(r, id);
+  return [axes.has("x") ? 0 : delta[0], axes.has("y") ? 0 : delta[1]];
 }
 
 // ---- Dimensions and labels ----
