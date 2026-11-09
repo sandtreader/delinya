@@ -26,9 +26,8 @@ body { background: var(--bg); }
 .app {
   height: 100%;
   display: grid;
-  grid-template-columns: 1fr 280px;
   grid-template-rows: auto 1fr auto;
-  grid-template-areas: "toolbar toolbar" "canvas inspector" "status status";
+  grid-template-areas: "toolbar" "canvas" "status";
 }
 
 .toolbar {
@@ -95,13 +94,6 @@ button.danger { color: #9b1c1c; }
 
 .snap { fill: none; stroke: var(--select); stroke-width: 1.5; pointer-events: none; }
 
-.inspector {
-  grid-area: inspector; overflow: auto;
-  background: var(--panel); border-left: 1px solid var(--line); padding: 10px 12px;
-}
-.inspector h2 { font-size: 13px; margin: 6px 0 10px; }
-.inspector h2 small { color: var(--muted); font-weight: normal; margin-left: 6px; }
-.inspector section + section { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
 fieldset { border: 1px solid var(--line); border-radius: 4px; margin: 10px 0; padding: 6px 8px; display: flex; flex-wrap: wrap; gap: 4px; }
 legend { color: var(--muted); padding: 0 4px; }
 fieldset .row { width: 100%; }
@@ -153,6 +145,10 @@ fieldset .row { width: 100%; }
 button.primary { background: var(--accent); border-color: var(--accent); color: white; }
 
 .output-dialog { width: min(1400px, 100%); height: min(1000px, 100%); }
+.properties-dialog { width: 420px; }
+.properties-body { padding: 14px; overflow: auto; min-height: 0; }
+.properties-body section + section { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
+.properties-body .buttons { justify-content: flex-end; margin-top: 18px; }
 .output-options { width: 320px; flex: none; padding: 14px; overflow: auto; border-right: 1px solid var(--line); }
 .output-options section + section { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
 .output-options .row .label { width: 84px; }
@@ -176,19 +172,30 @@ button.primary { background: var(--accent); border-color: var(--accent); color: 
   .print-pages svg:last-child { break-after: auto; }
 }
 
-/* ---- Arrange panel (multi-selection) ---- */
+/* ---- Selection panel: one shape's fields, or arrange for several ---- */
 
 .selection-panel {
-  position: absolute; top: 10px; right: 10px; z-index: 2; width: 250px;
+  position: absolute; top: 10px; right: 10px; z-index: 2; width: 260px;
+  max-height: calc(100% - 20px); overflow: auto;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); padding: 8px 10px; font-size: 12px;
 }
+.selection-panel h2 { font-size: 13px; margin: 2px 0 8px; }
+.selection-panel h2 small { color: var(--muted); font-weight: normal; margin-left: 6px; }
+.selection-panel section + section { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
+/* Narrow rows: a link badge or clamp note wraps below rather than overflowing. */
+.selection-panel .row { flex-wrap: wrap; }
+.selection-panel .row .label { width: 76px; }
+.selection-panel .num input { width: 72px; }
+.selection-panel .row .linked { margin-left: auto; }
+.selection-panel .actions { display: flex; margin-top: 8px; }
 .selection-panel header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
 .selection-panel .hint { color: var(--muted); }
 .selection-panel .group { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; }
 .selection-panel .group > .label { width: 46px; flex: none; color: var(--muted); padding-top: 4px; }
 .selection-panel .icons, .selection-panel .buttons { display: flex; flex-wrap: wrap; gap: 4px; }
 .selection-panel button { padding: 3px 7px; font-size: 12px; }
+.selection-panel button.small { padding: 1px 6px; font-size: 11px; }
 .selection-panel button.icon { padding: 3px; line-height: 0; }
 .selection-panel button.icon svg rect { fill: var(--ink); }
 .selection-panel button.icon svg .guide { stroke: var(--select); stroke-width: 1.5; }

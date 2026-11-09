@@ -5,7 +5,7 @@ import type { EntityId, LinkTarget, SnapPoint } from "../model";
 import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
 
 export type Tool = "select" | "line" | "rect" | "circle";
-export type Dialog = "output";
+export type Dialog = "output" | "properties";
 
 export interface EditorState {
   tool: Tool;
@@ -62,6 +62,18 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "keepLinked": return { ...s, keepLinked: a.on };
     case "linkPopup": return { ...s, linkPopup: a.popup };
   }
+}
+
+/**
+ * Which floating panel the selection gets: one shape's fields with any tool,
+ * so a just-drawn shape can be sized at once; the arrange panel for two or
+ * more, only with the select tool. Ids no longer in `shapes` don't count.
+ */
+export function panelFor(tool: Tool, selection: EntityId[], shapes: Record<string, unknown>): "shape" | "arrange" | null {
+  const n = selection.filter((id) => Object.hasOwn(shapes, id)).length;
+  if (n === 0) return null;
+  if (n === 1) return "shape";
+  return tool === "select" ? "arrange" : null;
 }
 
 export const EditorContext = createContext<{ editor: EditorState; dispatch: Dispatch<EditorAction> } | null>(null);

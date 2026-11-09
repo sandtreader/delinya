@@ -1,15 +1,18 @@
-// Floating panel over the canvas for a multi-selection: align, centre,
-// space and equalise. The first-selected shape is the reference the others
-// move to. "Keep linked" makes each action a live link instead of a
-// one-off move, so the result follows later edits to the reference.
+// Floating panel top right of the canvas for the selection. One shape (any
+// tool, so a just-drawn shape can be sized): its exact values. Two or more
+// (select tool): align, centre, space and equalise. The first-selected
+// shape is the reference the others move to. "Keep linked" makes each
+// action a live link instead of a one-off move, so the result follows
+// later edits to the reference.
 
-import type { Change } from "@sandtreader/collab/protocol";
+import { applyChange, type Change } from "@sandtreader/collab/protocol";
 import {
-  KINDS, alignLinksAmong, alignOnce, batch, derivedAxes, equaliseOnce, linkAlign, linkLengths, linkSpacing, newId, outerAnchors, setAlignMode, spaceOnce,
+  KINDS, alignLinksAmong, alignOnce, batch, deleteEntity, derivedAxes, equaliseOnce, linkAlign, linkLengths, linkSpacing, newId, outerAnchors, setAlignMode, spaceOnce,
   type AlignMode, type Axis, type EntityId, type SpacingMode,
 } from "../model";
 import { store, useDocument } from "../app/store";
-import { useEditor } from "../app/editor";
+import { panelFor, useEditor } from "../app/editor";
+import { ShapeFields } from "./ShapeFields";
 
 const SHAPE_LABEL: Record<string, string> = { rect: "Rectangle", circle: "Circle", line: "Line" };
 
@@ -29,11 +32,43 @@ const ALIGNS: Array<{ axis: Axis; mode: AlignMode; title: string }> = [
 ];
 
 export function SelectionPanel() {
+  useDocument();
+  const { editor, dispatch } = useEditor();
+  const shapes = store.resolved.shapes;
+  const panel = panelFor(editor.tool, editor.selection, shapes);
+  if (!panel) return null;
+  const ids = editor.selection.filter((id) => Object.hasOwn(shapes, id));
+  const remove = () => { deleteSelection(ids); dispatch({ type: "select", ids: [] }); };
+
+  return (
+    <div
+      className="selection-panel"
+      role={panel === "shape" ? "region" : "toolbar"}
+      aria-label={panel === "shape" ? "Selected shape" : "Arrange selection"}
+    >
+      {panel === "shape" ? <ShapeFields id={ids[0]!} /> : <Arrange shapes={ids} />}
+      <div className="actions">
+        <button className="danger" onClick={remove} title="Delete (Del)">Delete</button>
+      </div>
+    </div>
+  );
+}
+
+/** Deletes the shapes, with their dimensions and link memberships, as one undo step. */
+export function deleteSelection(ids: EntityId[]) {
+  const changes = [];
+  let state = store.state;
+  for (const id of ids) {
+    const c = deleteEntity(state, id);
+    if (c) { changes.push(c); state = applyChange(state, c); }
+  }
+  if (changes.length === 1) store.commit(changes[0]!);
+  else if (changes.length > 1) store.commit(batch(changes));
+}
+
+function Arrange({ shapes }: { shapes: EntityId[] }) {
   const state = useDocument();
   const { editor, dispatch } = useEditor();
-  const shapes = editor.selection.filter((id) => store.resolved.shapes[id]);
-  if (editor.tool !== "select" || shapes.length < 2) return null;
-
   const [ref, ...others] = shapes as [EntityId, ...EntityId[]];
   const linked = editor.keepLinked;
   const kinds = new Set(shapes.map((id) => state.entities[id]!.kind));
@@ -81,7 +116,7 @@ export function SelectionPanel() {
   };
 
   return (
-    <div className="selection-panel" role="toolbar" aria-label="Arrange selection">
+    <>
       <header>
         <strong>{shapes.length} selected</strong>
         <span className="hint" title="The first shape you selected; the others move to it">
@@ -141,7 +176,7 @@ export function SelectionPanel() {
         <input type="checkbox" checked={linked} onChange={(e) => dispatch({ type: "keepLinked", on: e.target.checked })} />
         Keep linked
       </label>
-    </div>
+    </>
   );
 }
 

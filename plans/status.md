@@ -33,7 +33,7 @@ but has no UI.
 - **Corner radii** are clamped with the CSS `border-radius` rule (scale all
   radii by the smallest ratio side ÷ adjacent-pair sum). This settles the
   outline's "clamp or flag" question: clamp, and flag with a
-  `radius-clamped` issue shown in the inspector.
+  `radius-clamped` issue shown in the shape panel.
 - **Spacing links** derive along-axis positions between the anchors' inner
   faces, by gaps or by centres. Items' stored along-axis position is
   ignored while linked; `unlinkSpacing` writes the derived value back.
@@ -103,13 +103,18 @@ through `useSyncExternalStore`.
   points onto others. The status bar shows the snap type.
 - **Resize handles** on a single selection: rect corners (anchor opposite
   corner, flips across it), circle centre and radius, line ends.
-- **Inspector**: x/y, each length with a linked badge and unlink, corner
-  radii with a clamped indicator, spacing and alignment membership with
-  remove. Position fields a link controls are locked and show the derived
-  position. Variables are listed.
-- **Arrange panel** (`panels/SelectionPanel.tsx`), floating top right of
-  the canvas with two or more shapes selected. The first-selected shape is
-  the reference (drawn with a halo). Align (six icons), Centre on
+- **No sidebar.** The selection gets one floating panel top right of the
+  canvas (`panels/SelectionPanel.tsx`; which one is `panelFor` in
+  `app/editor.ts`), scrolling if taller than the canvas, with Delete at
+  the bottom.
+- **Shape panel** (`panels/ShapeFields.tsx`): one shape selected, with any
+  tool, so a just-drawn shape can be sized at once. x/y, each length with
+  a linked badge and unlink, corner radii with a clamped indicator,
+  spacing and alignment membership with remove. Position fields a link
+  controls are locked and show the derived position.
+- **Arrange panel**: two or more shapes selected, select tool only. The
+  first-selected shape is the reference (drawn with a halo). Align (six
+  icons), Centre on
   reference, Space (gaps/centres across/down, three or more shapes, the
   outer two as anchors) and Equal (width/height, diameter or length for
   same-kind selections). Align has an Across and a Down row; an align link
@@ -117,9 +122,13 @@ through `useSyncExternalStore`.
   that row's buttons change its mode (`setAlignMode`) rather than adding a
   conflicting link. "Keep linked" (editor state, off by default)
   switches every action from a one-off move/resize to a live link; equal
-  values then go through a named variable. With nothing
-  selected it shows the document Properties (title, author, revision,
-  notes).
+  values then go through a named variable.
+- **Properties…** (header, before Print / Export;
+  `panels/PropertiesDialog.tsx`): a dialog with the document properties
+  (title, author, revision, notes, printed in the title block) and the
+  variables with editable values. Fields commit on blur, so closing blurs
+  first. Field widgets shared with the shape panel are in
+  `panels/fields.tsx`.
 - **Files** (`app/file.ts`): New, Open…, Save, Save as… in the toolbar;
   ⌘O, ⌘S, ⇧⌘S. Uses the File System Access API where present (Chromium),
   so Save writes back to the opened file; elsewhere Save downloads and

@@ -2,10 +2,10 @@ import { useEffect, useReducer, type CSSProperties } from "react";
 import { EditorContext, editorReducer, initialEditor, useEditor, type Tool } from "./app/editor";
 import { store } from "./app/store";
 import { Canvas } from "./canvas/Canvas";
-import { Inspector, deleteSelection } from "./panels/Inspector";
 import { StatusBar } from "./panels/StatusBar";
 import { OutputDialog } from "./panels/OutputDialog";
-import { SelectionPanel } from "./panels/SelectionPanel";
+import { PropertiesDialog } from "./panels/PropertiesDialog";
+import { SelectionPanel, deleteSelection } from "./panels/SelectionPanel";
 import { LinkButtons } from "./panels/LinkButtons";
 import { ToolPalette } from "./panels/ToolPalette";
 import { Toolbar, useFileCommands } from "./panels/Toolbar";
@@ -93,9 +93,9 @@ function Shell() {
         <LinkButtons />
         <ToolPalette />
       </div>
-      <Inspector />
       <StatusBar />
       {editor.dialog === "output" && <OutputDialog />}
+      {editor.dialog === "properties" && <PropertiesDialog />}
     </div>
   );
 }

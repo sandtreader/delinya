@@ -45,6 +45,7 @@ export function Toolbar() {
         <button onClick={file.open} title="Open (⌘O)">Open…</button>
         <button onClick={file.save} title="Save (⌘S)">Save</button>
         <button onClick={file.saveAs} title="Save as (⇧⌘S)">Save as…</button>
+        <button onClick={() => dispatch({ type: "dialog", dialog: "properties" })} title="Title, author, revision, notes and variables">Properties…</button>
         <button onClick={() => dispatch({ type: "dialog", dialog: "output" })} title="Print and export (⌘P)">Print / Export…</button>
       </div>
       <div className="group">
