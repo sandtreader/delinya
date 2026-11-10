@@ -1,6 +1,6 @@
 # Delinya — Status and Handoff
 
-Last updated 2026-11-09. Repo `sandtreader/delinya`, branch `main`, head
+Last updated 2026-11-10. Repo `sandtreader/delinya`, branch `main`, head
 is the print and export commit. Tree clean; Vitest tests and `tsc` pass.
 
 ## Where we are
@@ -21,8 +21,12 @@ but has no UI.
   map). Kinds: `line`, `rect`, `circle`, `variable`, `link.spacing`,
   `dimension`, `radius-label`, and the singleton `document` (id
   `DOCUMENT_ID`) holding title, author, revision and notes for the title
-  block. Typed props in `types.ts`; `setDocumentProps` edits them and
-  `resolved.document` reads them ("" when unset).
+  block, and `gridSpacing` (mm). Typed props in `types.ts`;
+  `setDocumentProps` edits the text (`DOCUMENT_FIELDS`, which the title
+  block and resolve iterate; it excludes the spacing), `setGridSpacing`
+  the spacing (positive numbers only), and `resolved.document` reads them
+  ("" when unset; spacing 1 mm when unset, or when bad, with a
+  `bad-value` issue).
 - **Lengths** are `number | { ref: variableId }`. Equal-value links are
   refs (outline option A). There is no `link.equal` entity.
 - **Line** is stored as `{ x, y, length, angle }` so its length can be a
@@ -81,8 +85,8 @@ delinya.net.
 ### UI (`src/canvas/`, `src/panels/`, `src/app/`, `src/view/`)
 
 Vite 6, React 19, TypeScript, plain CSS. SVG canvas with a model-space
-`<g transform>` layer. Editor state (tool, selection, view, cursor, snap)
-lives in a reducer and is never part of the document; the document is read
+`<g transform>` layer. Editor state (tool, selection, view, cursor, snap,
+grid show/snap) lives in a reducer and is never part of the document; the document is read
 through `useSyncExternalStore`.
 
 - **Tool palette** (`panels/ToolPalette.tsx`): select, line, rectangle and
@@ -118,9 +122,22 @@ through `useSyncExternalStore`.
 - **Pan/zoom** matches SynFlo: wheel and pinch zoom at the cursor,
   background drag pans, Space or middle button pans in any tool. Pan and
   zoom are reducer delta actions so rapid events never read a stale view.
+- **Grid**: the spacing is the drawing's (`gridSpacing` on the document
+  entity, default 1 mm: saved, synced, undoable). Zoomed out, the drawn
+  grid coarsens to multiples of it (×1, ×2, ×5, ×10, ×20, ×50…, no cap) so
+  lines stay at least 8 px apart (`gridPitch(view, spacing)` in
+  `view/viewport.ts`); every tenth line is darker. **Show grid** and
+  **Snap to grid** are each viewer's own choice, like layer hide/lock:
+  `editor.grid: GridView { visible, snap }` (action `grid`), not synced,
+  saved or undoable, kept on New/Open, and remembered per browser in
+  localStorage (`delinya.grid`, `app/gridView.ts`; loaded lazily into the
+  reducer, saved on change). Hiding the grid keeps the origin axis lines
+  (`grid-axis`): they are the axes, not the grid.
 - **Snapping** (`canvas/snap.ts`): to other shapes' snap points within
-  10 px, else to an adaptive grid. Moving snaps the moving shape's own
-  points onto others. The status bar shows the snap type.
+  10 px, else to the drawn grid pitch. With grid snap off (`grid` null)
+  free points and move deltas round only to 0.01 mm; shapes' snap points
+  still apply. Moving snaps the moving shape's own points onto others.
+  The status bar shows the snap type.
 - **Resize handles** on a single selection: rect corners (anchor opposite
   corner, flips across it), circle centre and radius, line ends.
 - **No sidebar.** The selection gets one floating panel top right of the
@@ -144,11 +161,16 @@ through `useSyncExternalStore`.
   switches every action from a one-off move/resize to a live link; equal
   values then go through a named variable.
 - **Properties…** (header, before Print / Export;
-  `panels/PropertiesDialog.tsx`): a dialog with the document properties
-  (title, author, revision, notes, printed in the title block) and the
-  variables with editable values. Fields commit on blur, so closing blurs
-  first. Field widgets shared with the shape panel are in
-  `panels/fields.tsx`.
+  `panels/PropertiesDialog.tsx`): a fixed-width dialog with tabs
+  (Drawing | Grid | Variables; an ARIA tablist, Left/Right/Home/End move
+  between tabs, roving tabindex; component state, Drawing first). Drawing:
+  title, author, revision, notes, printed in the title block. Grid:
+  spacing (mm, the drawing's), Show grid and Snap to grid (yours, this
+  browser). Variables: their editable values. Panels stay mounted (hidden)
+  and share a min-height, so the dialog doesn't jump between tabs.
+  Fields commit on blur, so closing or switching tab blurs first. Field
+  widgets shared with the shape panel are in `panels/fields.tsx`; `Num`
+  takes an optional `valid` check and reverts text it refuses.
 - **Files** (`app/file.ts`): New, Open…, Save, Save as… in the toolbar;
   ⌘O, ⌘S, ⇧⌘S. Uses the File System Access API where present (Chromium),
   so Save writes back to the opened file; elsewhere Save downloads and
@@ -295,7 +317,9 @@ through `useSyncExternalStore`.
   print dialog being at 100%; the check ruler is how users verify it.
   Verified on paper 2026-11-09: the ruler measured exactly 100 mm.
 - Document properties are a singleton entity, so they save, sync and undo
-  like everything else.
+  like everything else. Grid spacing is one of them; showing and snapping
+  to the grid are per viewer (editor state + localStorage), like layer
+  hide/lock.
 - Equal-value links are refs, not link entities.
 - Lines store length and angle, not two endpoints.
 - Corner radii clamp (CSS rule) and flag rather than reject.

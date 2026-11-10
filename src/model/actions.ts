@@ -8,12 +8,12 @@ import type { Change, DocState, Props } from "@sandtreader/collab/protocol";
 import { EPS, boundsMin } from "./geometry";
 import {
   type Resolved, type ResolvedShape,
-  alignedPosition, derivedAxes, lengthValue, placeAlong, resolve, spacedPositions,
+  alignedPosition, derivedAxes, isGridSpacing, lengthValue, placeAlong, resolve, spacedPositions,
 } from "./resolve";
 import {
   type AlignMode, type AlignProps, type Axis, type CircleProps, type DimensionProp, type DocumentField,
   type EntityId, type Length, type LineProps, type RectProps, type SpacingMode, type SpacingProps,
-  DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, entityAs, isRef, kindOf, toProps,
+  DEFAULT_GRID_SPACING, DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, entityAs, isRef, kindOf, toProps,
 } from "./types";
 
 export interface Gesture {
@@ -313,6 +313,18 @@ export function setDocumentProps(state: DocState, props: Partial<Record<Document
   if (Object.keys(changed).length === 0) return undefined;
   if (!e) return { type: "entity_added", id: DOCUMENT_ID, kind: KINDS.document, props: changed };
   return propsChanged(DOCUMENT_ID, changed);
+}
+
+/**
+ * Set the drawing's grid spacing, mm. Undefined unless `mm` is a positive
+ * number different from the stored one (absent counts as the 1 mm default).
+ */
+export function setGridSpacing(state: DocState, mm: number): Change | undefined {
+  if (!isGridSpacing(mm)) return undefined;
+  const e = state.entities[DOCUMENT_ID];
+  if (mm === (e?.props.gridSpacing ?? DEFAULT_GRID_SPACING)) return undefined;
+  if (!e) return { type: "entity_added", id: DOCUMENT_ID, kind: KINDS.document, props: { gridSpacing: mm } };
+  return propsChanged(DOCUMENT_ID, { gridSpacing: mm });
 }
 
 // ---- Deleting ----

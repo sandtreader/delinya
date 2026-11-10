@@ -1,6 +1,7 @@
-// Pointer and drag snapping against the resolved geometry, then the grid.
+// Pointer and drag snapping against the resolved geometry, then the grid
+// (or, with grid snap off, just 0.01 mm).
 
-import { isVisible, type EntityId, type Point, type Resolved, type SnapPoint } from "../model";
+import { isVisible, snapNumber, type EntityId, type Point, type Resolved, type SnapPoint } from "../model";
 
 export interface SnapResult {
   point: Point;
@@ -25,18 +26,29 @@ function nearestSnap(
   return best ? { snap: best, d: bestD } : null;
 }
 
-function toGrid(p: Point, grid: number): Point {
+/** Places kept when not snapping to the grid: 0.01 mm, enough to drop float noise. */
+const FREE_PLACES = 2;
+
+/** Round to the grid pitch (float noise dropped), or with no grid just to 0.01 mm. */
+function round(v: number, grid: number | null): number {
+  if (grid === null) return snapNumber(v, FREE_PLACES);
   const g = grid > 0 ? grid : 1;
-  return [Math.round(p[0] / g) * g, Math.round(p[1] / g) * g];
+  return snapNumber(Math.round(v / g) * g);
+}
+
+function toGrid(p: Point, grid: number | null): Point {
+  return [round(p[0], grid), round(p[1], grid)];
 }
 
 /**
  * Snap a free pointer position: nearest snap point within `tolerance` mm,
  * ignoring `exclude` shapes and those on `hidden` layers, else rounded to
- * `grid` mm.
+ * `grid` mm. With `grid` null (grid snap off) it is only rounded to 0.01 mm;
+ * shapes' snap points still apply.
  */
 export function snapPoint(
-  resolved: Resolved, p: Point, tolerance: number, exclude: ReadonlySet<EntityId>, grid: number, hidden: ReadonlySet<EntityId> = NO_LAYERS,
+  resolved: Resolved, p: Point, tolerance: number, exclude: ReadonlySet<EntityId>, grid: number | null,
+  hidden: ReadonlySet<EntityId> = NO_LAYERS,
 ): SnapResult {
   const hit = nearestSnap(resolved, p, tolerance, exclude, hidden);
   if (hit) return { point: hit.snap.point, snap: hit.snap };
@@ -47,10 +59,11 @@ export function snapPoint(
  * Adjust a drag delta so that one of the moving shape's own snap points
  * lands on another shape's snap point, else on the grid. Returns the
  * adjusted delta and the snap it landed on. Shapes on `hidden` layers are
- * not snapped to.
+ * not snapped to. With `grid` null the delta is the pointer's own, rounded
+ * to 0.01 mm.
  */
 export function snapMove(
-  resolved: Resolved, primary: EntityId, delta: Point, tolerance: number, moving: ReadonlySet<EntityId>, grid: number,
+  resolved: Resolved, primary: EntityId, delta: Point, tolerance: number, moving: ReadonlySet<EntityId>, grid: number | null,
   hidden: ReadonlySet<EntityId> = NO_LAYERS,
 ): { delta: Point; snap: SnapPoint | null } {
   const shape = resolved.shapes[primary];
@@ -64,6 +77,7 @@ export function snapMove(
     }
   }
   if (best) return { delta: best.delta, snap: best.snap };
+  if (grid === null) return { delta: toGrid(delta, null), snap: null };
   // Grid: keep the shape's first snap point (a corner, endpoint or centre) on the grid.
   const ref = shape.snaps[0]?.point ?? [0, 0];
   const g = toGrid([ref[0] + delta[0], ref[1] + delta[1]], grid);

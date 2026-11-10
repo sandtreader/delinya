@@ -27,14 +27,17 @@ function escape(draft: FieldDraft, rerender: () => void, e: React.KeyboardEvent<
   e.currentTarget.blur();
 }
 
-export function Num({ value, onCommit, disabled, unit = "mm" }: { value: number; onCommit: (v: number) => void; disabled?: boolean; unit?: string }) {
+/** A number field; text that isn't a number, or that `valid` refuses, goes back to the value. */
+export function Num({ value, onCommit, disabled, unit = "mm", valid }: {
+  value: number; onCommit: (v: number) => void; disabled?: boolean; unit?: string; valid?: (v: number) => boolean;
+}) {
   const [draft, rerender] = useDraft(formatMm(value));
   useEffect(() => { draft.reset(formatMm(value)); rerender(); }, [value, draft]);
   const commit = () => {
     const text = draft.take();
     if (text === undefined) return;
     const v = Number(text);
-    if (Number.isFinite(v) && v !== value) onCommit(v);
+    if (Number.isFinite(v) && v !== value && (valid?.(v) ?? true)) onCommit(v);
     else { draft.reset(formatMm(value)); rerender(); }
   };
   return (

@@ -122,17 +122,25 @@ export interface RadiusLabelProps {
   corner: 0 | 1 | 2 | 3;
 }
 
-/** Title-block text for the whole drawing, on the singleton DOCUMENT_ID. */
+/**
+ * The whole drawing's own settings, on the singleton DOCUMENT_ID: title-block
+ * text, and the grid spacing (mm), which is the drawing's, so saved, synced
+ * and undoable. Showing and snapping to the grid are each viewer's own choice,
+ * held in editor state, never here.
+ */
 export interface DocumentProps {
   title?: string;
   author?: string;
   revision?: string;
   notes?: string;
+  gridSpacing?: number;
 }
 
-export type DocumentField = keyof DocumentProps;
+/** The title-block text fields (not the grid spacing). */
+export type DocumentField = "title" | "author" | "revision" | "notes";
 export const DOCUMENT_FIELDS: readonly DocumentField[] = ["title", "author", "revision", "notes"];
 export const DOCUMENT_ID = "document";
+export const DEFAULT_GRID_SPACING = 1;
 
 /**
  * A layer: shapes on it draw together, above lower-numbered layers. Position

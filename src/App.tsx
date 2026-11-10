@@ -13,6 +13,8 @@ import { ToolPalette } from "./panels/ToolPalette";
 import { LayerPalette } from "./panels/LayerPalette";
 import { Toolbar, useFileCommands } from "./panels/Toolbar";
 import { useDirty, useFileName } from "./app/file";
+import { browserStorage } from "./app/floatPosition";
+import { loadGridView, saveGridView } from "./app/gridView";
 import { STYLE } from "./output/style";
 import "./styles.css";
 
@@ -22,7 +24,9 @@ const APP_COLOURS = { "--dimension": STYLE.colour.dimension } as CSSProperties;
 const TOOL_KEYS: Record<string, Tool> = { v: "select", l: "line", r: "rect", c: "circle" };
 
 export function App() {
-  const [editor, dispatch] = useReducer(editorReducer, initialEditor);
+  // Showing and snapping to the grid are this browser's choice, kept between visits.
+  const [editor, dispatch] = useReducer(editorReducer, undefined, () => ({ ...initialEditor, grid: loadGridView(browserStorage()) }));
+  useEffect(() => { saveGridView(browserStorage(), editor.grid); }, [editor.grid]);
   return (
     <EditorContext.Provider value={{ editor, dispatch }}>
       <Shell />

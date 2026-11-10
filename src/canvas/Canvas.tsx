@@ -59,7 +59,10 @@ export function Canvas() {
     return [e.clientX - r.left, e.clientY - r.top];
   };
   const tolerance = SNAP_PX / view.scale;
-  const grid = gridPitch(view);
+  // The drawing's spacing, coarsened when zoomed out; snapping uses what's drawn.
+  // Grid snap off (this viewer's choice) leaves only shapes' snap points.
+  const pitch = gridPitch(view, resolved.document.gridSpacing);
+  const grid = editor.grid.snap ? pitch : null;
 
   // New shapes go on the current layer; one this viewer has hidden or locked takes none.
   const layerId = currentLayer(resolved, editor.layer);
@@ -216,7 +219,7 @@ export function Canvas() {
       onWheel={onWheel}
       onContextMenu={(e) => e.preventDefault()}
     >
-      <Grid view={view} size={size} />
+      <Grid view={view} size={size} pitch={pitch} show={editor.grid.visible} />
       <g transform={`translate(${view.ox} ${view.oy}) scale(${view.scale})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
         {/* Behind the shapes: live links, screen only. */}
         {guides.map((g) => <LinkGuideView key={g.link} guide={g} fontSize={fontSize} hair={hair} />)}
@@ -463,20 +466,26 @@ function SnapMarker({ snap, view }: { snap: SnapPoint; view: View }) {
   );
 }
 
-function Grid({ view, size }: { view: View; size: [number, number] }) {
-  const pitch = gridPitch(view);
+/**
+ * Grid lines every `pitch` mm, every tenth one darker, when `show` (this
+ * viewer may hide them). The origin axes are drawn either way.
+ */
+function Grid({ view, size, pitch, show }: { view: View; size: [number, number]; pitch: number; show: boolean }) {
   const [w, h] = size;
   const [mx0, my0] = toModel(view, [0, 0]);
   const [mx1, my1] = toModel(view, [w, h]);
   const lines: React.ReactNode[] = [];
-  const major = pitch * 10;
-  for (let x = Math.floor(mx0 / pitch) * pitch; x <= mx1; x += pitch) {
-    const sx = toScreen(view, [x, 0])[0];
-    lines.push(<line key={`x${x}`} x1={sx} y1={0} x2={sx} y2={h} className={isMajor(x, major) ? "grid-major" : "grid-minor"} />);
-  }
-  for (let y = Math.floor(my0 / pitch) * pitch; y <= my1; y += pitch) {
-    const sy = toScreen(view, [0, y])[1];
-    lines.push(<line key={`y${y}`} x1={0} y1={sy} x2={w} y2={sy} className={isMajor(y, major) ? "grid-major" : "grid-minor"} />);
+  // Count lines rather than adding up pitches, so a pitch like 0.1 doesn't drift.
+  const cls = (i: number) => (i % 10 === 0 ? "grid-major" : "grid-minor");
+  if (show) {
+    for (let i = Math.floor(mx0 / pitch); i * pitch <= mx1; i++) {
+      const sx = toScreen(view, [i * pitch, 0])[0];
+      lines.push(<line key={`x${i}`} x1={sx} y1={0} x2={sx} y2={h} className={cls(i)} />);
+    }
+    for (let i = Math.floor(my0 / pitch); i * pitch <= my1; i++) {
+      const sy = toScreen(view, [0, i * pitch])[1];
+      lines.push(<line key={`y${i}`} x1={0} y1={sy} x2={w} y2={sy} className={cls(i)} />);
+    }
   }
   const [ox, oy] = toScreen(view, [0, 0]);
   return (
@@ -486,10 +495,6 @@ function Grid({ view, size }: { view: View; size: [number, number] }) {
       <line x1={0} y1={oy} x2={w} y2={oy} className="grid-axis" />
     </g>
   );
-}
-
-function isMajor(v: number, major: number): boolean {
-  return Math.abs(v / major - Math.round(v / major)) < 1e-9;
 }
 
 export { formatMm } from "../view/format";

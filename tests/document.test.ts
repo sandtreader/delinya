@@ -5,7 +5,7 @@ import {
 } from "../src/model";
 import { doc } from "./helpers";
 
-const BLANK = { title: "", author: "", revision: "", notes: "" };
+const BLANK = { title: "", author: "", revision: "", notes: "", gridSpacing: 1 };
 
 describe("document properties", () => {
   it("resolve gives blank properties for a document without any", () => {
@@ -25,7 +25,7 @@ describe("document properties", () => {
     const change = setDocumentProps(state, { revision: "B", author: "PRC" });
     expect(change).toEqual({ type: "props_changed", id: DOCUMENT_ID, props: { revision: "B" } });
     state = applyChange(state, change!);
-    expect(resolve(state).document).toEqual({ title: "Bench", author: "PRC", revision: "B", notes: "" });
+    expect(resolve(state).document).toEqual({ ...BLANK, title: "Bench", author: "PRC", revision: "B" });
     expect(setDocumentProps(state, { title: "Bench" })).toBeUndefined();
   });
 

@@ -1,9 +1,11 @@
 // Editor (non-document) state: tool, selection, current layer, hidden and
-// locked layers, view, open dialog. Never synced, saved or undoable.
+// locked layers, grid show/snap, view, open dialog. Never synced, saved or
+// undoable.
 
 import { createContext, useContext, type Dispatch } from "react";
 import { isSelectable, type EntityId, type LayerView, type LinkTarget, type Resolved, type SnapPoint } from "../model";
 import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
+import { DEFAULT_GRID_VIEW, type GridView } from "./gridView";
 
 export type Tool = "select" | "line" | "rect" | "circle";
 export type Dialog = "output" | "properties";
@@ -18,6 +20,11 @@ export interface EditorState {
    * synced, saved or undoable; cleared for a new or opened drawing.
    */
   layerView: LayerView;
+  /**
+   * Whether this viewer shows and snaps to the grid: their own choice, kept
+   * in their browser and for a new or opened drawing. The spacing is the drawing's.
+   */
+  grid: GridView;
   view: View;
   /** Current pointer position in model mm, for the status bar. */
   cursor: [number, number] | null;
@@ -35,6 +42,7 @@ export const initialEditor: EditorState = {
   selection: [],
   layer: null,
   layerView: { hidden: new Set(), locked: new Set() },
+  grid: DEFAULT_GRID_VIEW,
   view: DEFAULT_VIEW,
   cursor: null,
   snap: null,
@@ -50,6 +58,7 @@ export type EditorAction =
   | { type: "layer"; id: EntityId }
   | { type: "toggleLayer"; id: EntityId; flag: "hidden" | "locked" }
   | { type: "resetLayers" }
+  | { type: "grid"; grid: Partial<GridView> }
   | { type: "view"; view: View }
   | { type: "panBy"; dx: number; dy: number }
   | { type: "zoomAt"; factor: number; at: [number, number] }
@@ -72,6 +81,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
       return { ...s, layerView: { ...s.layerView, [a.flag]: set } };
     }
     case "resetLayers": return { ...s, layer: null, layerView: initialEditor.layerView };
+    case "grid": return { ...s, grid: { ...s.grid, ...a.grid } };
     case "view": return { ...s, view: a.view };
     // Deltas, not absolute views: several pointer or wheel events can arrive
     // between renders and each must build on the last.

@@ -21,7 +21,7 @@ import {
 import {
   type Axis, type DimensionProp, type DimensionProps, type EntityId, type Length,
   type AlignMode, type RadiusLabelProps, type SpacingMode, type SpacingProps,
-  BASE_LAYER_ID, DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, isRef,
+  BASE_LAYER_ID, DEFAULT_GRID_SPACING, DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, isRef,
 } from "./types";
 
 // ---- Output types ----
@@ -131,12 +131,14 @@ export interface ResolvedAlign {
   positions: Record<EntityId, number>;
 }
 
-/** Document properties, "" where unset. */
+/** Document properties: text "" where unset, grid spacing 1 mm where unset or bad. */
 export interface ResolvedDocument {
   title: string;
   author: string;
   revision: string;
   notes: string;
+  /** Grid spacing, mm; always a positive finite number. */
+  gridSpacing: number;
 }
 
 /** A layer as drawn: `number` is its 1-based position, 1 at the back. */
@@ -247,7 +249,7 @@ export function lengthValue(state: DocState, v: Length): number | undefined {
 // ---- Document properties ----
 
 function resolveDocument(ctx: Ctx): ResolvedDocument {
-  const out: ResolvedDocument = { title: "", author: "", revision: "", notes: "" };
+  const out: ResolvedDocument = { title: "", author: "", revision: "", notes: "", gridSpacing: DEFAULT_GRID_SPACING };
   const e = ctx.state.entities[DOCUMENT_ID];
   if (!e || e.kind !== KINDS.document) return out;
   for (const k of DOCUMENT_FIELDS) {
@@ -255,7 +257,15 @@ function resolveDocument(ctx: Ctx): ResolvedDocument {
     if (typeof v === "string") out[k] = v;
     else if (v != null) ctx.issues.push({ entity: DOCUMENT_ID, code: "bad-value", message: `${k} is not text` });
   }
+  const g = e.props.gridSpacing;
+  if (isGridSpacing(g)) out.gridSpacing = g;
+  else if (g != null) ctx.issues.push({ entity: DOCUMENT_ID, code: "bad-value", message: "grid spacing is not a positive number" });
   return out;
+}
+
+/** A usable grid spacing: a positive, finite number of mm. */
+export function isGridSpacing(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v) && v > 0;
 }
 
 // ---- Layers ----

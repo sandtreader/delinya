@@ -51,7 +51,7 @@ export function Toolbar() {
         <IconButton label="Save as…" tip="Save as… (⇧⌘S)" onClick={file.saveAs}><SaveAsIcon /></IconButton>
       </div>
       <div className="group">
-        <IconButton label="Properties…" tip="Properties: title, author, notes, variables" onClick={() => dispatch({ type: "dialog", dialog: "properties" })}>
+        <IconButton label="Properties…" tip="Properties: title block, grid, variables" onClick={() => dispatch({ type: "dialog", dialog: "properties" })}>
           <PropertiesIcon />
         </IconButton>
         <IconButton label="Print / Export…" tip="Print / Export… (⌘P)" onClick={() => dispatch({ type: "dialog", dialog: "output" })}>

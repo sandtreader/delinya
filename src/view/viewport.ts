@@ -35,9 +35,22 @@ export function zoomAt(v: View, factor: number, at: Point): View {
   return { scale, ox: at[0] - (at[0] - v.ox) * k, oy: at[1] - (at[1] - v.oy) * k };
 }
 
-/** A grid pitch in mm that stays between ~8 and ~80 px at this scale. */
-export function gridPitch(v: View): number {
-  const steps = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000];
-  for (const s of steps) if (s * v.scale >= 8) return s;
-  return 1000;
+/** Closest the drawn grid lines get, px. */
+export const MIN_GRID_PX = 8;
+
+/**
+ * The grid pitch to draw and snap to, mm: the drawing's grid `spacing`, or
+ * the smallest multiple of it (×2, ×5, ×10, ×20, ×50…) whose lines are at
+ * least MIN_GRID_PX apart at this scale.
+ */
+export function gridPitch(v: View, spacing = 1): number {
+  const base = Number.isFinite(spacing) && spacing > 0 ? spacing : 1;
+  if (!(v.scale > 0) || !Number.isFinite(v.scale)) return base;
+  for (let decade = 1; ; decade *= 10) {
+    for (const m of [1, 2, 5]) {
+      // toPrecision drops float noise, e.g. 0.1 × 30.
+      const pitch = Number((base * m * decade).toPrecision(12));
+      if (pitch * v.scale >= MIN_GRID_PX) return pitch;
+    }
+  }
 }
