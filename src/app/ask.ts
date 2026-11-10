@@ -14,20 +14,34 @@ export interface Question {
   cancel?: string | null;
   /** Yes destroys something: the confirm button is red. */
   danger?: boolean;
+  /**
+   * Label of a third answer, shown apart on the left in red, as a
+   * destructive way out: "Discard" beside Save and Cancel. Only `choose`
+   * tells it apart; to `ask` it counts as no.
+   */
+  alternative?: string;
 }
 
-interface Pending { question: Question; resolve: (ok: boolean) => void }
+/** Which button answered: the confirm one, cancel (or Escape), or the alternative. */
+export type Choice = "confirm" | "cancel" | "alternative";
+
+interface Pending { question: Question; resolve: (c: Choice) => void }
 
 const queue: Pending[] = [];
 const listeners = new Set<() => void>();
 const notify = () => { for (const fn of listeners) fn(); };
 
-/** Resolves true if confirmed; false if cancelled or dismissed. */
-export function ask(question: Question): Promise<boolean> {
+/** Resolves with the button that answered. */
+export function choose(question: Question): Promise<Choice> {
   return new Promise((resolve) => {
     queue.push({ question, resolve });
     notify();
   });
+}
+
+/** Resolves true if confirmed; false if cancelled, dismissed or the alternative. */
+export function ask(question: Question): Promise<boolean> {
+  return choose(question).then((c) => c === "confirm");
 }
 
 /** A notice with only an OK button; resolves once it is dismissed. */
@@ -40,12 +54,12 @@ export function currentQuestion(): Question | null {
   return queue[0]?.question ?? null;
 }
 
-/** Answers the question showing now and moves on to the next. */
-export function answer(ok: boolean): void {
+/** Answers the question showing now (true: confirm, false: cancel) and moves on to the next. */
+export function answer(a: boolean | "alternative"): void {
   const head = queue.shift();
   if (!head) return;
   notify();
-  head.resolve(ok);
+  head.resolve(a === "alternative" ? "alternative" : a ? "confirm" : "cancel");
 }
 
 export function useQuestion(): Question | null {

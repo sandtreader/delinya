@@ -207,11 +207,13 @@ through `useSyncExternalStore`.
 - **Files** (`app/file.ts`): New, Open…, Save, Save as… in the toolbar;
   ⌘O, ⌘S, ⇧⌘S. Uses the File System Access API where present (Chromium),
   so Save writes back to the opened file; elsewhere Save downloads and
-  Open uses a file input. Extension `.delinya` (JSON; `.json` also
-  opens). The tab title and the right end of the header show the file
+  Open uses a file input. Extension `.dln` (JSON inside); Open
+  offers only `.dln`. The tab title and the right end of the header show the file
   name and a • when dirty; the header adds the drawing's title in quotes
   (`quotedTitle`, left out when blank or the same) and clicking it opens
-  Properties on the Drawing tab; New/Open ask before discarding (in-app dialog), and closing the
+  Properties on the Drawing tab; New/Open ask before discarding (in-app
+  dialog: for a drawing with a file of its own, Save / Cancel / Discard,
+  saving first then going on; untitled, Discard / Cancel), and closing the
   tab warns (the browser's own prompt; that one can't be replaced). Open
   and save errors show in the in-app dialog too.
   Loading clears selection, returns to select and resets the view.
@@ -228,8 +230,9 @@ through `useSyncExternalStore`.
   real text arrives.
 - **Questions and notices** (`app/ask.ts`, `panels/AskDialog.tsx`): the
   app's own confirm/alert, never the browser's. `ask({ title, message,
-  confirm?, cancel?, danger? })` resolves true/false, `tell(title,
-  message)` has only OK; module state (not React) so `file.ts` can use it,
+  confirm?, cancel?, danger? })` resolves true/false; `choose` adds an
+  `alternative` third button (left, red, e.g. Discard) and resolves
+  "confirm" | "cancel" | "alternative"; `tell(title, message)` has only OK; module state (not React) so `file.ts` can use it,
   and questions queue, one shown at a time. The dialog sits above other
   dialogs, focuses its confirm button (red when `danger`), keeps Tab
   inside it, and while open swallows every key from a window capture

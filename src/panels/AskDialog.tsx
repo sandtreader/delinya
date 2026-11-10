@@ -63,6 +63,7 @@ export function AskDialog() {
         <div className="ask-body">
           <p id="ask-message">{q.message}</p>
           <div className="buttons">
+            {q.alternative && <button className="danger alternative" onClick={() => answer("alternative")}>{q.alternative}</button>}
             {cancel !== null && <button onClick={() => answer(false)}>{cancel}</button>}
             <button ref={confirmRef} className={q.danger ? "danger-primary" : "primary"} onClick={() => answer(true)}>
               {q.confirm ?? "OK"}

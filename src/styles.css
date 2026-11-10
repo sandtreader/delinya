@@ -221,6 +221,7 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .tabs .tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 /* Above the other dialogs: a question can come up over one. */
 .ask-backdrop { z-index: 20; }
+.ask-body .buttons .alternative { margin-right: auto; }
 .ask-dialog { width: 380px; }
 .ask-body { padding: 14px; }
 .ask-body p { margin: 0; overflow-wrap: anywhere; }

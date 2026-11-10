@@ -11,13 +11,14 @@
 import { useSyncExternalStore } from "react";
 import { emptyState } from "@sandtreader/collab/protocol";
 import { parseDrawing, serializeDrawing } from "../model";
-import { ask, tell } from "./ask";
+import { ask, choose, tell } from "./ask";
 import { downloadBlob } from "./download";
 import { store } from "./store";
 
-export const EXTENSION = ".delinya";
+export const EXTENSION = ".dln";
 const UNTITLED = "Untitled";
-const FILE_TYPES = [{ description: "Delinya drawing", accept: { "application/json": [EXTENSION, ".json"] } }];
+/** What Open offers: .dln files (JSON inside). */
+export const FILE_TYPES = [{ description: "Delinya drawing", accept: { "application/json": [EXTENSION] } }];
 
 // Not in TypeScript's DOM lib yet; the handles themselves are.
 interface PickerOptions {
@@ -46,7 +47,8 @@ function setCurrent(f: CurrentFile): void {
   for (const fn of listeners) fn();
 }
 
-const baseName = (fileName: string) => fileName.replace(/\.(delinya|json)$/i, "") || UNTITLED;
+/** A file's display name: without a drawing extension. */
+export const baseName = (fileName: string) => fileName.replace(/\.dln$/i, "") || UNTITLED;
 
 const isAbort = (e: unknown) => e instanceof DOMException && e.name === "AbortError";
 
@@ -67,14 +69,37 @@ export function useDirty(): boolean {
 // Each resolves true if the document was replaced, so the caller can reset
 // editor state (selection, view).
 
-/** True if there is nothing unsaved or the user agrees to lose it. */
+/**
+ * True if there is nothing unsaved, or the user saves it or agrees to lose
+ * it. Saving is offered when the drawing has a file of its own to go back
+ * to; an untitled one would need Save as, so it is only asked to discard.
+ */
 async function confirmDiscard(): Promise<boolean> {
-  return !store.dirty || ask({
+  if (!store.dirty) return true;
+  if (!hasFile()) {
+    return ask({ title: "Unsaved changes", message: `Discard unsaved changes to “${current.name}”?`, confirm: "Discard", danger: true });
+  }
+  const c = await choose({
     title: "Unsaved changes",
-    message: `Discard unsaved changes to “${current.name}”?`,
-    confirm: "Discard",
-    danger: true,
+    message: `Save changes to “${current.name}” first?`,
+    confirm: "Save",
+    alternative: "Discard",
   });
+  if (c === "cancel") return false;
+  if (c === "alternative") return true;
+  try {
+    await saveDrawing();
+  } catch (e) {
+    void tell("Couldn’t save", e instanceof Error ? e.message : String(e));
+    return false;
+  }
+  // A failed write says so and leaves the drawing unsaved: don't lose it.
+  return !store.dirty;
+}
+
+/** The drawing came from, or was saved to, a file of its own. */
+function hasFile(): boolean {
+  return current.handle !== undefined || current.name !== UNTITLED;
 }
 
 function load(text: string, file: CurrentFile): boolean {
@@ -168,7 +193,7 @@ function pickWithInput(): Promise<File | undefined> {
   return new Promise((resolve) => {
     const input = document.createElement("input");
     input.type = "file";
-    input.accept = `${EXTENSION},.json,application/json`;
+    input.accept = EXTENSION;
     input.onchange = () => resolve(input.files?.[0]);
     input.oncancel = () => resolve(undefined);
     input.click();

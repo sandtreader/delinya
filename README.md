@@ -9,7 +9,7 @@ for the goal and `plans/collab.md` for the collaboration design.
 First working slice: draw lines, rectangles and circles with snapping, move
 and resize them with handles, type exact values and corner radii in the
 inspector, link equal values and equal spacing from a multi-selection,
-undo/redo, save and open `.delinya` files, print at scale (tiled across
+undo/redo, save and open `.dln` files, print at scale (tiled across
 sheets if needed, with a check ruler and a title block from the document
 properties) and export PDF, SVG and DXF. Dimensions are attached
 automatically. The collaboration adapter is wired and tested but has no UI.
