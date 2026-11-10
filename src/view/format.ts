@@ -22,3 +22,12 @@ export function drawStatus(tool: DrawTool, start: readonly [number, number], cur
     case "line": return `from ${at} · ${formatMm(Math.hypot(dx, dy))} mm at ${formatMm((Math.atan2(dy, dx) * 180) / Math.PI)}°`;
   }
 }
+
+/**
+ * The drawing's title for the header, in quotes after the file name: null
+ * when it's blank or just repeats the file name.
+ */
+export function quotedTitle(title: string, fileName: string): string | null {
+  const t = title.replace(/\s+/g, " ").trim();
+  return t && t !== fileName ? `“${t}”` : null;
+}

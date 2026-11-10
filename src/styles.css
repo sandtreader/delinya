@@ -36,8 +36,15 @@ body { background: var(--bg); }
   padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--line);
 }
 .brand { font-weight: 600; }
-.filename { color: var(--muted); margin-right: 8px; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Right end of the header: file name, then the drawing's title in quotes. */
+.toolbar button.filename {
+  margin-left: auto; min-width: 0; max-width: 50%; padding: 4px 6px;
+  border-color: transparent; background: none; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.toolbar button.filename:hover { border-color: var(--line); }
 .filename .dirty { color: var(--warn); }
+.filename .title { color: var(--ink); margin-left: 8px; }
 .group { display: flex; gap: 4px; align-items: center; }
 .toolbar .group { gap: 2px; }
 button.icon { padding: 4px; line-height: 0; }

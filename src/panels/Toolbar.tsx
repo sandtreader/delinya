@@ -6,6 +6,7 @@ import { tell } from "../app/ask";
 import { DEFAULT_VIEW } from "../view/viewport";
 import { HistoryIcon, IconButton, NewIcon, OpenIcon, PrintIcon, PropertiesIcon, SaveAsIcon, SaveIcon } from "./icons";
 import { tip } from "./tip";
+import { quotedTitle } from "../view/format";
 
 /**
  * File commands that also reset editor state when a drawing is replaced:
@@ -38,12 +39,10 @@ export function Toolbar() {
   const file = useFileCommands();
   const name = useFileName();
   const dirty = useDirty();
+  const title = quotedTitle(store.resolved.document.title, name);
   return (
     <header className="toolbar">
       <span className="brand">Delinya</span>
-      <span className="filename" {...tip(dirty ? "Unsaved changes" : "Saved")}>
-        {name}{dirty && <span className="dirty"> •</span>}
-      </span>
       <div className="group">
         <IconButton label="New" tip="New drawing" onClick={file.newFile}><NewIcon /></IconButton>
         <IconButton label="Open…" tip="Open… (⌘O)" onClick={file.open}><OpenIcon /></IconButton>
@@ -62,6 +61,14 @@ export function Toolbar() {
         <IconButton label="Undo" tip="Undo (⌘Z)" disabled={!store.canUndo} onClick={() => store.undo()}><HistoryIcon /></IconButton>
         <IconButton label="Redo" tip="Redo (⇧⌘Z)" disabled={!store.canRedo} onClick={() => store.redo()}><HistoryIcon redo /></IconButton>
       </div>
+      {/* File name and the drawing's title; opens Properties on its Drawing tab. */}
+      <button
+        type="button" className="filename" onClick={() => dispatch({ type: "dialog", dialog: "properties" })}
+        {...tip(`${dirty ? "Unsaved changes" : "Saved"} · click for the drawing's properties`)}
+      >
+        {name}{dirty && <span className="dirty"> •</span>}
+        {title && <span className="title">{title}</span>}
+      </button>
     </header>
   );
 }

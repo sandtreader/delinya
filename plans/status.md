@@ -185,8 +185,10 @@ through `useSyncExternalStore`.
   ⌘O, ⌘S, ⇧⌘S. Uses the File System Access API where present (Chromium),
   so Save writes back to the opened file; elsewhere Save downloads and
   Open uses a file input. Extension `.delinya` (JSON; `.json` also
-  opens). The toolbar and tab title show the file name and a • when
-  dirty; New/Open ask before discarding (in-app dialog), and closing the
+  opens). The tab title and the right end of the header show the file
+  name and a • when dirty; the header adds the drawing's title in quotes
+  (`quotedTitle`, left out when blank or the same) and clicking it opens
+  Properties on the Drawing tab; New/Open ask before discarding (in-app dialog), and closing the
   tab warns (the browser's own prompt; that one can't be replaced). Open
   and save errors show in the in-app dialog too.
   Loading clears selection, returns to select and resets the view.
@@ -362,9 +364,6 @@ through `useSyncExternalStore`.
 
 UI to-do (requested 2026-11-10, in the order given):
 
-9. Filename moves to the right end of the header, followed by the
-   drawing's title from Properties in quotes. Clicking it opens
-   Properties on the Drawing tab.
 10. Duplicate button in the selection panels, with direction and spacing.
 11. ⌘D: immediate duplicate, stepped down and to the right.
 12. "Delinya" in the header opens an About dialog with the version (text
