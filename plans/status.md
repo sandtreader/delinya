@@ -350,6 +350,21 @@ through `useSyncExternalStore`.
 6. Rotation of rects, text, named variables/expressions, woodwork extras
    (see outline "Later").
 
+UI to-do (requested 2026-11-10, in the order given):
+
+7. While dragging out a new shape, the status bar position switches to
+   start point + size.
+8. Rectangular lasso selection: selects the shapes wholly inside it.
+9. Filename moves to the right end of the header, followed by the
+   drawing's title from Properties in quotes. Clicking it opens
+   Properties on the Drawing tab.
+10. Duplicate button in the selection panels, with direction and spacing.
+11. ⌘D: immediate duplicate, stepped down and to the right.
+12. "Delinya" in the header opens an About dialog with the version (text
+    to come).
+13. Rulers along the top and left edges of the canvas.
+14. Small right-aligned "Delinya" watermark below the print title block.
+
 ## Gotchas for whoever picks this up
 
 - Every mutation goes through an action and `store.commit()`. Undo, the
