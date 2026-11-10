@@ -1,15 +1,21 @@
 // Editor (non-document) state: tool, selection, current layer, hidden and
-// locked layers, grid show/snap, view, open dialog. Never synced, saved or
-// undoable.
+// locked layers, grid show/snap, view, open dialog, duplicate settings.
+// Never synced, saved or undoable.
 
 import { createContext, useContext, type Dispatch } from "react";
-import { isSelectable, type EntityId, type LayerView, type LinkTarget, type Resolved, type SnapPoint } from "../model";
+import { isSelectable, type DuplicateDirection, type EntityId, type LayerView, type LinkTarget, type Resolved, type SnapPoint } from "../model";
 import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
 import type { DrawTool } from "../view/format";
 import { DEFAULT_GRID_VIEW, type GridView } from "./gridView";
 
 export type Tool = "select" | "line" | "rect" | "circle";
 export type Dialog = "output" | "properties";
+
+/** The selection panel's Duplicate: which way the copy goes and how far clear of the original, mm. */
+export interface DuplicateSettings {
+  direction: DuplicateDirection;
+  spacing: number;
+}
 
 export interface EditorState {
   tool: Tool;
@@ -38,6 +44,8 @@ export interface EditorState {
   keepLinked: boolean;
   /** A link clicked on the canvas, offering to remove it; `at` is in screen px. */
   linkPopup: { target: LinkTarget; at: [number, number] } | null;
+  /** Kept while the app is open, not saved. */
+  duplicate: DuplicateSettings;
 }
 
 export const initialEditor: EditorState = {
@@ -53,6 +61,7 @@ export const initialEditor: EditorState = {
   dialog: null,
   keepLinked: false,
   linkPopup: null,
+  duplicate: { direction: "right", spacing: 10 },
 };
 
 export type EditorAction =
@@ -69,7 +78,8 @@ export type EditorAction =
   | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null; draw?: EditorState["draw"] }
   | { type: "dialog"; dialog: Dialog | null }
   | { type: "keepLinked"; on: boolean }
-  | { type: "linkPopup"; popup: EditorState["linkPopup"] };
+  | { type: "linkPopup"; popup: EditorState["linkPopup"] }
+  | { type: "duplicate"; settings: Partial<DuplicateSettings> };
 
 export function editorReducer(s: EditorState, a: EditorAction): EditorState {
   switch (a.type) {
@@ -99,6 +109,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "dialog": return { ...s, dialog: a.dialog };
     case "keepLinked": return { ...s, keepLinked: a.on };
     case "linkPopup": return { ...s, linkPopup: a.popup };
+    case "duplicate": return { ...s, duplicate: { ...s.duplicate, ...a.settings } };
   }
 }
 

@@ -255,6 +255,13 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .selection-panel button.icon.linked svg .guide { stroke: var(--link); }
 .selection-panel select { font: inherit; padding: 2px 4px; min-width: 0; flex: 1; }
 .selection-panel .keep-linked { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+/* Duplicate: the button, then which way the copy goes and the gap under it. */
+.selection-panel .duplicate {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center;
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
+}
+.selection-panel .duplicate .spacing { grid-column: 2; display: flex; align-items: center; gap: 6px; }
+.selection-panel button.icon.on { background: #e3f0f6; border-color: var(--accent); color: var(--accent); }
 
 /* ---- Tool and layer palettes (floating, draggable) ---- */
 

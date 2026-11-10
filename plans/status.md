@@ -170,6 +170,14 @@ through `useSyncExternalStore`.
   conflicting link. "Keep linked" (editor state, off by default)
   switches every action from a one-off move/resize to a live link; equal
   values then go through a named variable.
+- **Duplicate** (both selection panels, above Delete): direction toggles
+  (→ ↓ ← ↑) and a gap in mm (editor state `duplicate`, default right,
+  10 mm, not saved). The copy sits beside the selection's bounds, the gap
+  clear of it (`duplicateOffset`), and becomes the selection, so pressing
+  again carries on the row. `duplicateShapes` (`model/duplicate.ts`)
+  copies shapes at their drawn position (link-derived positions copied as
+  drawn, links not copied), keeps sizes' variable refs, radii and layer,
+  and copies their dimensions and radius labels; one batch, one undo.
 - **Properties…** (header, before Print / Export;
   `panels/PropertiesDialog.tsx`): a fixed-width dialog with tabs
   (Drawing | Grid | Variables; an ARIA tablist, Left/Right/Home/End move
@@ -364,7 +372,6 @@ through `useSyncExternalStore`.
 
 UI to-do (requested 2026-11-10, in the order given):
 
-10. Duplicate button in the selection panels, with direction and spacing.
 11. ⌘D: immediate duplicate, stepped down and to the right.
 12. "Delinya" in the header opens an About dialog with the version (text
     to come).

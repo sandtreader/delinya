@@ -90,3 +90,12 @@ export const FullscreenIcon = ({ exit = false }: { exit?: boolean }) => (
       : <path d="M9 7l5.5-5.5M10 1.5h4.5V6M7 9l-5.5 5.5M6 14.5H1.5V10" />}
   </Icon>
 );
+
+// ---- Selection panel ----
+
+const ARROW_TURN = { right: 0, down: 90, left: 180, up: 270 } as const;
+
+/** A plain arrow pointing right, down, left or up. */
+export const ArrowIcon = ({ direction }: { direction: keyof typeof ARROW_TURN }) => (
+  <Icon><path d="M2.5 8h11M9.5 4l4 4-4 4" transform={`rotate(${ARROW_TURN[direction]} 8 8)`} /></Icon>
+);

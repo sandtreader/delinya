@@ -3,17 +3,22 @@
 // (select tool): align, centre, space and equalise. The first-selected
 // shape is the reference the others move to. "Keep linked" makes each
 // action a live link instead of a one-off move, so the result follows
-// later edits to the reference.
+// later edits to the reference. Either way, Duplicate copies the selection
+// beside itself.
 
 import { applyChange, type Change } from "@sandtreader/collab/protocol";
 import {
-  KINDS, alignLinksAmong, alignOnce, batch, deleteEntity, derivedAxes, equaliseOnce, linkAlign, linkLengths, linkSpacing, newId, outerAnchors, setAlignMode, spaceOnce,
-  type AlignMode, type Axis, type EntityId, type SpacingMode,
+  DUPLICATE_DIRECTIONS, KINDS, alignLinksAmong, alignOnce, batch, deleteEntity, derivedAxes, duplicateOffset, duplicateShapes, equaliseOnce,
+  linkAlign, linkLengths, linkSpacing, newId, outerAnchors, setAlignMode, spaceOnce, unionBounds,
+  type AlignMode, type Axis, type DuplicateDirection, type EntityId, type SpacingMode,
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { panelFor, useEditor } from "../app/editor";
+import { formatMm } from "../view/format";
 import { ShapeFields } from "./ShapeFields";
 import { LayerSelect, hasLayerChoice } from "./LayerSelect";
+import { Num } from "./fields";
+import { ArrowIcon, IconButton } from "./icons";
 import { tip } from "./tip";
 
 const SHAPE_LABEL: Record<string, string> = { rect: "Rectangle", circle: "Circle", line: "Line" };
@@ -49,6 +54,7 @@ export function SelectionPanel() {
       aria-label={panel === "shape" ? "Selected shape" : "Arrange selection"}
     >
       {panel === "shape" ? <ShapeFields id={ids[0]!} /> : <Arrange shapes={ids} />}
+      <Duplicate shapes={ids} />
       <div className="actions">
         <button className="danger" onClick={remove} {...tip("Delete (Del)")}>Delete</button>
       </div>
@@ -66,6 +72,53 @@ export function deleteSelection(ids: EntityId[]) {
   }
   if (changes.length === 1) store.commit(changes[0]!);
   else if (changes.length > 1) store.commit(batch(changes));
+}
+
+/**
+ * Copies the shapes, moved by `delta`, with their dimensions and radius
+ * labels, as one undo step. Returns the copies' IDs, in the same order.
+ */
+export function duplicateSelection(ids: EntityId[], delta: readonly [number, number]): EntityId[] | undefined {
+  const out = duplicateShapes(store.state, ids, delta, newId);
+  if (out) store.commit(out.change);
+  return out?.ids;
+}
+
+/** Where each direction puts the copy, for tooltips. */
+const BESIDE: Record<DuplicateDirection, string> = { right: "to the right", down: "below", left: "to the left", up: "above" };
+
+/**
+ * Duplicate: the button, which way the copy goes and how far clear of the
+ * selection's bounds. The copies become the selection, so pressing again
+ * carries on the row.
+ */
+function Duplicate({ shapes }: { shapes: EntityId[] }) {
+  const { editor, dispatch } = useEditor();
+  const { direction, spacing } = editor.duplicate;
+  const run = () => {
+    const bounds = unionBounds(shapes.map((id) => store.resolved.shapes[id]!.bounds));
+    const copies = duplicateSelection(shapes, duplicateOffset(bounds, direction, spacing));
+    if (copies) dispatch({ type: "select", ids: copies });
+  };
+  return (
+    <div className="duplicate">
+      <button onClick={run} {...tip(`Copy ${BESIDE[direction]}, ${formatMm(spacing)} mm clear, and select the copy`)}>Duplicate</button>
+      <div className="icons" role="group" aria-label="Duplicate direction">
+        {DUPLICATE_DIRECTIONS.map((d) => (
+          <IconButton
+            key={d} label={`Duplicate ${BESIDE[d]}`} className={d === direction ? "icon on" : "icon"} aria-pressed={d === direction}
+            onClick={() => dispatch({ type: "duplicate", settings: { direction: d } })}
+          >
+            <ArrowIcon direction={d} />
+          </IconButton>
+        ))}
+      </div>
+      <label className="spacing" {...tip("Gap between the selection and its copy")}>
+        <span className="hint">gap</span>
+        <Num value={spacing} valid={(v) => v >= 0} onCommit={(v) => dispatch({ type: "duplicate", settings: { spacing: v } })} />
+      </label>
+    </div>
+  );
 }
 
 function Arrange({ shapes }: { shapes: EntityId[] }) {
