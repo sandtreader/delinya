@@ -4,7 +4,6 @@ import { useEditor } from "../app/editor";
 import { newDrawing, openDrawing, saveDrawing, saveDrawingAs, useDirty, useFileName } from "../app/file";
 import { tell } from "../app/ask";
 import { DEFAULT_VIEW } from "../view/viewport";
-import { sendPalettesHome } from "./floating";
 
 /**
  * File commands that also reset editor state when a drawing is replaced:
@@ -33,7 +32,7 @@ export function useFileCommands() {
 
 export function Toolbar() {
   useDocument();
-  const { editor, dispatch } = useEditor();
+  const { dispatch } = useEditor();
   const file = useFileCommands();
   const name = useFileName();
   const dirty = useDirty();
@@ -57,15 +56,6 @@ export function Toolbar() {
         </button>
         <button className="icon" disabled={!store.canRedo} onClick={() => store.redo()} title="Redo (⇧⌘Z)" aria-label="Redo">
           <HistoryIcon redo />
-        </button>
-      </div>
-      <div className="group">
-        <span className="zoom">{Math.round(editor.view.scale * 100) / 100} px/mm</span>
-        <button
-          onClick={() => { dispatch({ type: "view", view: DEFAULT_VIEW }); sendPalettesHome(); }}
-          title="Reset zoom and pan, and put the tool and layer palettes back top left"
-        >
-          Reset view
         </button>
       </div>
     </header>

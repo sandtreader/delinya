@@ -91,7 +91,8 @@ through `useSyncExternalStore`.
   localStorage (`delinya.toolPalette`, via `app/floatPosition.ts`), never
   in the document, and is kept on screen when the window shrinks. The
   position, grip drag and clamping are shared with the layer palette in
-  `panels/floating.tsx` (`useFloating`, `Grip`); Reset view sends both
+  `panels/floating.tsx` (`useFloating`, `Grip`); Reset view (in the
+  status bar, beside the px/mm scale) resets zoom and pan and sends both
   palettes home (`sendPalettesHome`). Undo and redo are curved-arrow
   buttons in the header.
 - **Tools**: select (V), line (L), rect (R), circle (C). Drawing a shape

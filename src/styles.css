@@ -117,11 +117,13 @@ fieldset .row { width: 100%; }
 .warn { color: var(--warn); }
 
 .status {
-  grid-area: status; display: flex; gap: 16px; padding: 4px 10px;
+  grid-area: status; display: flex; align-items: center; gap: 16px; padding: 3px 10px;
   background: var(--panel); border-top: 1px solid var(--line); color: var(--muted);
   font-variant-numeric: tabular-nums;
 }
 .status .grow { flex: 1; }
+.status button { padding: 2px 8px; }
+.status .zoom { margin-right: -8px; }
 
 /* ---- Dialogs ---- */
 
