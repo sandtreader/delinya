@@ -8,7 +8,7 @@
 
 import { applyChange, type Change } from "@sandtreader/collab/protocol";
 import {
-  DUPLICATE_DIRECTIONS, KINDS, alignLinksAmong, alignOnce, batch, deleteEntity, derivedAxes, duplicateBeside, equaliseOnce,
+  DUPLICATE_DIRECTIONS, EQUAL_PROPS, alignLinksAmong, alignOnce, batch, deleteEntity, derivedAxes, duplicateBeside, equaliseOnce,
   linkAlign, linkLengths, linkSpacing, newId, outerAnchors, setAlignMode, spaceOnce,
   type AlignMode, type Axis, type DuplicateDirection, type EntityId, type SpacingMode,
 } from "../model";
@@ -22,12 +22,6 @@ import { ArrowIcon, IconButton } from "./icons";
 import { tip } from "./tip";
 
 const SHAPE_LABEL: Record<string, string> = { rect: "Rectangle", circle: "Circle", line: "Line", polyline: "Path" };
-
-const EQUAL_PROPS: Record<string, Array<{ prop: string; label: string }>> = {
-  [KINDS.rect]: [{ prop: "width", label: "Width" }, { prop: "height", label: "Height" }],
-  [KINDS.circle]: [{ prop: "diameter", label: "Diameter" }],
-  [KINDS.line]: [{ prop: "length", label: "Length" }],
-};
 
 const ALIGNS: Array<{ axis: Axis; mode: AlignMode; title: string }> = [
   { axis: "x", mode: "start", title: "Align left edges" },
@@ -92,20 +86,25 @@ const BESIDE: Record<DuplicateDirection, string> = { right: "to the right", down
 const validCount = (v: number) => Number.isInteger(v) && v >= 1 && v <= 100;
 
 /**
- * Duplicate: the button, how many copies, which way they go and how far
- * apart. The copies become the selection, so pressing again carries on the
- * row. ⌘D always makes one copy, so the button only mentions it then.
+ * Duplicate: the button, how many copies, which way they go, how far apart
+ * and whether they are linked to the original. The copies become the
+ * selection, so pressing again carries on the row. ⌘D always makes one
+ * unlinked copy, so the button's tooltip says where it differs.
  */
 function Duplicate({ shapes }: { shapes: EntityId[] }) {
   const { editor, dispatch } = useEditor();
-  const { direction, spacing, count } = editor.duplicate;
+  const { direction, spacing, count, linkGaps, linkSize, linkAlign } = editor.duplicate;
   const run = () => {
     const copies = duplicateSelection(shapes, editor.duplicate);
     if (copies) dispatch({ type: "select", ids: copies });
   };
+  // Gaps need two copies to space anything.
+  const links = [...(linkGaps && count >= 2 ? ["gaps"] : []), ...(linkSize ? ["size"] : []), ...(linkAlign ? ["align"] : [])];
+  const listed = links.length > 1 ? `${links.slice(0, -1).join(", ")} and ${links[links.length - 1]}` : links[0];
+  const linked = listed ? `, linked: ${listed}` : "";
   const what = count === 1
-    ? `Copy ${BESIDE[direction]}, ${formatMm(spacing)} mm clear, and select the copy (⌘D)`
-    : `Copy ${count} times ${BESIDE[direction]}, ${formatMm(spacing)} mm apart, and select the copies (⌘D makes one)`;
+    ? `Copy ${BESIDE[direction]}, ${formatMm(spacing)} mm clear${linked}, and select the copy (${linked ? "⌘D makes it unlinked" : "⌘D"})`
+    : `Copy ${count} times ${BESIDE[direction]}, ${formatMm(spacing)} mm apart${linked}, and select the copies (⌘D makes one${linked ? ", unlinked" : ""})`;
   return (
     <div className="duplicate">
       <button onClick={run} {...tip(what)}>Duplicate</button>
@@ -128,6 +127,33 @@ function Duplicate({ shapes }: { shapes: EntityId[] }) {
         <span className="hint">gap</span>
         <Num value={spacing} valid={(v) => v >= 0} onCommit={(v) => dispatch({ type: "duplicate", settings: { spacing: v } })} />
       </label>
+      <div className="links" role="group" aria-label="Link the copies">
+        <span className="hint" aria-hidden="true">link</span>
+        <label
+          className="link-gaps"
+          {...tip("Keep the copies equally spaced between the original and the last copy (needs 2 or more copies)")}
+        >
+          <input
+            type="checkbox" checked={linkGaps} disabled={count < 2}
+            onChange={(e) => dispatch({ type: "duplicate", settings: { linkGaps: e.target.checked } })}
+          />
+          <span className="sr-only">link </span>gaps
+        </label>
+        <label
+          className="link-size"
+          {...tip("Link the copies' sizes to the original's through shared variables (width and height, diameter for circles, length for lines)")}
+        >
+          <input type="checkbox" checked={linkSize} onChange={(e) => dispatch({ type: "duplicate", settings: { linkSize: e.target.checked } })} />
+          <span className="sr-only">link </span>size
+        </label>
+        <label
+          className="link-align"
+          {...tip("Keep the copies lined up with the original: tops for a row across, left edges for a column down")}
+        >
+          <input type="checkbox" checked={linkAlign} onChange={(e) => dispatch({ type: "duplicate", settings: { linkAlign: e.target.checked } })} />
+          <span className="sr-only">link </span>align
+        </label>
+      </div>
     </div>
   );
 }

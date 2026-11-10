@@ -182,6 +182,17 @@ export function linkLengths(state: DocState, members: LengthRef[], variableId: E
   return batch(changes);
 }
 
+/**
+ * The sizes of each kind that can be made equal or share a variable (the
+ * selection panel's Equal, Duplicate's linked size), with their labels.
+ * Paths have none.
+ */
+export const EQUAL_PROPS: Readonly<Record<string, ReadonlyArray<{ prop: string; label: string }>>> = {
+  [KINDS.rect]: [{ prop: "width", label: "Width" }, { prop: "height", label: "Height" }],
+  [KINDS.circle]: [{ prop: "diameter", label: "Diameter" }],
+  [KINDS.line]: [{ prop: "length", label: "Length" }],
+};
+
 /** Replace a reference with its current number. The variable is left alone. */
 export function unlinkLength(state: DocState, id: EntityId, prop: string): Change | undefined {
   const e = state.entities[id];

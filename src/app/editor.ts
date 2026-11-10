@@ -14,11 +14,18 @@ import { DEFAULT_GRID_VIEW, type GridView } from "./gridView";
 export type Tool = "select" | "line" | "rect" | "circle" | "polyline";
 export type Dialog = "output" | "properties" | "about";
 
-/** The selection panel's Duplicate: which way the copies go, how far apart, mm, and how many. */
+/**
+ * The selection panel's Duplicate: which way the copies go, how far apart,
+ * mm, how many, and whether their gaps, sizes and alignment are linked to
+ * the original.
+ */
 export interface DuplicateSettings {
   direction: DuplicateDirection;
   spacing: number;
   count: number;
+  linkGaps: boolean;
+  linkSize: boolean;
+  linkAlign: boolean;
 }
 
 /**
@@ -89,7 +96,7 @@ export const initialEditor: EditorState = {
   dialog: null,
   keepLinked: false,
   linkPopup: null,
-  duplicate: { direction: "right", spacing: 10, count: 1 },
+  duplicate: { direction: "right", spacing: 10, count: 1, linkGaps: false, linkSize: false, linkAlign: false },
 };
 
 export type EditorAction =
