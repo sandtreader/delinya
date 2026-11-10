@@ -1,6 +1,6 @@
 {
   "name": "delinya",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "private": true,
   "description": "Browser-based 2D drawing tool with real units",
   "type": "module",
@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "clean": "rm -rf dist"
+    "clean": "rm -rf dist",
+    "publish:web": "pnpm build && rsync -avz --delete dist/ st1:/var/www/delinya.net/"
   },
   "dependencies": {
     "@sandtreader/collab": "^0.1.3",

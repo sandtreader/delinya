@@ -583,8 +583,8 @@ through `useSyncExternalStore`.
 1. **Manual dimension and radius-label tools**, and dragging dimension
    offsets.
 2. **Collaboration UI**: connect, session panel, presence cursors. Needs
-   the MUI decision and `ProxyPass` lines on a delinya.net vhost (same as
-   synflo.net, port 2901 on st1).
+   the MUI decision. The delinya.net vhost on st1 already proxies
+   `/collab` to the relay (port 2901), so connect with `app: "delinya"`.
 3. **Fit view to drawing** (on open, and as a button); opening resets to
    the default view for now.
 4. Links: resizing one of several gap-spaced items drifts its centre
@@ -620,3 +620,17 @@ through `useSyncExternalStore`.
 - Do not commit or push until asked. "cp" means commit and push.
 - Woodwork is the first use case, not a limit: keep features general.
 - Prove builds locally before tagging; one tag per working release.
+
+## Hosting (st1)
+
+- Live at https://delinya.net (0.1.0 deployed 2026-11-10). DNS at
+  Squarespace points delinya.net and www at st1 (109.123.121.122).
+- Apache: `/etc/apache2/sites-available/delinya.net.conf` (http, redirects
+  to https) and `delinya.net-le-ssl.conf` (docroot `/var/www/delinya.net`,
+  `/collab` proxied to the relay on 2901). Let's Encrypt cert via certbot,
+  auto-renewing.
+- Deploy: `pnpm publish:web` (build, then rsync `dist/` to the docroot
+  with `--delete`, as SynFlo's `publish:ui`).
+- Favicon: `public/favicon.svg` (set square and pencil on graph paper);
+  `favicon.ico` and `apple-touch-icon.png` are rendered from it with
+  Inkscape and ImageMagick (the PNG without rounded corners).
