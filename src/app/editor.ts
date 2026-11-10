@@ -9,7 +9,7 @@ import type { DrawTool } from "../view/format";
 import { DEFAULT_GRID_VIEW, type GridView } from "./gridView";
 
 export type Tool = "select" | "line" | "rect" | "circle";
-export type Dialog = "output" | "properties";
+export type Dialog = "output" | "properties" | "about";
 
 /** The selection panel's Duplicate: which way the copy goes and how far clear of the original, mm. */
 export interface DuplicateSettings {

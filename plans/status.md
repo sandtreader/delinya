@@ -207,6 +207,10 @@ through `useSyncExternalStore`.
   page SVGs with an `@page` rule (`app/print.ts`); Download PDF writes the
   same pages. SVG and DXF download at 1:1 mm. Paper, orientation and
   dimensions are remembered in localStorage; scale only for the session.
+- **About** (`panels/AboutDialog.tsx`): "Delinya" at the left of the
+  header opens it: name, version (`app/version.ts`, package.json via
+  Vite's `define` `__APP_VERSION__`) and a placeholder line until the
+  real text arrives.
 - **Questions and notices** (`app/ask.ts`, `panels/AskDialog.tsx`): the
   app's own confirm/alert, never the browser's. `ask({ title, message,
   confirm?, cancel?, danger? })` resolves true/false, `tell(title,
@@ -374,8 +378,6 @@ through `useSyncExternalStore`.
 
 UI to-do (requested 2026-11-10, in the order given):
 
-12. "Delinya" in the header opens an About dialog with the version (text
-    to come).
 13. Rulers along the top and left edges of the canvas.
 14. Small right-aligned "Delinya" watermark below the print title block.
 

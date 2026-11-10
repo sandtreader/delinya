@@ -42,7 +42,9 @@ export function Toolbar() {
   const title = quotedTitle(store.resolved.document.title, name);
   return (
     <header className="toolbar">
-      <span className="brand">Delinya</span>
+      <button type="button" className="brand" onClick={() => dispatch({ type: "dialog", dialog: "about" })} {...tip("About Delinya")}>
+        Delinya
+      </button>
       <div className="group">
         <IconButton label="New" tip="New drawing" onClick={file.newFile}><NewIcon /></IconButton>
         <IconButton label="Open…" tip="Open… (⌘O)" onClick={file.open}><OpenIcon /></IconButton>

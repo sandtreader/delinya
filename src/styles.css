@@ -35,7 +35,8 @@ body { background: var(--bg); }
   display: flex; align-items: center; gap: 16px;
   padding: 6px 10px; background: var(--panel); border-bottom: 1px solid var(--line);
 }
-.brand { font-weight: 600; }
+.toolbar button.brand { font-weight: 600; border-color: transparent; background: none; padding: 4px 6px; margin-left: -6px; }
+.toolbar button.brand:hover { border-color: var(--line); }
 /* Right end of the header: file name, then the drawing's title in quotes. */
 .toolbar button.filename {
   margin-left: auto; min-width: 0; max-width: 50%; padding: 4px 6px;
@@ -178,6 +179,12 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 
 .output-dialog { width: min(1400px, 100%); height: min(1000px, 100%); }
 .properties-dialog { width: 420px; }
+.about-dialog { width: 340px; }
+.about-body { padding: 14px; }
+.about-body p { margin: 0 0 8px; }
+.about-name { font-weight: 600; font-size: 15px; }
+.about-version { font-weight: normal; font-size: 13px; color: var(--muted); margin-left: 6px; }
+.about-body .buttons { justify-content: flex-end; margin-top: 14px; }
 .properties-body { padding: 14px; overflow: auto; min-height: 0; }
 .properties-body .buttons { justify-content: flex-end; margin-top: 18px; }
 /* Tall enough for the Drawing tab, so the dialog doesn't jump between tabs. */

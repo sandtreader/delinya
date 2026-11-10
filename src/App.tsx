@@ -5,6 +5,7 @@ import { Canvas } from "./canvas/Canvas";
 import { StatusBar } from "./panels/StatusBar";
 import { OutputDialog } from "./panels/OutputDialog";
 import { PropertiesDialog } from "./panels/PropertiesDialog";
+import { AboutDialog } from "./panels/AboutDialog";
 import { AskDialog } from "./panels/AskDialog";
 import { Tooltip } from "./panels/Tooltip";
 import { SelectionPanel, deleteSelection, duplicateSelection } from "./panels/SelectionPanel";
@@ -124,6 +125,7 @@ function Shell() {
       <StatusBar />
       {editor.dialog === "output" && <OutputDialog />}
       {editor.dialog === "properties" && <PropertiesDialog />}
+      {editor.dialog === "about" && <AboutDialog />}
       {/* Last: a question can come up over another dialog. */}
       <AskDialog />
       <Tooltip />
