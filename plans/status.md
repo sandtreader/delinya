@@ -94,8 +94,19 @@ through `useSyncExternalStore`.
   `panels/floating.tsx` (`useFloating`, `Grip`); Reset view (in the
   status bar, beside the px/mm scale) resets zoom and pan and sends both
   palettes home (`sendPalettesHome`). Header and status bar buttons are
-  icons (`panels/icons.tsx`, `IconButton`) with an instant CSS tooltip
-  from `data-tip` instead of the slow browser `title`.
+  icons (`panels/icons.tsx`, `IconButton`).
+- **Tooltips**: one shared tooltip (`panels/Tooltip.tsx`, mounted once in
+  `Shell`) for every element with `data-tip`; nothing uses the browser's
+  `title`. It shows after resting on the element for 1 s (or on keyboard
+  focus), then at once for the next within 0.5 s, like native tooltips
+  (`TipTimer`, `view/tooltip.ts`). Fixed-position, so never clipped by a
+  scrolling panel, and above dialogs. `data-tip-side` picks the side
+  (below by default; right in the palettes, above for Reset view);
+  `placeTip` flips it and keeps it in the window. A click, key, wheel or
+  window blur hides it; nothing shows while a pointer button is held, so
+  drags don't pop tips. Disabled buttons still show theirs. While shown
+  it is the anchor's `aria-describedby`, unless it equals the
+  `aria-label`.
 - **Tools**: select (V), line (L), rect (R), circle (C). Drawing a shape
   also adds its dimensions (rect: width and height; circle: diameter;
   line: length) and returns to select unless Shift is held. Shift
@@ -225,8 +236,9 @@ through `useSyncExternalStore`.
   palette by default (`delinya.layerPalette`). A numbered button per
   layer, 1 at the top; the current layer is highlighted like the active
   tool; hidden layers' numbers are dimmed with an eye-off mark, locked
-  ones get a lock mark. Hover shows the name at once (CSS tooltip;
-  "Layer N" if unnamed). Clicking makes the layer current and opens its
+  ones get a lock mark. The tooltip (to the right) shows the name
+  ("Layer N" if unnamed) and "· hidden, locked"; not while its card is
+  open. Clicking makes the layer current and opens its
   card (click again, Escape or click outside closes it; Escape only
   closes the card): name field, hide/show, lock/unlock, and delete, which
   deletes the layer and its shapes as one undo step (asks first, in the

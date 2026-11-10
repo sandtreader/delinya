@@ -157,6 +157,9 @@ export function LayerPalette() {
               aria-label={`Layer ${l.number}${l.name ? `: ${l.name}` : ""}${state ? ` (${state})` : ""}`}
               aria-pressed={l.id === current}
               aria-expanded={open === l.id}
+              // Not while its card is open: the card says it all.
+              data-tip={open === l.id ? undefined : `${name}${state ? ` · ${state}` : ""}`}
+              data-tip-side="right"
               onPointerDown={(e) => onButtonDown(e, l.id, i)}
               onPointerMove={onButtonMove}
               onPointerUp={(e) => onButtonUp(e, true)}
@@ -167,16 +170,11 @@ export function LayerPalette() {
               {isHidden && <Icon className="mark mark-hidden" size={9}><EyeOff /></Icon>}
               {isLocked && <Icon className="mark mark-locked" size={9}><LockShape /></Icon>}
             </button>
-            {open !== l.id && (
-              <span className="layer-tip" aria-hidden="true">
-                {name}{state && <span className="state"> · {state}</span>}
-              </span>
-            )}
             {open === l.id && <LayerCard layer={l} only={layers.length === 1} flip={flip} onDeleted={() => setOpen(null)} />}
           </div>
         );
       })}
-      <button className="layer-add" title="Add a layer in front" aria-label="Add a layer" onClick={add}>
+      <button className="layer-add" data-tip="Add a layer in front" data-tip-side="right" aria-label="Add a layer" onClick={add}>
         <Icon size={18}><path d="M9 4v10M4 9h10" /></Icon>
       </button>
     </div>
@@ -209,18 +207,18 @@ function LayerCard({ layer, only, flip, onDeleted }: { layer: ResolvedLayer; onl
       <span className="layer-card-number">{layer.number}</span>
       <Text value={layer.name} placeholder={`Layer ${layer.number}`} onCommit={(name) => commit(setLayerName(store.state, layer.id, name))} />
       <button
-        className={`icon${hidden ? " on" : ""}`} title={hideTitle} aria-label={hideTitle} aria-pressed={hidden}
+        className={`icon${hidden ? " on" : ""}`} data-tip={hideTitle} aria-label={hideTitle} aria-pressed={hidden}
         onClick={() => dispatch({ type: "toggleLayer", id: layer.id, flag: "hidden" })}
       >
         <Icon size={16}>{hidden ? <EyeOff /> : <Eye />}</Icon>
       </button>
       <button
-        className={`icon${locked ? " on" : ""}`} title={lockTitle} aria-label={lockTitle} aria-pressed={locked}
+        className={`icon${locked ? " on" : ""}`} data-tip={lockTitle} aria-label={lockTitle} aria-pressed={locked}
         onClick={() => dispatch({ type: "toggleLayer", id: layer.id, flag: "locked" })}
       >
         <Icon size={16}>{locked ? <LockShape /> : <UnlockShape />}</Icon>
       </button>
-      <button className="icon danger" title={deleteTitle} aria-label={deleteTitle} disabled={only} onClick={remove}>
+      <button className="icon danger" data-tip={deleteTitle} aria-label={deleteTitle} disabled={only} onClick={remove}>
         <Icon size={16}><path d="M2.5 4.5h11M6 4.5V2.8h4v1.7M3.8 4.5l.8 9h6.8l.8-9M6.6 7v4.5M9.4 7v4.5" /></Icon>
       </button>
     </div>

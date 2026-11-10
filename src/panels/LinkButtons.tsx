@@ -33,7 +33,7 @@ export function LinkButtons() {
         return (
           <button
             key={i} className="delink icon-only" style={{ left: x, top: y }}
-            title={`Remove link: ${b.label}`} aria-label={`Remove link: ${b.label}`}
+            data-tip={`Remove link: ${b.label}`} aria-label={`Remove link: ${b.label}`}
             onPointerDown={(e) => e.stopPropagation()} onClick={() => remove(b.target)}
           >
             <BrokenChain />
@@ -43,7 +43,7 @@ export function LinkButtons() {
       {popup && (
         <button
           className="delink popup" style={{ left: popup.at[0], top: popup.at[1] }}
-          title="Remove this link; the shapes stay where they are"
+          data-tip="Remove this link; the shapes stay where they are"
           onPointerDown={(e) => e.stopPropagation()} onClick={() => remove(popup.target)}
         >
           <BrokenChain /> <span>{describeLink(state, popup.target)}</span>

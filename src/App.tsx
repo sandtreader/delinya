@@ -6,6 +6,7 @@ import { StatusBar } from "./panels/StatusBar";
 import { OutputDialog } from "./panels/OutputDialog";
 import { PropertiesDialog } from "./panels/PropertiesDialog";
 import { AskDialog } from "./panels/AskDialog";
+import { Tooltip } from "./panels/Tooltip";
 import { SelectionPanel, deleteSelection } from "./panels/SelectionPanel";
 import { LinkButtons } from "./panels/LinkButtons";
 import { ToolPalette } from "./panels/ToolPalette";
@@ -109,6 +110,7 @@ function Shell() {
       {editor.dialog === "properties" && <PropertiesDialog />}
       {/* Last: a question can come up over another dialog. */}
       <AskDialog />
+      <Tooltip />
     </div>
   );
 }

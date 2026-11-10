@@ -16,9 +16,9 @@ export function Icon({ size = 16, className, children }: { size?: number; classN
 }
 
 /**
- * An icon-only button. Its name shows at once in a tooltip on hover or
- * keyboard focus (data-tip, drawn by styles.css), not the browser's slow
- * title tooltip.
+ * An icon-only button, named by `label`, with `tip` (the label unless
+ * given) in the shared tooltip (data-tip, see Tooltip.tsx). Pass
+ * data-tip-side to put the tooltip somewhere other than below.
  */
 export function IconButton({ label, tip = label, children, ...rest }:
   { label: string; tip?: string; children: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {

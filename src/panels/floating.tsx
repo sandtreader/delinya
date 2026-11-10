@@ -78,7 +78,7 @@ export function useFloating(key: string, home: Point) {
 /** The palette's drag handle: a row of dots. */
 export function Grip(props: ReturnType<typeof useFloating>["grip"]) {
   return (
-    <div className="grip" title="Drag to move" {...props}>
+    <div className="grip" data-tip="Drag to move" data-tip-side="right" {...props}>
       <svg width="14" height="6" viewBox="0 0 14 6" aria-hidden="true">
         {[2, 7, 12].flatMap((x) => [1.5, 4.5].map((y) => <circle key={`${x},${y}`} cx={x} cy={y} r="1" />))}
       </svg>

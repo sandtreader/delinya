@@ -49,7 +49,7 @@ export function SelectionPanel() {
     >
       {panel === "shape" ? <ShapeFields id={ids[0]!} /> : <Arrange shapes={ids} />}
       <div className="actions">
-        <button className="danger" onClick={remove} title="Delete (Del)">Delete</button>
+        <button className="danger" onClick={remove} data-tip="Delete (Del)">Delete</button>
       </div>
     </div>
   );
@@ -120,7 +120,7 @@ function Arrange({ shapes }: { shapes: EntityId[] }) {
     <>
       <header>
         <strong>{shapes.length} selected</strong>
-        <span className="hint" title="The first shape you selected; the others move to it">
+        <span className="hint" data-tip="The first shape you selected; the others move to it">
           reference: {SHAPE_LABEL[state.entities[ref]!.kind] ?? "shape"}
         </span>
       </header>
@@ -142,7 +142,7 @@ function Arrange({ shapes }: { shapes: EntityId[] }) {
                 return (
                   <button
                     key={a.mode} className={pressed ? "icon linked" : "icon"} aria-pressed={pressed}
-                    title={title} aria-label={title} onClick={() => align(a.axis, a.mode)}
+                    data-tip={title} aria-label={title} onClick={() => align(a.axis, a.mode)}
                   >
                     <AlignIcon axis={a.axis} mode={a.mode} />
                   </button>
@@ -154,16 +154,16 @@ function Arrange({ shapes }: { shapes: EntityId[] }) {
       })}
       <div className="group">
         <span className="label">Centre</span>
-        <button onClick={centre} title="Centre the others on the reference, both ways">On reference</button>
+        <button onClick={centre} data-tip="Centre the others on the reference, both ways">On reference</button>
       </div>
       {shapes.length >= 3 && (
         <div className="group">
           <span className="label">Space</span>
           <div className="buttons">
-            <button onClick={() => space("x", "gaps")} title="Equal gaps across, between the outermost two">Gaps ↔</button>
-            <button onClick={() => space("y", "gaps")} title="Equal gaps down, between the outermost two">Gaps ↕</button>
-            <button onClick={() => space("x", "centres")} title="Equal centre pitch across, between the outermost two">Centres ↔</button>
-            <button onClick={() => space("y", "centres")} title="Equal centre pitch down, between the outermost two">Centres ↕</button>
+            <button onClick={() => space("x", "gaps")} data-tip="Equal gaps across, between the outermost two">Gaps ↔</button>
+            <button onClick={() => space("y", "gaps")} data-tip="Equal gaps down, between the outermost two">Gaps ↕</button>
+            <button onClick={() => space("x", "centres")} data-tip="Equal centre pitch across, between the outermost two">Centres ↔</button>
+            <button onClick={() => space("y", "centres")} data-tip="Equal centre pitch down, between the outermost two">Centres ↕</button>
           </div>
         </div>
       )}
@@ -172,14 +172,14 @@ function Arrange({ shapes }: { shapes: EntityId[] }) {
           <span className="label">Equal</span>
           <div className="buttons">
             {equal.map((e) => (
-              <button key={e.prop} onClick={() => equalise(e.prop)} title={linked ? `Link ${e.prop}s to one shared value` : `Set ${e.prop}s to the reference's`}>
+              <button key={e.prop} onClick={() => equalise(e.prop)} data-tip={linked ? `Link ${e.prop}s to one shared value` : `Set ${e.prop}s to the reference's`}>
                 {e.label}
               </button>
             ))}
           </div>
         </div>
       )}
-      <label className="keep-linked" title="Off: move or resize once. On: create live links that follow the reference.">
+      <label className="keep-linked" data-tip="Off: move or resize once. On: create live links that follow the reference.">
         <input type="checkbox" checked={linked} onChange={(e) => dispatch({ type: "keepLinked", on: e.target.checked })} />
         Keep linked
       </label>

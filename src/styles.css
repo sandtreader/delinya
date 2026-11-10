@@ -43,17 +43,15 @@ body { background: var(--bg); }
 button.icon { padding: 4px; line-height: 0; }
 .zoom { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
 
-/* Quick tooltip for an icon button (IconButton's data-tip): below it in
-   the header, above and right-aligned in the status bar. Like .layer-tip. */
-[data-tip] { position: relative; }
-[data-tip]::after {
-  content: attr(data-tip);
-  position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 30;
-  display: none; pointer-events: none; white-space: nowrap;
-  background: var(--ink); color: white; font-size: 11px; line-height: 16px; padding: 2px 7px; border-radius: 4px;
+/* The shared tooltip (panels/Tooltip.tsx), placed beside its data-tip
+   element. Above the dialogs; short tips stay on one line. */
+.tooltip {
+  position: fixed; left: 0; top: 0; z-index: 40; pointer-events: none;
+  width: max-content; max-width: min(320px, calc(100vw - 8px));
+  white-space: pre-line; overflow-wrap: anywhere; text-wrap: balance;
+  background: var(--panel); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
+  font-size: 12px; line-height: 17px; padding: 2px 8px; border-radius: 4px;
 }
-[data-tip]:hover::after, [data-tip]:focus-visible::after { display: block; }
-.status [data-tip]::after { top: auto; bottom: calc(100% + 6px); left: auto; right: 0; transform: none; }
 
 button {
   font: inherit; color: var(--ink); background: var(--panel);
@@ -260,15 +258,6 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .layer-button.active .mark { color: rgba(255, 255, 255, 0.9); }
 .layer-add { color: var(--muted); }
 .layer-add:hover { color: var(--ink); }
-
-/* Name on hover, at once (a native title is slow). */
-.layer-tip {
-  position: absolute; left: calc(100% + 12px); top: 50%; transform: translateY(-50%); z-index: 4;
-  display: none; pointer-events: none; white-space: nowrap;
-  background: var(--ink); color: white; font-size: 11px; line-height: 16px; padding: 2px 7px; border-radius: 4px;
-}
-.layer-tip .state { opacity: 0.7; }
-.layer-palette:not(.dragging) .layer-button:hover + .layer-tip { display: block; }
 
 /* A layer's card, out to the right of its button (left near the right edge). */
 .layer-card {

@@ -27,7 +27,7 @@ export function PropertiesDialog() {
       <div className="modal properties-dialog" role="dialog" aria-modal="true" aria-labelledby="properties-title">
         <header>
           <h2 id="properties-title">Properties</h2>
-          <button className="close" onClick={close} title="Close (Esc)" aria-label="Close">×</button>
+          <button className="close" onClick={close} data-tip="Close (Esc)" aria-label="Close">×</button>
         </header>
         <div className="properties-body">
           <Properties />

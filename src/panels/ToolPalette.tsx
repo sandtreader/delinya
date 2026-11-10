@@ -42,7 +42,8 @@ export function ToolPalette() {
             key={t.tool}
             className={editor.tool === t.tool ? "active" : ""}
             onClick={() => dispatch({ type: "tool", tool: t.tool })}
-            title={name}
+            data-tip={name}
+            data-tip-side="right"
             aria-label={name}
             aria-pressed={editor.tool === t.tool}
           >

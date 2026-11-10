@@ -40,7 +40,7 @@ export function Toolbar() {
   return (
     <header className="toolbar">
       <span className="brand">Delinya</span>
-      <span className="filename" title={dirty ? "Unsaved changes" : "Saved"}>
+      <span className="filename" data-tip={dirty ? "Unsaved changes" : "Saved"}>
         {name}{dirty && <span className="dirty"> •</span>}
       </span>
       <div className="group">

@@ -103,7 +103,7 @@ export function OutputDialog() {
       <div className="modal output-dialog" role="dialog" aria-modal="true" aria-labelledby="output-title">
         <header>
           <h2 id="output-title">Print and export</h2>
-          <button className="close" onClick={close} title="Close (Esc)" aria-label="Close">×</button>
+          <button className="close" onClick={close} data-tip="Close (Esc)" aria-label="Close">×</button>
         </header>
         <div className="modal-body">
           <div className="output-options">
@@ -129,7 +129,7 @@ export function OutputDialog() {
                 <select value={options.scale} onChange={(e) => update({ scale: Number(e.target.value) })}>
                   {SCALES.map((s) => <option key={s} value={s}>{formatScale(s)}{s === 1 ? " (full size)" : ""}</option>)}
                 </select>
-                <button className="small" onClick={() => update({ scale: fitToSheet(resolved, options, info) })} title="Largest scale that fits one sheet">Fit</button>
+                <button className="small" onClick={() => update({ scale: fitToSheet(resolved, options, info) })} data-tip="Largest scale that fits one sheet">Fit</button>
               </label>
               <label className="row check">
                 <input type="checkbox" checked={options.dimensions} onChange={(e) => update({ dimensions: e.target.checked })} />
@@ -142,7 +142,7 @@ export function OutputDialog() {
               </p>
               <p className="hint">Print at 100% / “Actual size”, then check the ruler measures 100 mm.</p>
               <div className="buttons">
-                <button className="primary" disabled={!composed} onClick={print} title="Print (⌘P)">Print…</button>
+                <button className="primary" disabled={!composed} onClick={print} data-tip="Print (⌘P)">Print…</button>
                 <button disabled={!composed} onClick={download.pdf}>Download PDF</button>
               </div>
             </section>
@@ -163,7 +163,7 @@ export function OutputDialog() {
                   style={{ gridTemplateColumns: `repeat(${Math.min(plan.cols, 4)}, minmax(0, 1fr))` }}
                 >
                   {composed.pages.slice(0, PREVIEW_LIMIT).map((page, i) => (
-                    <div key={i} className="sheet" title={plan.tiles[i]!.label} dangerouslySetInnerHTML={{ __html: pageToSvg(page) }} />
+                    <div key={i} className="sheet" data-tip={plan.tiles[i]!.label} dangerouslySetInnerHTML={{ __html: pageToSvg(page) }} />
                   ))}
                 </div>
                 {sheets > PREVIEW_LIMIT && <p className="hint">Showing {PREVIEW_LIMIT} of {sheets} sheets.</p>}
