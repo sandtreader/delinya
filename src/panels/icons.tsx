@@ -81,3 +81,12 @@ export const ResetViewIcon = () => (
     <circle cx="8" cy="8" r="2" />
   </Icon>
 );
+
+/** Arrows out to the corners: full screen. Pointing in: back to a window. */
+export const FullscreenIcon = ({ exit = false }: { exit?: boolean }) => (
+  <Icon size={BAR}>
+    {exit
+      ? <path d="M14.5 1.5 9.5 6.5M9.5 2.5v4h4M1.5 14.5l5-5M2.5 9.5h4v4" />
+      : <path d="M9 7l5.5-5.5M10 1.5h4.5V6M7 9l-5.5 5.5M6 14.5H1.5V10" />}
+  </Icon>
+);

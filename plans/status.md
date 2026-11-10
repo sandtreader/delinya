@@ -93,7 +93,10 @@ through `useSyncExternalStore`.
   position, grip drag and clamping are shared with the layer palette in
   `panels/floating.tsx` (`useFloating`, `Grip`); Reset view (in the
   status bar, beside the px/mm scale) resets zoom and pan and sends both
-  palettes home (`sendPalettesHome`). Header and status bar buttons are
+  palettes home (`sendPalettesHome`). A full screen / window toggle sits
+  at the right end of the status bar (`app/fullscreen.ts`; follows
+  `fullscreenchange`, so Esc/F11 keep it right; hidden where the browser
+  can't). Header and status bar buttons are
   icons (`panels/icons.tsx`, `IconButton`).
 - **Tooltips**: one shared tooltip (`panels/Tooltip.tsx`, mounted once in
   `Shell`) for every element with `data-tip`; nothing uses the browser's
