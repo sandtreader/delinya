@@ -4,7 +4,7 @@
 // button reorders, and the numbers follow. "+" adds a layer in front.
 // Hiding and locking are this viewer's own choice (editor state), not edits.
 
-import { useEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent } from "react";
 import type { Change } from "@sandtreader/collab/protocol";
 import { addLayer, deleteLayer, moveLayer, newId, setLayerName, type EntityId, type ResolvedLayer } from "../model";
 import { store, useDocument } from "../app/store";
@@ -14,6 +14,7 @@ import type { Point } from "../app/floatPosition";
 import { dropIndex } from "../view/reorder";
 import { Grip, useFloating } from "./floating";
 import { Text } from "./fields";
+import { Icon } from "./icons";
 
 const STORAGE_KEY = "delinya.layerPalette";
 // Just below the tool palette at its home (10, 10), which is 157 px tall.
@@ -226,19 +227,7 @@ function LayerCard({ layer, only, flip, onDeleted }: { layer: ResolvedLayer; onl
   );
 }
 
-// ---- Icons (16 px grid unless sized otherwise) ----
-
-function Icon({ size, className, children }: { size: number; className?: string; children: ReactNode }) {
-  const box = size === 18 ? 18 : 16;
-  return (
-    <svg
-      className={className} width={size} height={size} viewBox={`0 0 ${box} ${box}`} aria-hidden="true"
-      fill="none" stroke="currentColor" strokeWidth={size < 12 ? 2 : 1.5} strokeLinecap="round" strokeLinejoin="round"
-    >
-      {children}
-    </svg>
-  );
-}
+// ---- Icons (see icons.tsx) ----
 
 function Eye() {
   return <><path d="M1.5 8S3.9 3.5 8 3.5 14.5 8 14.5 8 12.1 12.5 8 12.5 1.5 8 1.5 8z" /><circle cx="8" cy="8" r="2" /></>;

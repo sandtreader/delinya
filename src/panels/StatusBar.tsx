@@ -3,6 +3,7 @@ import { useEditor } from "../app/editor";
 import { formatMm } from "../canvas/Canvas";
 import { DEFAULT_VIEW } from "../view/viewport";
 import { sendPalettesHome } from "./floating";
+import { IconButton, ResetViewIcon } from "./icons";
 
 export function StatusBar() {
   useDocument();
@@ -15,12 +16,12 @@ export function StatusBar() {
       <span className="grow" />
       {issues.length > 0 && <span className="warn" title={issues.map((i) => `${i.entity}: ${i.message}`).join("\n")}>{issues.length} issues</span>}
       <span className="zoom">{Math.round(editor.view.scale * 100) / 100} px/mm</span>
-      <button
+      <IconButton
+        label="Reset view" tip="Reset view: zoom, pan and palettes"
         onClick={() => { dispatch({ type: "view", view: DEFAULT_VIEW }); sendPalettesHome(); }}
-        title="Reset zoom and pan, and put the tool and layer palettes back top left"
       >
-        Reset view
-      </button>
+        <ResetViewIcon />
+      </IconButton>
     </footer>
   );
 }

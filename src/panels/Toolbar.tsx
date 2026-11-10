@@ -4,6 +4,7 @@ import { useEditor } from "../app/editor";
 import { newDrawing, openDrawing, saveDrawing, saveDrawingAs, useDirty, useFileName } from "../app/file";
 import { tell } from "../app/ask";
 import { DEFAULT_VIEW } from "../view/viewport";
+import { HistoryIcon, IconButton, NewIcon, OpenIcon, PrintIcon, PropertiesIcon, SaveAsIcon, SaveIcon } from "./icons";
 
 /**
  * File commands that also reset editor state when a drawing is replaced:
@@ -43,33 +44,23 @@ export function Toolbar() {
         {name}{dirty && <span className="dirty"> •</span>}
       </span>
       <div className="group">
-        <button onClick={file.newFile} title="New drawing">New</button>
-        <button onClick={file.open} title="Open (⌘O)">Open…</button>
-        <button onClick={file.save} title="Save (⌘S)">Save</button>
-        <button onClick={file.saveAs} title="Save as (⇧⌘S)">Save as…</button>
-        <button onClick={() => dispatch({ type: "dialog", dialog: "properties" })} title="Title, author, revision, notes and variables">Properties…</button>
-        <button onClick={() => dispatch({ type: "dialog", dialog: "output" })} title="Print and export (⌘P)">Print / Export…</button>
+        <IconButton label="New" tip="New drawing" onClick={file.newFile}><NewIcon /></IconButton>
+        <IconButton label="Open…" tip="Open… (⌘O)" onClick={file.open}><OpenIcon /></IconButton>
+        <IconButton label="Save" tip="Save (⌘S)" onClick={file.save}><SaveIcon /></IconButton>
+        <IconButton label="Save as…" tip="Save as… (⇧⌘S)" onClick={file.saveAs}><SaveAsIcon /></IconButton>
       </div>
       <div className="group">
-        <button className="icon" disabled={!store.canUndo} onClick={() => store.undo()} title="Undo (⌘Z)" aria-label="Undo">
-          <HistoryIcon />
-        </button>
-        <button className="icon" disabled={!store.canRedo} onClick={() => store.redo()} title="Redo (⇧⌘Z)" aria-label="Redo">
-          <HistoryIcon redo />
-        </button>
+        <IconButton label="Properties…" tip="Properties: title, author, notes, variables" onClick={() => dispatch({ type: "dialog", dialog: "properties" })}>
+          <PropertiesIcon />
+        </IconButton>
+        <IconButton label="Print / Export…" tip="Print / Export… (⌘P)" onClick={() => dispatch({ type: "dialog", dialog: "output" })}>
+          <PrintIcon />
+        </IconButton>
+      </div>
+      <div className="group">
+        <IconButton label="Undo" tip="Undo (⌘Z)" disabled={!store.canUndo} onClick={() => store.undo()}><HistoryIcon /></IconButton>
+        <IconButton label="Redo" tip="Redo (⇧⌘Z)" disabled={!store.canRedo} onClick={() => store.redo()}><HistoryIcon redo /></IconButton>
       </div>
     </header>
-  );
-}
-
-/** A curved arrow back (undo) or, mirrored, forward (redo). */
-function HistoryIcon({ redo = false }: { redo?: boolean }) {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-      <g transform={redo ? "matrix(-1 0 0 1 16 0)" : undefined}>
-        <path d="M5.5 3.5 2.5 6.5l3 3" />
-        <path d="M2.5 6.5H10a3.5 3.5 0 0 1 0 7H6.5" />
-      </g>
-    </svg>
   );
 }

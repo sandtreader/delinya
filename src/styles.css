@@ -39,8 +39,21 @@ body { background: var(--bg); }
 .filename { color: var(--muted); margin-right: 8px; max-width: 24ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .filename .dirty { color: var(--warn); }
 .group { display: flex; gap: 4px; align-items: center; }
-.toolbar button.icon { padding: 4px 8px; line-height: 0; }
+.toolbar .group { gap: 2px; }
+button.icon { padding: 4px; line-height: 0; }
 .zoom { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
+
+/* Quick tooltip for an icon button (IconButton's data-tip): below it in
+   the header, above and right-aligned in the status bar. Like .layer-tip. */
+[data-tip] { position: relative; }
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 30;
+  display: none; pointer-events: none; white-space: nowrap;
+  background: var(--ink); color: white; font-size: 11px; line-height: 16px; padding: 2px 7px; border-radius: 4px;
+}
+[data-tip]:hover::after, [data-tip]:focus-visible::after { display: block; }
+.status [data-tip]::after { top: auto; bottom: calc(100% + 6px); left: auto; right: 0; transform: none; }
 
 button {
   font: inherit; color: var(--ink); background: var(--panel);
@@ -122,7 +135,7 @@ fieldset .row { width: 100%; }
   font-variant-numeric: tabular-nums;
 }
 .status .grow { flex: 1; }
-.status button { padding: 2px 8px; }
+.status button.icon { padding: 2px; }
 .status .zoom { margin-right: -8px; }
 
 /* ---- Dialogs ---- */

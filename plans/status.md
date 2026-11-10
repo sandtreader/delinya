@@ -93,8 +93,9 @@ through `useSyncExternalStore`.
   position, grip drag and clamping are shared with the layer palette in
   `panels/floating.tsx` (`useFloating`, `Grip`); Reset view (in the
   status bar, beside the px/mm scale) resets zoom and pan and sends both
-  palettes home (`sendPalettesHome`). Undo and redo are curved-arrow
-  buttons in the header.
+  palettes home (`sendPalettesHome`). Header and status bar buttons are
+  icons (`panels/icons.tsx`, `IconButton`) with an instant CSS tooltip
+  from `data-tip` instead of the slow browser `title`.
 - **Tools**: select (V), line (L), rect (R), circle (C). Drawing a shape
   also adds its dimensions (rect: width and height; circle: diameter;
   line: length) and returns to select unless Shift is held. Shift
