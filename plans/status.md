@@ -1,8 +1,11 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-10. Repo `sandtreader/delinya`, branch `main`. The
-path (Bézier) tool, model to UI, is in the working tree, not yet
-committed; Vitest tests, `tsc` and the build pass.
+path (Bézier) tool is committed; in the working tree, not yet
+committed: the node card's icon layout, the two node types (Corner,
+Smooth: the standard Bézier editor's model, replacing the brief third
+"curved cusp") and segment selection (Straight/Curve, bend by dragging,
+delete; segment card). Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -34,21 +37,36 @@ but has no UI.
 - **Line** is stored as `{ x, y, length, angle }` so its length can be a
   ref. Angles are degrees from +x towards +y; y is down.
 - **Path** (`polyline` kind; spec `plans/polyline.md`; model, geometry,
-  output and UI built): `{ nodes: PolyNode[], closed?, layer? }`,
-  each node `{ x, y, type: "cusp" | "curve", in?, out? }` with handles as
-  offsets. A curve node with no handles is auto (smoothed from its
-  neighbours, Catmull-Rom style, at resolve); both handles stored makes it
-  manual; one only is flagged and treated as auto. A segment is a cubic
-  when either end is a curve node. Resolve drops bad nodes (`bad-value`),
-  needs 2 nodes (3 closed, else it opens). `ResolvedPolyline.nodes` carry
-  their stored `index` (node actions take stored indexes), drawn point
-  and effective handles. Snaps: nodes (open ends endpoint, cusps corner,
-  curve nodes tangent) and straight segments' middles. No dimensions or
-  resize handles. Node actions in `polyline.ts`: `movePolyNode`,
-  `setPolyNodeType`, `setPolyHandle` (smooth; materialises an auto node),
-  `deletePolyNode`, `insertPolyNode` (de Casteljau; shape unchanged),
-  `setPolyClosed`. Moving, duplicating, links and one-shot arranging
-  shift every node (a link's write-back only on its own axis).
+  output and UI built): `{ nodes: PolyNode[], closed?, layer? }`, each
+  node `{ x, y, type: "cusp" | "curve", in?, out? }` with handles as
+  offsets: a cusp ("Corner": each handle optional and independent; never
+  auto, no issue for a missing one) or a curve ("Smooth"). A curve node
+  with no handles is auto (smoothed from its neighbours, Catmull-Rom
+  style, at resolve); both handles stored makes it manual; one only is
+  flagged and treated as auto. Any other type (the old `curvedCusp`
+  included; no compatibility) is a bad node. A segment is a cubic when its
+  start has an `out` or its end an `in` (after smoothing), else straight.
+  Resolve drops bad nodes (`bad-value`), needs 2 nodes (3 closed, else it
+  opens). `ResolvedPolyline.nodes` carry their stored `index` (node
+  actions take stored indexes; a segment is named by its start node's),
+  drawn point and effective handles. Snaps: nodes (open ends endpoint,
+  cusps corner, curve nodes tangent) and straight segments' middles. No
+  dimensions or resize handles. Actions in `polyline.ts`: `movePolyNode`,
+  `setPolyNodeType` (to cusp keeps the resolved handles, so the shape
+  stays; to curve lines two handles up along out − in, each keeping its
+  length, turns one's partner opposite at a third of the way to that
+  neighbour, else auto), `setPolyHandle` (cusp: that handle only, added
+  if absent; curve: smooth, materialising an auto node, or with
+  `independent` breaks it into a cusp), `deletePolyNode`,
+  `insertPolyNode` (de Casteljau; shape unchanged; a cusp keeps its other
+  handle as stored), `setPolyClosed`; for segments `setPolySegmentCurved`
+  (handles at thirds, or off with smooth ends becoming corners),
+  `bendPolySegment` (Inkscape's weighting; the point grabbed at t moves by
+  exactly the delta; linear in it; smooth ends stay smooth) and
+  `deletePolySegment` (opens a closed path there, splits an open one into
+  two paths on the same layer, dropping parts under 2 nodes; auto ends at
+  the cut keep their handles, so nothing left moves; returns the ids left). Moving, duplicating, links and one-shot arranging shift every
+  node (a link's write-back only on its own axis).
 - **Geometry** has `Cubic` path elements (`cubic`, `cubicPoint`,
   `cubicBounds` from the derivative's roots, `splitCubic`, numeric
   `elementLength`, `flattenCubic(c, tol)` by adaptive subdivision) beside
@@ -144,68 +162,94 @@ through `useSyncExternalStore`.
   line: length; path: none) and returns to select unless Shift is held.
   Shift constrains to square / 45° (for the path tool it makes a curve
   node instead). The path tool's tooltip says how it works.
-- **Drawing a path** (`canvas/Canvas.tsx`, pure parts `canvas/polyDraft.ts`):
-  clicks, not a drag. Each click (press and release within 3 px) adds a
-  node at the snapped point (shapes' snap points, else the grid; free
-  0.01 mm with grid snap off), a cusp, or a curve node with Shift. The
-  nodes so far are a draft in the canvas (like a drag, never in the
-  document or editor state), drawn dashed with a provisional node at the
-  pointer (Shift: a curve), resolved as a real path would be so auto
-  curves bend as the pointer moves; the draft's nodes show as small
-  squares/circles. A click within 4 px of the last node adds nothing (the
-  second click of a double-click). With 3+ nodes, the pointer within
-  10 px of the start snaps to it (endpoint marker, start node filled,
-  preview closed) and a click there closes and finishes. Enter, Escape
-  or a double-click finish it open; Backspace/Delete take back the last
-  node (the last one ends the draft). Those keys are caught in a window
-  capture listener while drafting, so the app's Escape/Delete don't also
-  run (not while typing in a field, a dialog or a question is up).
-  Finishing commits one `addPolyline` on the layer that was current when
-  the draft began (one undo step), selects it and returns to select
-  unless Shift was held on the finishing click/key. Fewer than 2 nodes
-  draw nothing. The status bar shows the segment from the last node to
-  the pointer as a line reads (`draw` tool `polyline` in `drawStatus`).
-  **Switching tool mid-path finishes it, open** (if it has 2 nodes); New
-  and Open drop it instead (`discardPathDraft`, called from the file
-  commands' reset), so it isn't finished onto the new drawing. A hidden or
-  locked current layer blocks it like the other tools.
+- **Drawing a path** (`canvas/Canvas.tsx`, pure parts
+  `canvas/polyDraft.ts`): clicks, not a drag. Each click (press and
+  release within 3 px) adds a node at the snapped point (shapes' snap
+  points, else the grid; free 0.01 mm with grid snap off), a cusp, or a
+  curve node with Shift. The nodes so far are a draft in the canvas (like
+  a drag, never in the document or editor state), drawn dashed with a
+  provisional node at the pointer (Shift: a curve), resolved as a real
+  path would be so auto curves bend as the pointer moves; the draft's
+  nodes show as small squares/circles (drawing makes cusps without
+  handles and auto curves). A click within 4 px of the last node adds nothing (the second
+  click of a double-click). With 3+ nodes, the pointer within 10 px of the
+  start snaps to it (endpoint marker, start node filled, preview closed)
+  and a click there closes and finishes. Enter, Escape or a double-click
+  finish it open; Backspace/Delete take back the last node (the last one
+  ends the draft). Those keys are caught in a window capture listener
+  while drafting, so the app's Escape/Delete don't also run (not while
+  typing in a field, a dialog or a question is up). Finishing commits one
+  `addPolyline` on the layer that was current when the draft began (one
+  undo step), selects it and returns to select unless Shift was held on
+  the finishing click/key. Fewer than 2 nodes draw nothing. The status bar
+  shows the segment from the last node to the pointer as a line reads
+  (`draw` tool `polyline` in `drawStatus`). **Switching tool mid-path
+  finishes it, open** (if it has 2 nodes); New and Open drop it instead
+  (`discardPathDraft`, called from the file commands' reset), so it isn't
+  finished onto the new drawing. A hidden or locked current layer blocks
+  it like the other tools.
 - **Editing a path** (select tool, exactly one path selected, not on a
   locked layer; hit-testing in `canvas/polyEdit.ts`): every node shows as
-  a screen-space handle like resize handles (square: cusp, circle: curve;
-  the selected node filled). The selected curve node also shows its
-  in/out handles (dots on guide lines; the effective ones, so an auto
-  node's smoothed handles; an open path's ends only the one their segment
-  uses). Press on a node selects it (editor `node: { shape, index }`,
-  stored index; action `node`; cleared when the selection changes to
-  anything but that path alone, by `toggleSelect`, or leaving the select
-  tool; `selectedPathNode(r, editor)` also checks the node still exists);
-  dragging it (past 3 px) moves it with `movePolyNode`, snapped to other
-  shapes' points and the grid (not the path's own), as one gesture. If a
-  link draws the path away from its stored nodes, the offset
-  (`drawnOffset`) is taken at the press and subtracted, so the node
-  follows the pointer. Dragging a handle uses `setPolyHandle` (smooth;
-  snapped the same way; one gesture). Handle beats node only when nearer
-  (a zero-length handle leaves its node draggable). A click on the path
-  away from its nodes lets go of the node; a drag there moves the whole
-  path as before. Double-click on the path's segment (within 6 px)
+  a screen-space handle like resize handles (square: corner, circle:
+  smooth; the selected node filled; drafts the same). The selected node
+  shows its in/out handles (dots on guide lines; the effective ones, so an
+  auto node's smoothed handles; a corner only those it has; an open path's
+  ends only the one their segment uses). Press on a node selects it
+  (editor `node: { shape, index }`, stored index; action `node`; cleared
+  when the selection changes to anything but that path alone, by
+  `toggleSelect`, or leaving the select tool; `selectedPathNode(r,
+  editor)` also checks the node still exists); dragging it (past 3 px)
+  moves it with `movePolyNode`, snapped to other shapes' points and the
+  grid (not the path's own), as one gesture. If a link draws the path away
+  from its stored nodes, the offset (`drawnOffset`) is taken at the press
+  and subtracted, so the node follows the pointer. Dragging a handle uses
+  `setPolyHandle` (smooth on a smooth node, alone on a corner; snapped the
+  same way; one gesture). Alt (Option) held at the press or at any point
+  in the drag passes `independent`, so a smooth node's handle breaks it
+  into a corner (the other handle stays put; it stays broken). Handle
+  beats node only when nearer (a zero-length handle leaves its node
+  draggable). **Segments**: a click on the selected path away from its
+  nodes and handles selects the segment there (within 6 px; editor
+  `segment: NodeRef` named by its start node, action `segment`; never
+  with a node: setting either clears the other; same lifetime as `node`;
+  `selectedPathSegment(r, editor)` gives its drawn `position` and
+  `element`); a click off every segment lets go of both. The selected
+  segment draws over the path in the selection colour, 3.5 px, and shows
+  the handles on it (`segmentHandles`: its start's out, its end's in) on
+  guide lines, dragged exactly like node handles. Pressing on the
+  selected segment and dragging (past 3 px) bends it: t from `segmentAt`
+  at the press, each move's model delta through `bendPolySegment`, one
+  gesture, no snapping. A drag on any other part of the path moves the
+  whole path as before. Double-click on the path's segment (within 6 px)
   inserts a node there (`insertPolyNode`, shape unchanged) and selects
   it; this also works on the double-click that first selects the path.
-  Clicking a node of an unselected path just selects the path (nodes
-  show once it is selected). Delete/Backspace with a node selected
-  deletes the node (`deletePolyNode`; if the path goes, so does the
-  selection), Escape lets go of the node first. The status bar shows
-  "node N of M · x, y mm" (N among the drawn nodes) ahead of the
-  selection readout, also while dragging the node.
+  Clicking a node or segment of an unselected path just selects the path.
+  Delete/Backspace deletes the selected node (`deletePolyNode`; if the
+  path goes, so does the selection) or segment (`deleteSegment`, as the
+  card's bin); Escape lets go of either first. The status bar shows "node
+  N of M · x, y mm" or "segment N of M · length mm" (N among the drawn
+  nodes/segments) ahead of the selection readout, also while dragging.
 - **Node card** (`panels/NodeCard.tsx`): a small card beside the selected
   node (16 px below right, flipped and kept inside `.canvas-area` by
-  `view/placeNear.ts`), following it: the node number (tooltip "Node N of
-  M"), a Cusp / Curve toggle (`setPolyNodeType`; to curve makes it auto),
-  x and y fields showing the drawn position (typed values have
-  `drawnOffset` taken off before `movePolyNode`), and a bin
-  (`deleteNode`, shared with the Delete key). Escape in a field reverts
-  as other fields do. A press on the canvas blurs a focused input first,
-  so an edit in the card (or a panel) commits before the press can
-  unmount it.
+  `view/placeNear.ts`; the frame, placement and bin icon are
+  `panels/PathCard.tsx`, shared with the segment card), following it
+  (named "Node N of M" for screen readers; no visible number). Top row: a
+  two-way icon toggle, Corner (lines meeting at a filled square) / Smooth
+  (aria-labels; tooltips explain each, the smooth one mentioning
+  Alt-drag; `setPolyNodeType`), and a bin (`deleteNode`, shared with the
+  Delete key). Then x and y on a row each, showing the drawn position
+  (typed values have `drawnOffset` taken off before `movePolyNode`).
+  Escape in a field reverts as other fields do. A press on the canvas
+  blurs a focused input first, so an edit in the card (or a panel)
+  commits before the press can unmount it.
+- **Segment card** (`panels/SegmentCard.tsx`): the same kind of card
+  beside the selected segment's middle (`cubicPoint` at 0.5, or the
+  midpoint), named "Segment N of M". One row: Straight / Curve icon
+  toggle (`setPolySegmentCurved`; the segment's own kind pressed) and a
+  bin, "Delete segment" (`deleteSegment`: `deletePolySegment` with
+  `newId`, then selects the ids left, both parts after a split, nothing
+  if the path went). CSS shared as `.path-card`, `.icon-toggle` (the node
+  card's rows keep the class `node-card-row`).
 - **Pan/zoom**: wheel and pinch zoom at the cursor, as in SynFlo. Space
   or the middle button pans in any tool, and a finger pans the
   background; a mouse or pen no longer does (it lassoes). Pan and zoom
@@ -259,7 +303,7 @@ through `useSyncExternalStore`.
 - **Shape panel** (`panels/ShapeFields.tsx`): one shape selected, with any
   tool, so a just-drawn shape can be sized at once. A path ("Path") shows
   its node count, a Closed checkbox (`setPolyClosed`; disabled below 3
-  nodes) and, with the select tool, a hint on editing nodes; no size
+  nodes) and, with the select tool, a hint on editing nodes and segments; no size
   fields. Other shapes: x/y, each length with
   a linked badge and unlink, corner radii with a clamped indicator,
   spacing and alignment membership with remove. Position fields a link
@@ -331,8 +375,9 @@ through `useSyncExternalStore`.
   cancels. Outside-click handlers (the layer card) ignore clicks while a
   question is up.
 - **Keys**: ⌘Z / ⇧⌘Z (Ctrl+Y) undo/redo, Delete/Backspace (a selected
-  path node, else the selection; while drawing a path, its last node),
-  Escape (a selected path node first; while drawing a path, finishes it;
+  path node or segment, else the selection; while drawing a path, its
+  last node), Escape (a selected path node or segment first; while
+  drawing a path, finishes it;
   else back to select and clear), V/L/R/C/P tools, ⌘P print/export, ⌘D duplicate the selection exactly
   as the panel's Duplicate does (its last direction and gap, via
   `duplicateBeside`), selecting the copies so repeating it carries on the
@@ -516,9 +561,10 @@ through `useSyncExternalStore`.
 6. Rotation of rects, text, named variables/expressions, woodwork extras
    (see outline "Later").
 7. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by
-   bounds, symmetric/independent handles, converting rects/circles to
-   paths; also Shift to constrain a handle's angle, selecting a node on
-   the click that selects the path, multi-node selection.
+   bounds, symmetric (equal-length) handles, converting rects/circles to
+   paths; also Shift to constrain a handle's angle, selecting a node or
+   segment on the click that selects the path, multi-node/segment
+   selection, joining open paths.
 
 ## Gotchas for whoever picks this up
 

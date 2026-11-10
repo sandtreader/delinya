@@ -1,7 +1,7 @@
 // Number formatting shared by the canvas, panels and output, so a length
 // reads the same on screen, in a printout and in an export.
 
-import { type EntityId, type Resolved, type ResolvedShape, unionBounds } from "../model";
+import { type EntityId, type Resolved, type ResolvedShape, elementLength, unionBounds } from "../model";
 
 /** A length in mm for display: at most two decimals, no trailing zeros. */
 export function formatMm(v: number): string {
@@ -62,13 +62,15 @@ export interface PositionState {
   measure: EntityId | null;
   /** The selected node of a path: its stored index. */
   node?: { shape: EntityId; index: number } | null;
+  /** The selected segment of a path: its start node's stored index. */
+  segment?: { shape: EntityId; index: number } | null;
 }
 
 /**
  * The status bar's position readout, first that applies: the shape being
  * drawn (a path: its segment to the pointer); the shape being
  * dragged; with the select tool, a path's selected node (its number and
- * drawn position), then the selection (one shape's position and size, or
+ * drawn position) or segment (its number and length), then the selection (one shape's position and size, or
  * the bounds of several); the pointer.
  */
 export function positionStatus(e: PositionState, r: Resolved): string {
@@ -81,6 +83,12 @@ export function positionStatus(e: PositionState, r: Resolved): string {
       const k = path.nodes.findIndex((n) => n.index === e.node!.index);
       const n = path.nodes[k];
       if (n) return `node ${k + 1} of ${path.nodes.length} · ${formatMm(n.point[0])}, ${formatMm(n.point[1])} mm`;
+    }
+    const segPath = e.segment ? r.shapes[e.segment.shape] : undefined;
+    if (segPath?.kind === "polyline") {
+      const k = segPath.nodes.findIndex((n) => n.index === e.segment!.index);
+      const element = k < 0 ? undefined : segPath.path[k];
+      if (element) return `segment ${k + 1} of ${segPath.path.length} · ${formatMm(elementLength(element))} mm`;
     }
     const shapes = e.selection.flatMap((id) => (Object.hasOwn(r.shapes, id) ? [r.shapes[id]!] : []));
     if (shapes.length === 1) return shapeStatus(shapes[0]!);

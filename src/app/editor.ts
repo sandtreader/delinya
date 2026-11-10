@@ -5,7 +5,7 @@
 import { createContext, useContext, type Dispatch } from "react";
 import {
   isSelectable, type DuplicateDirection, type EntityId, type LayerView, type LinkTarget, type Resolved, type ResolvedPolyNode,
-  type ResolvedPolyline, type SnapPoint,
+  type PathElement, type ResolvedPolyline, type SnapPoint,
 } from "../model";
 import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
 import type { DrawTool } from "../view/format";
@@ -20,7 +20,10 @@ export interface DuplicateSettings {
   spacing: number;
 }
 
-/** One node of a path: the path and the node's stored index (what the node actions take). */
+/**
+ * One node of a path: the path and the node's stored index (what the node
+ * actions take). Also names a segment, by its start node.
+ */
 export interface NodeRef {
   shape: EntityId;
   index: number;
@@ -34,6 +37,11 @@ export interface EditorState {
    * tool. Cleared whenever the selection changes or the tool leaves select.
    */
   node: NodeRef | null;
+  /**
+   * The selected segment of the one selected path, named by its start node;
+   * never with a selected node. Kept and cleared as `node` is.
+   */
+  segment: NodeRef | null;
   /** The layer new shapes go on; null or gone means the first (see currentLayer). */
   layer: EntityId | null;
   /**
@@ -68,6 +76,7 @@ export const initialEditor: EditorState = {
   tool: "select",
   selection: [],
   node: null,
+  segment: null,
   layer: null,
   layerView: { hidden: new Set(), locked: new Set() },
   grid: DEFAULT_GRID_VIEW,
@@ -87,6 +96,7 @@ export type EditorAction =
   | { type: "select"; ids: EntityId[] }
   | { type: "toggleSelect"; id: EntityId }
   | { type: "node"; node: NodeRef | null }
+  | { type: "segment"; segment: NodeRef | null }
   | { type: "layer"; id: EntityId }
   | { type: "toggleLayer"; id: EntityId; flag: "hidden" | "locked" }
   | { type: "resetLayers" }
@@ -104,16 +114,24 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
   switch (a.type) {
     // A link popup belongs to the moment it was opened: any other choice closes it.
     // Hovering with select shows no position, so arriving at it clears the readout.
-    // Nodes are edited with select only.
+    // Nodes and segments are edited with select only.
     case "tool": return {
-      ...s, tool: a.tool, linkPopup: null, node: a.tool === "select" ? s.node : null,
+      ...s, tool: a.tool, linkPopup: null, node: a.tool === "select" ? s.node : null, segment: a.tool === "select" ? s.segment : null,
       ...(hoverShowsPosition(a.tool) ? {} : { cursor: null, snap: null, draw: null, measure: null }),
     };
-    // A selected node belongs to its path being the whole selection.
-    case "select": return { ...s, selection: a.ids, linkPopup: null, node: a.ids.length === 1 && a.ids[0] === s.node?.shape ? s.node : null };
+    // A selected node or segment belongs to its path being the whole selection.
+    case "select": {
+      const only = a.ids.length === 1 ? a.ids[0] : undefined;
+      return {
+        ...s, selection: a.ids, linkPopup: null,
+        node: only === s.node?.shape ? s.node : null, segment: only === s.segment?.shape ? s.segment : null,
+      };
+    }
     case "toggleSelect":
-      return { ...s, linkPopup: null, node: null, selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id] };
-    case "node": return { ...s, node: a.node };
+      return { ...s, linkPopup: null, node: null, segment: null, selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id] };
+    // A node or a segment, not both.
+    case "node": return { ...s, node: a.node, segment: a.node ? null : s.segment };
+    case "segment": return { ...s, segment: a.segment, node: a.segment ? null : s.node };
     case "layer": return { ...s, layer: a.id };
     case "toggleLayer": {
       const set = new Set(s.layerView[a.flag]);
@@ -175,6 +193,23 @@ export function selectedPathNode(r: Resolved, e: Pick<EditorState, "tool" | "sel
   if (shape?.kind !== "polyline") return null;
   const position = shape.nodes.findIndex((n) => n.index === ref.index);
   return position < 0 ? null : { shape, node: shape.nodes[position]!, position };
+}
+
+/**
+ * The selected path segment, while it can be edited (as selectedPathNode).
+ * `position` is its place among the drawn segments, from 0, and `element`
+ * the drawn segment or cubic.
+ */
+export function selectedPathSegment(
+  r: Resolved, e: Pick<EditorState, "tool" | "selection" | "segment">,
+): { shape: ResolvedPolyline; index: number; position: number; element: PathElement } | null {
+  const ref = e.segment;
+  if (!ref || e.tool !== "select" || e.selection.length !== 1 || e.selection[0] !== ref.shape) return null;
+  const shape = r.shapes[ref.shape];
+  if (shape?.kind !== "polyline") return null;
+  const position = shape.nodes.findIndex((n) => n.index === ref.index);
+  const element = position < 0 ? undefined : shape.path[position];
+  return element ? { shape, index: ref.index, position, element } : null;
 }
 
 /** The ids a selection may keep: shapes that exist on a layer this viewer has neither hidden nor locked. */

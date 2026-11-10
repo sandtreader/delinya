@@ -71,13 +71,17 @@ export interface CircleProps {
   layer?: EntityId;
 }
 
+/** Corner, smooth. */
 export type PolyNodeType = "cusp" | "curve";
 
 /**
- * A node of a path, at (x, y). A cusp is a sharp corner and has no handles.
- * A curve node is smooth: `in` and `out` are its handles, offsets from the
- * node, opposite each other. A curve node with neither is "auto": resolve
- * smooths it from its neighbours (see resolve.ts), so it follows them.
+ * A node of a path, at (x, y); `in` and `out` are handles, offsets from the
+ * node. A cusp ("Corner" in the UI) is a sharp point: each handle is
+ * optional and moves on its own (a side without one bends only by the
+ * neighbour's handle, straight if that has none). A curve node ("Smooth")
+ * has both handles, opposite each other; with neither it is "auto":
+ * resolve smooths it from its neighbours (see resolve.ts), so it follows
+ * them.
  */
 // A type, not an interface, so it reads as a wire value (PropValue) and
 // stored nodes cast to it cleanly.
@@ -92,7 +96,8 @@ export type PolyNode = {
 /**
  * A free path ("Path" in the UI) through `nodes`: segment i runs node i to
  * i + 1, and last to first when `closed`. A segment is a cubic Bézier when
- * either end is a curve node, else straight. At least 2 nodes; closed needs 3.
+ * its start has an `out` or its end an `in` (an auto curve node always
+ * has both), else straight. At least 2 nodes; closed needs 3.
  */
 export interface PolyProps {
   nodes: PolyNode[];

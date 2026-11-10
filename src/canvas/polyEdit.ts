@@ -18,18 +18,34 @@ export function nodeAt(poly: ResolvedShape, point: Point, tolerance: number): nu
 
 /**
  * The handles a node shows and can be dragged by, as drawn points: a curve
- * node's in and out (its own, or smoothed when auto), less the one an open
- * path's end doesn't use. None for a cusp.
+ * node's in and out (its own, or smoothed when auto) or those a cusp has,
+ * less the one an open path's end doesn't use.
  */
 export function nodeHandles(poly: ResolvedShape, index: number): Array<{ which: "in" | "out"; point: Point }> {
   if (poly.kind !== "polyline") return [];
   const k = poly.nodes.findIndex((n) => n.index === index);
   const n = poly.nodes[k];
-  if (!n || n.type !== "curve") return [];
+  if (!n) return [];
   const out: Array<{ which: "in" | "out"; point: Point }> = [];
   const at = (d: Point): Point => [n.point[0] + d[0], n.point[1] + d[1]];
   if (n.in && (poly.closed || k > 0)) out.push({ which: "in", point: at(n.in) });
   if (n.out && (poly.closed || k < poly.nodes.length - 1)) out.push({ which: "out", point: at(n.out) });
+  return out;
+}
+
+/**
+ * The handles on a segment (named by its start node's stored index), as
+ * drawn points: its start's out and its end's in, where they have them.
+ * None for a straight segment, or no such segment.
+ */
+export function segmentHandles(poly: ResolvedShape, segment: number): Array<{ node: number; which: "in" | "out"; point: Point }> {
+  if (poly.kind !== "polyline") return [];
+  const k = poly.nodes.findIndex((n) => n.index === segment);
+  if (k < 0 || (k === poly.nodes.length - 1 && !poly.closed)) return [];
+  const a = poly.nodes[k]!, b = poly.nodes[(k + 1) % poly.nodes.length]!;
+  const out: Array<{ node: number; which: "in" | "out"; point: Point }> = [];
+  if (a.out) out.push({ node: a.index, which: "out", point: [a.point[0] + a.out[0], a.point[1] + a.out[1]] });
+  if (b.in) out.push({ node: b.index, which: "in", point: [b.point[0] + b.in[0], b.point[1] + b.in[1]] });
   return out;
 }
 

@@ -1,5 +1,7 @@
 import { useEffect, useReducer, type CSSProperties } from "react";
-import { EditorContext, editorReducer, initialEditor, selectableOnly, selectedPathNode, useEditor, type Tool } from "./app/editor";
+import {
+  EditorContext, editorReducer, initialEditor, selectableOnly, selectedPathNode, selectedPathSegment, useEditor, type Tool,
+} from "./app/editor";
 import { store, useDocument } from "./app/store";
 import { Canvas } from "./canvas/Canvas";
 import { Rulers } from "./canvas/Rulers";
@@ -12,6 +14,7 @@ import { Tooltip } from "./panels/Tooltip";
 import { SelectionPanel, deleteSelection, duplicateSelection } from "./panels/SelectionPanel";
 import { LinkButtons } from "./panels/LinkButtons";
 import { NodeCard, deleteNode } from "./panels/NodeCard";
+import { SegmentCard, deleteSegment } from "./panels/SegmentCard";
 import { ToolPalette } from "./panels/ToolPalette";
 import { LayerPalette } from "./panels/LayerPalette";
 import { Toolbar, useFileCommands } from "./panels/Toolbar";
@@ -103,17 +106,22 @@ function Shell() {
       }
       if (mod && e.key.toLowerCase() === "y") { e.preventDefault(); store.redo(); return; }
       if (mod) return;
-      // A path's selected node comes first: Delete takes it, not the path, and Escape lets go of it.
-      // (While a path is being drawn, the canvas has these keys.)
-      const node = selectedPathNode(store.resolved, { tool: editor.tool, selection: editor.selection, node: editor.node });
+      // A path's selected node or segment comes first: Delete takes it, not
+      // the path, and Escape lets go of it. (While a path is being drawn, the
+      // canvas has these keys.)
+      const at = { tool: editor.tool, selection: editor.selection };
+      const node = selectedPathNode(store.resolved, { ...at, node: editor.node });
+      const segment = selectedPathSegment(store.resolved, { ...at, segment: editor.segment });
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         if (node) deleteNode(node.shape.id, node.node.index, dispatch);
+        else if (segment) deleteSegment(segment.shape.id, segment.index, dispatch);
         else if (editor.selection.length) { deleteSelection(editor.selection); dispatch({ type: "select", ids: [] }); }
         return;
       }
       if (e.key === "Escape") {
         if (node) { dispatch({ type: "node", node: null }); return; }
+        if (segment) { dispatch({ type: "segment", segment: null }); return; }
         dispatch({ type: "tool", tool: "select" });
         dispatch({ type: "select", ids: [] });
         return;
@@ -123,7 +131,7 @@ function Shell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editor.selection, editor.dialog, editor.duplicate, editor.tool, editor.node, dispatch, file]);
+  }, [editor.selection, editor.dialog, editor.duplicate, editor.tool, editor.node, editor.segment, dispatch, file]);
 
   return (
     <div className="app" style={APP_COLOURS}>
@@ -137,6 +145,7 @@ function Shell() {
           <SelectionPanel />
           <LinkButtons />
           <NodeCard />
+          <SegmentCard />
           <ToolPalette />
           <LayerPalette />
         </div>

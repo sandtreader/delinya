@@ -139,13 +139,15 @@ button.danger { color: #9b1c1c; }
 .handle { fill: white; stroke: var(--select); stroke-width: 1.5; }
 .handle:hover { fill: var(--select); }
 
-/* A selected path's nodes (squares: cusps, circles: curves), the selected
-   node filled, its handles as dots on guide lines. */
+/* A selected path's nodes (squares: corners, circles: smooth), the selected
+   node filled, its handles (or the selected segment's) as dots on guide lines. */
 .path-nodes .node { fill: white; stroke: var(--select); stroke-width: 1.5; cursor: move; }
 .path-nodes .node:hover, .path-nodes .node.selected { fill: var(--select); }
 .path-nodes .node-guide { stroke: var(--select); stroke-width: 1; pointer-events: none; }
 .path-nodes .node-handle { fill: var(--select); stroke: white; stroke-width: 1; cursor: move; }
 .path-nodes .node-handle:hover { stroke: var(--select); stroke-width: 2; }
+/* The selected segment of a path, over it; clicks go through to the path. */
+.segment-selected { stroke: var(--select); pointer-events: none; }
 /* The nodes of a path being drawn; the start fills when a click there closes it. */
 .draft-node { fill: white; stroke: var(--select); stroke-width: 1.5; pointer-events: none; }
 .draft-node.closing { fill: var(--select); }
@@ -362,22 +364,25 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .layer-card .colour-picker button.swatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .layer-card button.danger:not(:disabled):hover { border-color: #9b1c1c; }
 
-/* A path's selected node: a small card beside it, over the canvas. */
-.node-card {
-  position: absolute; z-index: 3; display: flex; align-items: center; gap: 6px; padding: 5px 6px;
+/* A path's selected node or segment: a small card beside it, over the canvas. */
+.path-card {
+  position: absolute; z-index: 3; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 5px 6px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); font-size: 12px; white-space: nowrap;
 }
-.node-card-number { min-width: 18px; text-align: center; font-weight: 600; color: var(--muted); font-variant-numeric: tabular-nums; }
-.node-type { display: flex; }
-.node-type button { padding: 2px 7px; font-size: 12px; }
-.node-type button:first-child { border-radius: 4px 0 0 4px; }
-.node-type button:last-child { border-radius: 0 4px 4px 0; margin-left: -1px; }
-.node-type button.on { background: #e3f0f6; border-color: var(--accent); color: var(--accent); position: relative; }
+/* A row; the node card's are named node-card-row. */
+.path-card-row, .node-card-row { display: flex; align-items: center; gap: 6px; }
+/* Icon buttons joined into one toggle (node type, segment type). */
+.icon-toggle { display: flex; }
+.icon-toggle button { border-radius: 0; }
+.icon-toggle button + button { margin-left: -1px; }
+.icon-toggle button:first-child { border-radius: 4px 0 0 4px; }
+.icon-toggle button:last-child { border-radius: 0 4px 4px 0; }
+.icon-toggle button.on { background: #e3f0f6; border-color: var(--accent); color: var(--accent); position: relative; }
 .node-xy { display: flex; align-items: center; gap: 4px; }
-.node-card .num input { width: 58px; }
-.node-card button.icon { padding: 4px; }
-.node-card button.danger:hover { border-color: #9b1c1c; }
+.path-card .num input { width: 58px; }
+.path-card button.icon { padding: 4px; }
+.path-card button.danger:hover { border-color: #9b1c1c; }
 
 /* ---- Delink buttons (canvas overlay) ---- */
 

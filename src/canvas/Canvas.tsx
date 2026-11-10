@@ -6,20 +6,21 @@
 // draft (polyDraft.ts), committed as one addPolyline when it is finished
 // (Enter, Escape, double-click, clicking the start to close, or switching
 // tool). With the select tool, one selected path shows its nodes, which
-// drag and select (polyEdit.ts hit-tests them).
+// drag and select, and a click on it selects the segment there, which then
+// bends when dragged (polyEdit.ts hit-tests them).
 
 import {
   useCallback, useEffect, useRef, useState,
   type CSSProperties, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent,
 } from "react";
 import {
-  KINDS, addCircle, addDimension, addLine, addPolyline, batch, addRect, derivedAxes, distance, dragHandle, drawnOffset, entityAs, freeDelta,
-  handlesFor, insertPolyNode, isRef, isVisible, linkLocks, moveBy, movePolyNode, newId, setPolyHandle, snapNumber,
-  type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type ResolvedDimension, type ResolvedPolyline,
+  KINDS, addCircle, addDimension, addLine, addPolyline, batch, addRect, bendPolySegment, derivedAxes, distance, dragHandle, drawnOffset, entityAs,
+  freeDelta, handlesFor, insertPolyNode, isRef, isVisible, linkLocks, moveBy, movePolyNode, newId, setPolyHandle, snapNumber,
+  type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType, type ResolvedDimension, type ResolvedPolyline,
   type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
-import { currentLayer, hoverShowsPosition, selectedPathNode, useEditor } from "../app/editor";
+import { currentLayer, hoverShowsPosition, selectedPathNode, selectedPathSegment, useEditor } from "../app/editor";
 import { currentQuestion } from "../app/ask";
 import { gridPitch, toModel, toScreen, wheelZoom, type View } from "../view/viewport";
 import { pathToSvg } from "../view/svgPath";
@@ -28,7 +29,7 @@ import { snapMove, snapPoint } from "./snap";
 import { lassoMode, lassoSelect } from "./lasso";
 import { setHover } from "./hover";
 import { draftAdd, draftCloses, draftFinish, draftPreview, draftShape, draftUndo, type PolyDraft } from "./polyDraft";
-import { handleAt, nodeAt, nodeHandles, segmentAt } from "./polyEdit";
+import { nodeAt, nodeHandles, segmentAt, segmentHandles } from "./polyEdit";
 import { GUIDE_OVERHANG_PX, linkGuides, type LinkGuide } from "../view/linkGuides";
 
 const SNAP_PX = 10;
@@ -38,7 +39,7 @@ const CLICK_PX = 3;
 /** Reach (screen px) of a path's node and of a selected node's handle; they are drawn a little smaller. */
 const NODE_PX = 7;
 const NODE_HANDLE_PX = 6;
-/** Reach of a path's segment for a double-click: half the shape's hit stroke. */
+/** Reach of a path's segment for a click or double-click: half the shape's hit stroke. */
 const SEGMENT_PX = 6;
 /** A path click this close (screen px) to the last node adds none: the second click of a double-click. */
 const SAME_NODE_PX = 4;
@@ -63,15 +64,20 @@ type Drag =
   // `at` is the press in screen px, for telling a click from a drag.
   // `base`: kept and added to (Shift); `prior`: restored by Escape; `last`: last dispatched.
   | { kind: "lasso"; at: Point; start: Point; current: Point; moved: boolean; shift: boolean; base: EntityId[]; prior: EntityId[]; last: EntityId[] }
-  | { kind: "move"; ids: EntityId[]; primary: EntityId; origin: Point; applied: Point; moved: boolean }
+  // `segment`: the segment pressed on, if the path was already selected alone, so a click selects it.
+  | { kind: "move"; ids: EntityId[]; primary: EntityId; origin: Point; applied: Point; moved: boolean; segment: number | null }
   | { kind: "resize"; id: EntityId; spot: HandleSpot; locks: LinkLocks; moved: boolean }
   | { kind: "draw"; tool: Exclude<DrawTool, "polyline">; layer: EntityId; start: Point; current: Point }
   // A press with the Path tool: a click (no drag) adds a node.
   | { kind: "pathClick"; at: Point }
   // A selected path's node or handle. `offset`: how far a link draws the path
   // from its stored nodes, at the press. `gesture`: an undo step is open.
+  // `independent`: Alt held at the press or since, so a smooth node's
+  // handle breaks it into a corner.
   | { kind: "node"; id: EntityId; index: number; offset: Point; at: Point; moved: boolean; gesture: boolean }
-  | { kind: "nodeHandle"; id: EntityId; index: number; which: "in" | "out"; at: Point; moved: boolean; gesture: boolean };
+  | { kind: "nodeHandle"; id: EntityId; index: number; which: "in" | "out"; at: Point; moved: boolean; gesture: boolean; independent: boolean }
+  // The selected segment, grabbed at parameter t: each move bends it by its delta from `last` (model mm).
+  | { kind: "bend"; id: EntityId; segment: number; t: number; last: Point; at: Point; moved: boolean; gesture: boolean };
 
 export function Canvas() {
   useDocument();
@@ -161,6 +167,11 @@ export function Canvas() {
   const single = tool === "select" && selection.length === 1 ? resolved.shapes[selection[0]!] : undefined;
   const editPath = single?.kind === "polyline" && isVisible(resolved, single.id, hiddenLayers) && !layerView.locked.has(single.layer) ? single : undefined;
   const pathNode = selectedPathNode(resolved, editor);
+  const pathSegment = selectedPathSegment(resolved, editor);
+  // The handles it shows to drag: the selected node's, or those on the selected segment.
+  const editHandles = !editPath ? []
+    : pathNode ? nodeHandles(editPath, pathNode.node.index).map((h) => ({ node: pathNode.node.index, ...h }))
+    : pathSegment ? segmentHandles(editPath, pathSegment.index) : [];
 
   // ---- The Path tool's draft ----
 
@@ -257,20 +268,25 @@ export function Canvas() {
 
     const mp = toModel(view, sp);
     if (tool === "select") {
-      // A selected path's nodes, and the selected node's handles, are on top of everything.
+      // A selected path's nodes, the handles it shows and its selected segment are on top of everything.
       if (editPath) {
-        const which = pathNode ? handleAt(editPath, pathNode.node.index, mp, NODE_HANDLE_PX / view.scale) : null;
+        const handle = nearestHandle(editHandles, mp, NODE_HANDLE_PX / view.scale);
         const index = nodeAt(editPath, mp, NODE_PX / view.scale);
-        const handlePoint = which && nodeHandles(editPath, pathNode!.node.index).find((h) => h.which === which)!.point;
         const nodePoint = index === null ? undefined : editPath.nodes.find((n) => n.index === index)!.point;
         // The nearer wins; a handle lying on its node leaves the node to drag.
-        if (pathNode && which && handlePoint && (!nodePoint || distance(handlePoint, mp) < distance(nodePoint, mp))) {
-          dragRef.current = { kind: "nodeHandle", id: editPath.id, index: pathNode.node.index, which, at: sp, moved: false, gesture: false };
+        if (handle && (!nodePoint || distance(handle.point, mp) < distance(nodePoint, mp))) {
+          dragRef.current = { kind: "nodeHandle", id: editPath.id, index: handle.node, which: handle.which, at: sp, moved: false, gesture: false, independent: e.altKey };
           return;
         }
         if (index !== null) {
           dispatch({ type: "node", node: { shape: editPath.id, index } });
           dragRef.current = { kind: "node", id: editPath.id, index, offset: drawnOffset(store.state, editPath), at: sp, moved: false, gesture: false };
+          return;
+        }
+        // Dragging the selected segment bends it; anywhere else on the path moves the path.
+        const on = segmentAt(editPath, mp, SEGMENT_PX / view.scale);
+        if (pathSegment && on?.segment === pathSegment.index) {
+          dragRef.current = { kind: "bend", id: editPath.id, segment: on.segment, t: on.t, last: mp, at: sp, moved: false, gesture: false };
           return;
         }
       }
@@ -301,7 +317,8 @@ export function Canvas() {
       if (e.shiftKey) { dispatch({ type: "toggleSelect", id: hit }); return; }
       const ids = selection.includes(hit) ? selection : [hit];
       if (!selection.includes(hit)) dispatch({ type: "select", ids });
-      dragRef.current = { kind: "move", ids, primary: hit, origin: mp, applied: [0, 0], moved: false };
+      const segment = editPath && hit === editPath.id ? segmentAt(editPath, mp, SEGMENT_PX / view.scale)?.segment ?? null : null;
+      dragRef.current = { kind: "move", ids, primary: hit, origin: mp, applied: [0, 0], moved: false, segment };
       return;
     }
     if (blocked) return;
@@ -400,17 +417,32 @@ export function Canvas() {
         return;
       }
       case "nodeHandle": {
+        if (e.altKey) d.independent = true;
         if (!d.moved && Math.hypot(sp[0] - d.at[0], sp[1] - d.at[1]) < CLICK_PX) return;
         d.moved = true;
         const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid, hiddenLayers);
         const path = store.resolved.shapes[d.id];
         const node = path?.kind === "polyline" ? path.nodes.find((n) => n.index === d.index) : undefined;
-        const change = node && setPolyHandle(store.state, d.id, d.index, d.which, [snapNumber(point[0] - node.point[0]), snapNumber(point[1] - node.point[1])]);
+        const change = node && setPolyHandle(store.state, d.id, d.index, d.which, [snapNumber(point[0] - node.point[0]), snapNumber(point[1] - node.point[1])], {}, d.independent);
         if (change) {
           if (!d.gesture) { store.beginGesture(); d.gesture = true; }
           store.commit(change);
         }
         dispatch({ type: "pointer", cursor: point, snap });
+        return;
+      }
+      case "bend": {
+        if (!d.moved && Math.hypot(sp[0] - d.at[0], sp[1] - d.at[1]) < CLICK_PX) return;
+        d.moved = true;
+        // Not snapped: the grabbed point follows the pointer, each move adding its delta.
+        const change = bendPolySegment(store.state, d.id, d.segment, d.t, [mp[0] - d.last[0], mp[1] - d.last[1]]);
+        if (change) {
+          if (!d.gesture) { store.beginGesture(); d.gesture = true; }
+          store.commit(change);
+        }
+        d.last = mp;
+        // No measure: the status bar shows the selected segment, which this is.
+        dispatch({ type: "pointer", cursor: mp, snap: null });
         return;
       }
     }
@@ -432,9 +464,13 @@ export function Canvas() {
       store.endGesture();
     }
     if (d.kind === "resize" && d.moved) store.endGesture();
-    if ((d.kind === "node" || d.kind === "nodeHandle") && d.gesture) store.endGesture();
-    // A click on a selected path away from its nodes lets go of the node.
-    if (d.kind === "move" && !d.moved && editor.node) dispatch({ type: "node", node: null });
+    if ((d.kind === "node" || d.kind === "nodeHandle" || d.kind === "bend") && d.gesture) store.endGesture();
+    // A click on a selected path away from its nodes selects the segment
+    // there (letting go of the node); off its segments, it lets go of both.
+    if (d.kind === "move" && !d.moved) {
+      if (d.segment !== null) dispatch({ type: "segment", segment: { shape: d.primary, index: d.segment } });
+      else if (editor.node || editor.segment) { dispatch({ type: "node", node: null }); dispatch({ type: "segment", segment: null }); }
+    }
     if (d.kind === "pathClick") {
       const sp = screenPoint(e);
       if (Math.hypot(sp[0] - d.at[0], sp[1] - d.at[1]) < CLICK_PX) pathClick(toModel(view, sp), e.shiftKey);
@@ -518,13 +554,15 @@ export function Canvas() {
             />
           );
         })}
+        {/* The selected segment of the path being edited, over its path. */}
+        {editPath && pathSegment && <path className="segment-selected" d={pathToSvg([pathSegment.element])} strokeWidth={hair * 3.5} />}
         {resolved.dimensions.filter((d) => shown(d.target)).map((d) => <DimensionView key={d.id} dim={d} fontSize={fontSize} hair={hair} link={varName(d.target, d.prop)} />)}
         {resolved.radiusLabels.filter((l) => shown(l.target)).map((l) => <RadiusLabelView key={l.id} label={l} fontSize={fontSize} link={varName(l.target, "r", l.corner)} />)}
         {preview?.kind === "draw" && <DrawPreview d={preview} hair={hair} />}
         {tool === "polyline" && draft && <PathDraftPreview draft={draft} pointer={editor.cursor} curve={shiftHeld} closing={closing} hair={hair} />}
       </g>
       {editPath
-        ? <PathNodes path={editPath} view={view} selected={pathNode?.node.index ?? null} />
+        ? <PathNodes path={editPath} view={view} selected={pathNode?.node.index ?? null} handles={editHandles} />
         : single && <Handles shape={single} view={view} />}
       {tool === "polyline" && draft && <DraftNodes draft={draft} view={view} closing={closing} />}
       {editor.snap && <SnapMarker snap={editor.snap} view={view} />}
@@ -541,6 +579,16 @@ function linkTargetAt(el: Element): LinkTarget | undefined {
   if (!v?.valueShape || !v.valueProp) return undefined;
   const corner = v.valueCorner === undefined ? undefined : (Number(v.valueCorner) as 0 | 1 | 2 | 3);
   return { kind: "value", shape: v.valueShape, prop: v.valueProp, ...(corner === undefined ? {} : { corner }) };
+}
+
+/** The handle in `handles` nearest `point`, within `tolerance` mm; null if none. */
+function nearestHandle<H extends { point: Point }>(handles: H[], point: Point, tolerance: number): H | null {
+  let best: H | null = null, bestD = Infinity;
+  for (const h of handles) {
+    const d = distance(h.point, point);
+    if (d <= tolerance && d < bestD) { best = h; bestD = d; }
+  }
+  return best;
 }
 
 function sameIds(a: EntityId[], b: EntityId[]): boolean {
@@ -742,46 +790,47 @@ function PathDraftPreview({ draft, pointer, curve, closing, hair }: { draft: Dra
   return shape ? <path className="preview" d={pathToSvg(shape.path)} strokeWidth={hair * 1.2} /> : null;
 }
 
-/** The draft's nodes in screen space (squares for cusps, circles for curves); the start fills when a click would close it. */
+/** A path node's marker in screen space, `r` its half-width: a square for a corner (cusp), a circle for a smooth node. */
+function NodeMarker({ type, at: [x, y], r, className }: { type: PolyNodeType; at: Point; r: number; className: string }) {
+  if (type === "curve") return <circle className={className} cx={x} cy={y} r={r + 0.5} />;
+  return <rect className={className} x={x - r} y={y - r} width={2 * r} height={2 * r} />;
+}
+
+/** The draft's nodes in screen space (by type, as NodeMarker); the start fills when a click would close it. */
 function DraftNodes({ draft, view, closing }: { draft: Draft; view: View; closing: boolean }) {
   return (
     <g className="draft-nodes">
-      {draft.nodes.map((n, i) => {
-        const [x, y] = toScreen(view, [n.x, n.y]);
-        const cls = `draft-node${i === 0 && closing ? " closing" : ""}`;
-        return n.type === "curve"
-          ? <circle key={i} className={cls} cx={x} cy={y} r={3.5} />
-          : <rect key={i} className={cls} x={x - 3} y={y - 3} width={6} height={6} />;
-      })}
+      {draft.nodes.map((n, i) => (
+        <NodeMarker key={i} type={n.type} at={toScreen(view, [n.x, n.y])} r={3} className={`draft-node${i === 0 && closing ? " closing" : ""}`} />
+      ))}
     </g>
   );
 }
 
 /**
  * A selected path's nodes in screen space, like resize handles: squares for
- * cusps, circles for curves, the selected one filled. A selected curve node
- * also shows its handles, joined to it by guide lines.
+ * corners, circles for smooth nodes, the selected one filled. `handles`
+ * (the selected node's, or those on the selected segment) show as dots,
+ * each joined to its node by a guide line.
  */
-function PathNodes({ path, view, selected }: { path: ResolvedPolyline; view: View; selected: number | null }) {
-  const node = selected === null ? undefined : path.nodes.find((n) => n.index === selected);
-  const handles = node ? nodeHandles(path, node.index) : [];
-  const at = node && toScreen(view, node.point);
+function PathNodes({ path, view, selected, handles }: {
+  path: ResolvedPolyline; view: View; selected: number | null; handles: Array<{ node: number; which: "in" | "out"; point: Point }>;
+}) {
+  const nodeOf = (index: number) => path.nodes.find((n) => n.index === index);
   return (
     <g className="path-nodes">
-      {at && handles.map((h) => {
-        const [x, y] = toScreen(view, h.point);
-        return <line key={`guide-${h.which}`} className="node-guide" x1={at[0]} y1={at[1]} x2={x} y2={y} />;
+      {handles.map((h) => {
+        const node = nodeOf(h.node);
+        if (!node) return null;
+        const [x0, y0] = toScreen(view, node.point), [x, y] = toScreen(view, h.point);
+        return <line key={`guide-${h.node}-${h.which}`} className="node-guide" x1={x0} y1={y0} x2={x} y2={y} />;
       })}
-      {path.nodes.map((n) => {
-        const [x, y] = toScreen(view, n.point);
-        const cls = `node${n.index === selected ? " selected" : ""}`;
-        return n.type === "curve"
-          ? <circle key={n.index} className={cls} cx={x} cy={y} r={4.5} />
-          : <rect key={n.index} className={cls} x={x - 4} y={y - 4} width={8} height={8} />;
-      })}
+      {path.nodes.map((n) => (
+        <NodeMarker key={n.index} type={n.type} at={toScreen(view, n.point)} r={4} className={`node${n.index === selected ? " selected" : ""}`} />
+      ))}
       {handles.map((h) => {
         const [x, y] = toScreen(view, h.point);
-        return <circle key={h.which} className="node-handle" cx={x} cy={y} r={3.5} />;
+        return <circle key={`${h.node}-${h.which}`} className="node-handle" cx={x} cy={y} r={3.5} />;
       })}
     </g>
   );

@@ -101,13 +101,14 @@ describe("editing nodes", () => {
     expect(movePolyNode(st, "p", 9, [0, 0])).toBeUndefined();
   });
 
-  it("makes a node a curve (smoothed from its neighbours) or a cusp (dropping its handles)", () => {
+  it("makes a node a curve (smoothed from its neighbours) or a corner (keeping its handles, so the shape stays)", () => {
     const curved = apply(st, setPolyNodeType(st, "p", 1, "curve"));
     expect(nodesOf(curved)[1]).toEqual(curve(10, 10));
     expect(resolve(curved).shapes.p!.path[0]!.kind).toBe("cubic");
     const manual = apply(curved, setPolyHandle(curved, "p", 1, "out", [3, 0]));
     const back = apply(manual, setPolyNodeType(manual, "p", 1, "cusp"));
-    expect(nodesOf(back)[1]).toEqual(cusp(10, 10));
+    const { in: hin, out: hout } = nodesOf(manual)[1]!;
+    expect(nodesOf(back)[1]).toEqual({ ...cusp(10, 10), in: hin, out: hout });
     expect(setPolyNodeType(back, "p", 1, "cusp")).toBeUndefined();
   });
 
@@ -125,7 +126,8 @@ describe("editing nodes", () => {
     expect(n.out).toEqual([0, 4]);
     expect(n.in![0]).toBeCloseTo(0);
     expect(n.in![1]).toBeCloseTo(-Math.hypot(10, 10) / 3);
-    expect(setPolyHandle(st, "p", 1, "out", [1, 1])).toBeUndefined();   // a cusp has no handles
+    // A corner's handles are its own: dragging one gives it that handle alone.
+    expect(nodesOf(apply(st, setPolyHandle(st, "p", 1, "out", [1, 1])))[1]).toEqual({ ...cusp(10, 10), out: [1, 1] });
   });
 
   it("deletes a node; a path left with one node goes, a closed one left with two opens", () => {

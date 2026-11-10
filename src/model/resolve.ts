@@ -95,20 +95,22 @@ export interface ResolvedPolyNode {
   point: Point;
   type: PolyNodeType;
   /**
-   * A curve node's handles, offsets from `point`: its own, or smoothed from
-   * its neighbours when `auto`. Absent on a cusp.
+   * Handles, offsets from `point`. A curve node's are its own, or smoothed
+   * from its neighbours when `auto`; a cusp's are those it has (either may
+   * be absent).
    */
   in?: Point;
   out?: Point;
-  /** A curve node with no handles of its own. */
+  /** A curve node with no handles of its own. Never a cusp. */
   auto: boolean;
 }
 
 /**
  * A path. `path[k]` runs nodes[k] to nodes[k + 1], and the last back to the
- * first when closed: a cubic if either end is a curve node, else a segment.
- * Snaps: every node (open ends as endpoints, cusps as corners, curve nodes
- * as tangents) and the middle of each straight segment.
+ * first when closed: a cubic if its start node has an `out` handle or its
+ * end node an `in`, else a segment. Snaps: every node (open ends as
+ * endpoints, cusps as corners, curve nodes as tangents) and
+ * the middle of each straight segment.
  */
 export interface ResolvedPolyline extends ResolvedBase {
   kind: "polyline";
@@ -499,6 +501,12 @@ function resolvePolyline(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<stri
         out.auto = true;
         if (node.in != null || node.out != null) bad(`node ${index} needs both handles or neither`);
       }
+    } else {
+      // A cusp: either handle may be missing, that side as straight as its neighbour lets it be.
+      const hi = handle(node.in), ho = handle(node.out);
+      if (hi) out.in = hi;
+      if (ho) out.out = ho;
+      if ((node.in != null && !hi) || (node.out != null && !ho)) bad(`node ${index} has a handle that is not a pair of numbers`);
     }
     nodes.push(out);
   });
@@ -549,22 +557,23 @@ function smoothAutoNodes(nodes: ResolvedPolyNode[], closed: boolean): void {
   }
 }
 
-/** Path, bounds and snaps from nodes whose curve nodes all have their handles. */
+/** Path, bounds and snaps from nodes whose curve nodes all have their handles (auto ones smoothed). */
 function buildPolyline(id: EntityId, layer: EntityId, nodes: ResolvedPolyNode[], closed: boolean): ResolvedPolyline {
   const n = nodes.length;
   const path: Path = [];
   const snaps: SnapPoint[] = nodes.map((node, i) => ({
     point: node.point,
-    type: !closed && (i === 0 || i === n - 1) ? "endpoint" : node.type === "cusp" ? "corner" : "tangent",
+    type: !closed && (i === 0 || i === n - 1) ? "endpoint" : node.type === "curve" ? "tangent" : "corner",
   }));
   const offsetBy = (p: Point, d: Point | undefined): Point => (d ? [p[0] + d[0], p[1] + d[1]] : p);
   for (let i = 0; i < (closed ? n : n - 1); i++) {
     const a = nodes[i]!, b = nodes[(i + 1) % n]!;
-    if (a.type === "cusp" && b.type === "cusp") {
+    // Straight unless a handle bends it from either end.
+    if (!a.out && !b.in) {
       path.push(segment(a.point, b.point));
       snaps.push({ point: midpoint(a.point, b.point), type: "midpoint" });
     } else {
-      path.push(cubic(a.point, a.type === "curve" ? offsetBy(a.point, a.out) : a.point, b.type === "curve" ? offsetBy(b.point, b.in) : b.point, b.point));
+      path.push(cubic(a.point, offsetBy(a.point, a.out), offsetBy(b.point, b.in), b.point));
     }
   }
   return { id, kind: "polyline", layer, nodes, closed, path, bounds: pathBounds(path), snaps };
