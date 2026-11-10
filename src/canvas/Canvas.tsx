@@ -103,7 +103,7 @@ export function Canvas() {
     if (blocked) return;
     const { point, snap } = snapPoint(resolved, mp, tolerance, new Set(), grid, hiddenLayers);
     dragRef.current = { kind: "draw", tool, layer: layerId, start: point, current: point };
-    dispatch({ type: "pointer", cursor: point, snap });
+    dispatch({ type: "pointer", cursor: point, snap, draw: { tool, start: point } });
     setPreview(dragRef.current);
   };
 
@@ -156,7 +156,7 @@ export function Canvas() {
       case "draw": {
         const { point, snap } = snapPoint(resolved, mp, tolerance, new Set(), grid, hiddenLayers);
         d.current = constrain(d, point, e.shiftKey);
-        dispatch({ type: "pointer", cursor: d.current, snap });
+        dispatch({ type: "pointer", cursor: d.current, snap, draw: { tool: d.tool, start: d.start } });
         setPreview({ ...d });
         return;
       }
@@ -178,6 +178,8 @@ export function Canvas() {
     }
     if (d.kind === "resize" && d.moved) store.endGesture();
     if (d.kind === "draw") {
+      // Back to the plain pointer position in the status bar.
+      dispatch({ type: "pointer", cursor: d.current, snap: null });
       const id = createShape(d);
       if (id) dispatch({ type: "select", ids: [id] });
       if (!e.shiftKey) dispatch({ type: "tool", tool: "select" });

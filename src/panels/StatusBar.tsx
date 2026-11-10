@@ -1,6 +1,7 @@
 import { store, useDocument } from "../app/store";
 import { useEditor } from "../app/editor";
 import { formatMm } from "../canvas/Canvas";
+import { drawStatus } from "../view/format";
 import { DEFAULT_VIEW } from "../view/viewport";
 import { sendPalettesHome } from "./floating";
 import { canFullscreen, toggleFullscreen, useFullscreen } from "../app/fullscreen";
@@ -14,7 +15,10 @@ export function StatusBar() {
   const fullscreen = useFullscreen();
   return (
     <footer className="status">
-      <span>{editor.cursor ? `${formatMm(editor.cursor[0])}, ${formatMm(editor.cursor[1])} mm` : ""}</span>
+      <span>
+        {editor.cursor && editor.draw ? drawStatus(editor.draw.tool, editor.draw.start, editor.cursor)
+          : editor.cursor ? `${formatMm(editor.cursor[0])}, ${formatMm(editor.cursor[1])} mm` : ""}
+      </span>
       <span>{editor.snap ? `snap: ${editor.snap.type}` : ""}</span>
       <span className="grow" />
       {issues.length > 0 && <span className="warn" {...tip(issues.map((i) => `${i.entity}: ${i.message}`).join("\n"))}>{issues.length} issues</span>}

@@ -137,7 +137,9 @@ through `useSyncExternalStore`.
   10 px, else to the drawn grid pitch. With grid snap off (`grid` null)
   free points and move deltas round only to 0.01 mm; shapes' snap points
   still apply. Moving snaps the moving shape's own points onto others.
-  The status bar shows the snap type.
+  The status bar shows the snap type. While a new shape is dragged out
+  it shows its start and size instead of the pointer (`drawStatus` in
+  `view/format.ts`: from x, y · w × h; centre · ⌀; from · length at angle).
 - **Resize handles** on a single selection: rect corners (anchor opposite
   corner, flips across it), circle centre and radius, line ends.
 - **No sidebar.** The selection gets one floating panel top right of the
@@ -352,8 +354,6 @@ through `useSyncExternalStore`.
 
 UI to-do (requested 2026-11-10, in the order given):
 
-7. While dragging out a new shape, the status bar position switches to
-   start point + size.
 8. Rectangular lasso selection: selects the shapes wholly inside it.
 9. Filename moves to the right end of the header, followed by the
    drawing's title from Properties in quotes. Clicking it opens

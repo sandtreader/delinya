@@ -5,6 +5,7 @@
 import { createContext, useContext, type Dispatch } from "react";
 import { isSelectable, type EntityId, type LayerView, type LinkTarget, type Resolved, type SnapPoint } from "../model";
 import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
+import type { DrawTool } from "../view/format";
 import { DEFAULT_GRID_VIEW, type GridView } from "./gridView";
 
 export type Tool = "select" | "line" | "rect" | "circle";
@@ -30,6 +31,8 @@ export interface EditorState {
   cursor: [number, number] | null;
   /** Snap point the pointer is currently locked to. */
   snap: SnapPoint | null;
+  /** While a new shape is dragged out: its tool and start, for the status bar. */
+  draw: { tool: DrawTool; start: [number, number] } | null;
   dialog: Dialog | null;
   /** Arrange actions create live links instead of moving shapes once. */
   keepLinked: boolean;
@@ -46,6 +49,7 @@ export const initialEditor: EditorState = {
   view: DEFAULT_VIEW,
   cursor: null,
   snap: null,
+  draw: null,
   dialog: null,
   keepLinked: false,
   linkPopup: null,
@@ -62,7 +66,7 @@ export type EditorAction =
   | { type: "view"; view: View }
   | { type: "panBy"; dx: number; dy: number }
   | { type: "zoomAt"; factor: number; at: [number, number] }
-  | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null }
+  | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null; draw?: EditorState["draw"] }
   | { type: "dialog"; dialog: Dialog | null }
   | { type: "keepLinked"; on: boolean }
   | { type: "linkPopup"; popup: EditorState["linkPopup"] };
@@ -87,7 +91,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     // between renders and each must build on the last.
     case "panBy": return { ...s, view: pan(s.view, a.dx, a.dy) };
     case "zoomAt": return { ...s, view: zoomAt(s.view, a.factor, a.at) };
-    case "pointer": return { ...s, cursor: a.cursor, snap: a.snap };
+    case "pointer": return { ...s, cursor: a.cursor, snap: a.snap, draw: a.draw ?? null };
     case "dialog": return { ...s, dialog: a.dialog };
     case "keepLinked": return { ...s, keepLinked: a.on };
     case "linkPopup": return { ...s, linkPopup: a.popup };
