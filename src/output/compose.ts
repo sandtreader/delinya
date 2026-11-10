@@ -3,7 +3,8 @@
 // The drawing becomes primitives once, sized so text and ticks come out
 // at STYLE sizes on paper, then each tile maps them into its drawing area.
 // Every page also gets furniture: a check ruler and title block in the
-// footer band, and dashed guides where it overlaps its neighbours.
+// footer band, a small "Delinya" under the block, and dashed guides where
+// it overlaps its neighbours.
 
 import { type Bounds, type EntityId, type Path, type Point, type Resolved, arc, isVisible, segment } from "../model";
 import { planPages } from "./layout";
@@ -29,6 +30,7 @@ export function composePages(resolved: Resolved, options: PrintOptions, info: Ti
     furniture: [
       ...checkRuler(plan),
       ...titleBlock(plan, info, sheetName(plan, tile, i)),
+      watermark(plan),
       ...overlapGuides(plan, tile),
     ],
   }));
@@ -145,6 +147,15 @@ function titleBlock(plan: PagePlan, info: TitleInfo, sheet: string): Primitive[]
   out.push(...notes(x + TB.pad, notesY, bottom, info.notes, inner));
   return out;
 }
+
+/** A small "Delinya" just below the title block, right-aligned with it, in the page margin. */
+function watermark(plan: PagePlan): TextPrim {
+  const right = plan.width - PAGE_MARGIN, bottom = plan.height - PAGE_MARGIN;
+  return furnitureText([right, bottom + WATERMARK.gap + 0.75 * WATERMARK.size], "Delinya", WATERMARK.size, "end");
+}
+
+/** The watermark's text size and its clearance below the block, mm. */
+const WATERMARK = { size: 2, gap: 1.5 };
 
 /** A cell's label, top-left of the cell whose corner is (x, y). */
 const label = (x: number, y: number, text: string) => furnitureText([x + TB.pad, y + 0.9 + 0.75 * TB.label], text, TB.label);

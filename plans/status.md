@@ -250,7 +250,8 @@ through `useSyncExternalStore`.
 - `composePages` gives each sheet in paper mm: the drawing (clipped to
   the area), a 100 mm check ruler, overlap guides, and an 80 × 30 mm
   title block bottom right (title, author, revision, scale, sheet,
-  notes; title falls back to the file name).
+  notes; title falls back to the file name), and a small 2 mm "Delinya"
+  right-aligned just below the block, in the page margin.
 - `pageToSvg` (preview and print), `exportPdf` (hand-written PDF 1.4,
   standard Helvetica, no dependencies), `exportSvg` (1:1 mm) and
   `exportDxf` (R12, mm, y flipped, shapes only; rects become closed
@@ -384,10 +385,6 @@ through `useSyncExternalStore`.
    their own layer, a custom scale.
 6. Rotation of rects, text, named variables/expressions, woodwork extras
    (see outline "Later").
-
-UI to-do (requested 2026-11-10, in the order given):
-
-14. Small right-aligned "Delinya" watermark below the print title block.
 
 ## Gotchas for whoever picks this up
 
