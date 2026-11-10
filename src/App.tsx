@@ -2,6 +2,7 @@ import { useEffect, useReducer, type CSSProperties } from "react";
 import { EditorContext, editorReducer, initialEditor, selectableOnly, useEditor, type Tool } from "./app/editor";
 import { store, useDocument } from "./app/store";
 import { Canvas } from "./canvas/Canvas";
+import { Rulers } from "./canvas/Rulers";
 import { StatusBar } from "./panels/StatusBar";
 import { OutputDialog } from "./panels/OutputDialog";
 import { PropertiesDialog } from "./panels/PropertiesDialog";
@@ -18,10 +19,12 @@ import { useDirty, useFileName } from "./app/file";
 import { browserStorage } from "./app/floatPosition";
 import { loadGridView, saveGridView } from "./app/gridView";
 import { STYLE } from "./output/style";
+import { RULER_PX } from "./view/rulers";
 import "./styles.css";
 
 // Dimensions look the same on screen as on paper: one colour, from the output style.
 const APP_COLOURS = { "--dimension": STYLE.colour.dimension } as CSSProperties;
+const RULER_SIZE = { "--ruler": `${RULER_PX}px` } as CSSProperties;
 
 const TOOL_KEYS: Record<string, Tool> = { v: "select", l: "line", r: "rect", c: "circle" };
 
@@ -115,12 +118,17 @@ function Shell() {
   return (
     <div className="app" style={APP_COLOURS}>
       <Toolbar />
-      <div className="canvas-area">
-        <Canvas />
-        <SelectionPanel />
-        <LinkButtons />
-        <ToolPalette />
-        <LayerPalette />
+      {/* The rulers frame the drawing area; everything floating over the
+          drawing is placed in that area, so it starts inside them. */}
+      <div className="canvas-frame" style={RULER_SIZE}>
+        <Rulers />
+        <div className="canvas-area">
+          <Canvas />
+          <SelectionPanel />
+          <LinkButtons />
+          <ToolPalette />
+          <LayerPalette />
+        </div>
       </div>
       <StatusBar />
       {editor.dialog === "output" && <OutputDialog />}

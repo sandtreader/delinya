@@ -35,6 +35,14 @@ export function zoomAt(v: View, factor: number, at: Point): View {
   return { scale, ox: at[0] - (at[0] - v.ox) * k, oy: at[1] - (at[1] - v.oy) * k };
 }
 
+/**
+ * The zoom factor for a wheel event, as in SynFlo. A trackpad pinch arrives
+ * as a ctrl-wheel with small deltas, so it gets a higher gain than wheel notches.
+ */
+export function wheelZoom(deltaY: number, pinch: boolean): number {
+  return Math.exp(-deltaY * (pinch ? 0.01 : 0.002));
+}
+
 /** Closest the drawn grid lines get, px. */
 export const MIN_GRID_PX = 8;
 

@@ -123,6 +123,15 @@ through `useSyncExternalStore`.
   or the middle button pans in any tool, and a finger pans the
   background; a mouse or pen no longer does (it lassoes). Pan and zoom
   are reducer delta actions so rapid events never read a stale view.
+- **Rulers** (`canvas/Rulers.tsx`, `view/rulers.ts`): 20 px strips along
+  the top and left with an "mm" corner, outside `.canvas-area` (a
+  `.canvas-frame` grid holds them), so the palettes, panels and their
+  stored positions are unchanged. A tick on every drawn grid line,
+  longer every 5th, labelled every 10th (every 5th or every line once
+  those are ≥ 80 px apart, i.e. zoomed in past the spacing). They follow
+  pan/zoom and the grid spacing whether or not the grid shows. A marker
+  follows the pointer (`canvas/hover.ts`; snapped while drawing). Wheel
+  over a ruler zooms as on the canvas; presses there do nothing.
 - **Lasso** (`canvas/lasso.ts`): with the select tool, a mouse/pen drag
   on the background (past 3 px) selects the shapes wholly inside the
   rectangle, live, skipping hidden and locked layers. Shift adds to the
@@ -378,7 +387,6 @@ through `useSyncExternalStore`.
 
 UI to-do (requested 2026-11-10, in the order given):
 
-13. Rulers along the top and left edges of the canvas.
 14. Small right-aligned "Delinya" watermark below the print title block.
 
 ## Gotchas for whoever picks this up

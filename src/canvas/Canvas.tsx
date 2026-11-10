@@ -10,11 +10,12 @@ import {
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { currentLayer, hoverShowsPosition, useEditor, type Tool } from "../app/editor";
-import { gridPitch, toModel, toScreen, type View } from "../view/viewport";
+import { gridPitch, toModel, toScreen, wheelZoom, type View } from "../view/viewport";
 import { pathToSvg } from "../view/svgPath";
 import { formatMm } from "../view/format";
 import { snapMove, snapPoint } from "./snap";
 import { lassoMode, lassoSelect } from "./lasso";
+import { setHover } from "./hover";
 import { GUIDE_OVERHANG_PX, linkGuides, type LinkGuide } from "../view/linkGuides";
 
 const SNAP_PX = 10;
@@ -144,6 +145,7 @@ export function Canvas() {
 
   const onPointerMove = (e: RPointerEvent<SVGSVGElement>) => {
     const sp = screenPoint(e);
+    setHover(sp);   // the rulers' markers, in any tool
     const mp = toModel(view, sp);
     const d = dragRef.current;
     if (!d) {
@@ -241,10 +243,8 @@ export function Canvas() {
   const onWheel = useCallback((e: RWheelEvent<SVGSVGElement>) => {
     const r = svgRef.current!.getBoundingClientRect();
     const at: Point = [e.clientX - r.left, e.clientY - r.top];
-    // Wheel and trackpad pinch both zoom, as in SynFlo. A pinch arrives as a
-    // ctrl-wheel with small deltas, so it gets a higher gain than wheel notches.
-    const gain = e.ctrlKey ? 0.01 : 0.002;
-    dispatch({ type: "zoomAt", factor: Math.exp(-e.deltaY * gain), at });
+    // Wheel and trackpad pinch both zoom.
+    dispatch({ type: "zoomAt", factor: wheelZoom(e.deltaY, e.ctrlKey), at });
   }, [dispatch]);
 
   // React's onWheel is passive; preventDefault needs a native listener.
@@ -269,7 +269,7 @@ export function Canvas() {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerLeave={() => { if (!dragRef.current) dispatch({ type: "pointer", cursor: null, snap: null }); }}
+      onPointerLeave={() => { if (!dragRef.current) { dispatch({ type: "pointer", cursor: null, snap: null }); setHover(null); } }}
       onWheel={onWheel}
       onContextMenu={(e) => e.preventDefault()}
     >
