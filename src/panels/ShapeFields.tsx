@@ -86,7 +86,7 @@ function PathFields({ id }: { id: EntityId }) {
           onChange={(ev) => { const c = setPolyClosed(store.state, id, ev.target.checked); if (c) store.commit(c); }}
         />
       </label>
-      {editor.tool === "select" && <p className="hint">Drag a node to move it; click a node or a segment to edit it; double-click the path to add a node.</p>}
+      {editor.tool === "select" && <p className="hint">Drag a node to move it (Alt-drag a corner to pull out a handle); click a node or a segment to edit it; double-click the path to add a node.</p>}
     </>
   );
 }

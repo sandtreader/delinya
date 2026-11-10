@@ -63,6 +63,32 @@ export function handleAt(poly: ResolvedShape, index: number, point: Point, toler
 }
 
 /**
+ * Which handle an Alt-drag of node `index` (stored) pulls out, the drag
+ * heading `direction`: a corner's side with a segment but no handle (or one
+ * of zero length); with both missing, the one whose neighbour lies more
+ * that way. Null for a smooth node, or a corner missing none.
+ */
+export function pullHandleSide(poly: ResolvedShape, index: number, direction: Point): "in" | "out" | null {
+  if (poly.kind !== "polyline") return null;
+  const { nodes, closed } = poly;
+  const k = nodes.findIndex((n) => n.index === index);
+  const n = nodes[k];
+  if (!n || n.type !== "cusp") return null;
+  const count = nodes.length;
+  const missing = (h: Point | undefined) => !h || (h[0] === 0 && h[1] === 0);
+  const sides: Array<{ which: "in" | "out"; towards: Point }> = [];
+  if ((closed || k > 0) && missing(n.in)) sides.push({ which: "in", towards: nodes[(k - 1 + count) % count]!.point });
+  if ((closed || k < count - 1) && missing(n.out)) sides.push({ which: "out", towards: nodes[(k + 1) % count]!.point });
+  if (sides.length < 2) return sides[0]?.which ?? null;
+  // The cosine between the drag and each neighbour (0 for one on the node itself).
+  const cos = (p: Point) => {
+    const dx = p[0] - n.point[0], dy = p[1] - n.point[1], len = Math.hypot(dx, dy);
+    return len > 0 ? (dx * direction[0] + dy * direction[1]) / len : 0;
+  };
+  return cos(sides[0]!.towards) > cos(sides[1]!.towards) ? "in" : "out";
+}
+
+/**
  * A path's own snap points at its nodes other than `index` (stored), as
  * resolve gives them: a node being dragged may land on the others (an end
  * on the other end, to close the path), though not on its own place.

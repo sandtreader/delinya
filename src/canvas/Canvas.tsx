@@ -29,7 +29,7 @@ import { snapMove, snapPoint } from "./snap";
 import { lassoMode, lassoSelect } from "./lasso";
 import { setHover } from "./hover";
 import { draftAdd, draftCloses, draftFinish, draftPreview, draftShape, draftUndo, type PolyDraft } from "./polyDraft";
-import { nodeAt, nodeHandles, ownNodeSnaps, segmentAt, segmentHandles } from "./polyEdit";
+import { nodeAt, nodeHandles, ownNodeSnaps, pullHandleSide, segmentAt, segmentHandles } from "./polyEdit";
 import { GUIDE_OVERHANG_PX, linkGuides, type LinkGuide } from "../view/linkGuides";
 
 const SNAP_PX = 10;
@@ -73,9 +73,11 @@ type Drag =
   // A selected path's node or handle. `offset`: how far a link draws the path
   // from its stored nodes, at the press. `gesture`: an undo step is open.
   // `independent`: Alt held at the press or since, so a smooth node's
-  // handle breaks it into a corner.
-  | { kind: "node"; id: EntityId; index: number; offset: Point; at: Point; moved: boolean; gesture: boolean }
-  | { kind: "nodeHandle"; id: EntityId; index: number; which: "in" | "out"; at: Point; moved: boolean; gesture: boolean; independent: boolean }
+  // handle breaks it into a corner. `pull`: an Alt-press on a node, which
+  // pulls out a handle it lacks (pullHandleSide, by the first move's
+  // direction), becoming a handle drag; else it moves the node.
+  | { kind: "node"; id: EntityId; index: number; offset: Point; at: Point; moved: boolean; gesture: boolean; pull: boolean }
+  | { kind: "nodeHandle"; id: EntityId; index: number; which: "in" | "out"; at: Point; moved: boolean; gesture: boolean; independent: boolean; onNode?: boolean }
   // The selected segment, grabbed at parameter t: each move bends it by its delta from `last` (model mm).
   | { kind: "bend"; id: EntityId; segment: number; t: number; last: Point; at: Point; moved: boolean; gesture: boolean };
 
@@ -280,7 +282,7 @@ export function Canvas() {
         }
         if (index !== null) {
           dispatch({ type: "node", node: { shape: editPath.id, index } });
-          dragRef.current = { kind: "node", id: editPath.id, index, offset: drawnOffset(store.state, editPath), at: sp, moved: false, gesture: false };
+          dragRef.current = { kind: "node", id: editPath.id, index, offset: drawnOffset(store.state, editPath), at: sp, moved: false, gesture: false, pull: e.altKey };
           return;
         }
         // Dragging the selected segment bends it; anywhere else on the path moves the path.
@@ -334,7 +336,7 @@ export function Canvas() {
     setHover(sp);   // the rulers' markers, in any tool
     if (e.shiftKey !== shiftHeld) setShiftHeld(e.shiftKey);   // Shift pressed or let go outside the window
     const mp = toModel(view, sp);
-    const d = dragRef.current;
+    let d = dragRef.current;
     if (!d) {
       // Hovering with select shows no position; a drag below does.
       if (!hoverShowsPosition(tool)) { dispatch({ type: "pointer", cursor: null, snap: null }); return; }
@@ -342,6 +344,16 @@ export function Canvas() {
       const { point, snap } = blocked ? { point: mp, snap: null } : snapPoint(resolved, mp, tolerance, new Set(), grid, hiddenLayers);
       dispatch({ type: "pointer", cursor: point, snap });
       return;
+    }
+    // An Alt-drag of a node, once it gets going, pulls out the handle on
+    // the side it heads for, as a handle drag from here on; with none
+    // missing it moves the node after all.
+    if (d.kind === "node" && d.pull && Math.hypot(sp[0] - d.at[0], sp[1] - d.at[1]) >= CLICK_PX) {
+      const path = store.resolved.shapes[d.id];
+      const from = toModel(view, d.at);
+      const which = path ? pullHandleSide(path, d.index, [mp[0] - from[0], mp[1] - from[1]]) : null;
+      if (which) d = dragRef.current = { kind: "nodeHandle", id: d.id, index: d.index, which, at: d.at, moved: false, gesture: d.gesture, independent: true };
+      else d.pull = false;
     }
     switch (d.kind) {
       case "pan":
@@ -426,7 +438,11 @@ export function Canvas() {
         const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid, hiddenLayers);
         const path = store.resolved.shapes[d.id];
         const node = path?.kind === "polyline" ? path.nodes.find((n) => n.index === d.index) : undefined;
-        const change = node && setPolyHandle(store.state, d.id, d.index, d.which, [snapNumber(point[0] - node.point[0]), snapNumber(point[1] - node.point[1])], {}, d.independent);
+        const offset: Point = node ? [snapNumber(point[0] - node.point[0]), snapNumber(point[1] - node.point[1])] : [0, 0];
+        // Onto the node takes the handle off, but only if it's let go there:
+        // passing over the node mid-drag mustn't turn a smooth node into a corner.
+        d.onNode = !!node && offset[0] === 0 && offset[1] === 0;
+        const change = node && !d.onNode && setPolyHandle(store.state, d.id, d.index, d.which, offset, {}, d.independent);
         if (change) {
           if (!d.gesture) { store.beginGesture(); d.gesture = true; }
           store.commit(change);
@@ -467,6 +483,13 @@ export function Canvas() {
       store.endGesture();
     }
     if (d.kind === "resize" && d.moved) store.endGesture();
+    if (d.kind === "nodeHandle" && d.onNode) {
+      const c = setPolyHandle(store.state, d.id, d.index, d.which, [0, 0]);
+      if (c) {
+        if (!d.gesture) { store.beginGesture(); d.gesture = true; }
+        store.commit(c);
+      }
+    }
     if ((d.kind === "node" || d.kind === "nodeHandle" || d.kind === "bend") && d.gesture) store.endGesture();
     // A click on a selected path away from its nodes selects the segment
     // there (letting go of the node); off its segments, it lets go of both.

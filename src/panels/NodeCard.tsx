@@ -30,7 +30,7 @@ export function deleteNode(id: EntityId, index: number, dispatch: Dispatch<Edito
 
 const TYPES: Array<{ type: PolyNodeType; label: string; tip: string; icon: ReactNode }> = [
   {
-    type: "cusp", label: "Corner", tip: "Corner: a sharp point; its handles, if any, move independently",
+    type: "cusp", label: "Corner", tip: "Corner: a sharp point; its handles, if any, move independently (drag one onto the node to take it off; Alt-drag the node to pull one out)",
     // Two straight lines meeting at a square node.
     icon: <><path d="M2.5 14L8 4.5l5.5 9.5" /><rect x="6.2" y="2.7" width="3.6" height="3.6" fill="currentColor" stroke="none" /></>,
   },

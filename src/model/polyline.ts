@@ -144,8 +144,10 @@ export function setPolyNodeType(state: DocState, id: EntityId, index: number, ty
  * handle turns to point the opposite way, keeping its own length, and an
  * auto node first takes its smoothed handles as its own, so it stops
  * following its neighbours. `independent` (Alt-drag) breaks a curve into a
- * cusp instead, the other handle staying where it is drawn. Undefined if
- * nothing changes.
+ * cusp instead, the other handle staying where it is drawn. A zero offset
+ * (dragged onto the node) takes the handle off: a cusp loses it, a curve
+ * becomes a cusp without it, keeping the other as drawn (`independent` or
+ * not). Undefined if nothing changes.
  */
 export function setPolyHandle(
   state: DocState, id: EntityId, index: number, which: "in" | "out", offset: Point, gesture: Gesture = {}, independent = false,
@@ -154,9 +156,19 @@ export function setPolyHandle(
   const n = nodes && nodeAt(nodes, index);
   if (!nodes || !n || (n.type !== "curve" && n.type !== "cusp") || !offset.every(Number.isFinite)) return undefined;
   const handle: [number, number] = [offset[0], offset[1]];
-  if (n.type === "cusp") return same(n[which], offset) ? undefined : withNode(id, nodes, index, { ...n, [which]: handle }, gesture);
+  // A handle on its node would sit under it, out of reach: it goes instead.
+  const off = offset[0] === 0 && offset[1] === 0;
+  if (n.type === "cusp") {
+    if (off) {
+      if (n[which] === undefined) return undefined;
+      const { [which]: _gone, ...rest } = n;
+      return withNode(id, nodes, index, rest, gesture);
+    }
+    return same(n[which], offset) ? undefined : withNode(id, nodes, index, { ...n, [which]: handle }, gesture);
+  }
   const found = resolvedNode(state, id, index);
   if (!found || found.node.type !== "curve") return undefined;
+  if (off) return withNode(id, nodes, index, cornerWithout(n, found.node, which), gesture);
   const other = which === "in" ? "out" : "in";
   if (independent) {
     const keep = found.node[other];

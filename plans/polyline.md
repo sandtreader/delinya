@@ -7,7 +7,8 @@ nodes, drawn by clicking, edited by dragging nodes and handles.
 day the node types became the usual Bézier editor's two (corner, smooth;
 a short-lived third "curved cusp" is gone) and segments became
 selectable (straight/curve, bend by dragging, delete), and nodes could
-be broken apart and end nodes joined (node card). Everything below
+be broken apart and end nodes joined (node card); then a handle dragged
+onto its node came off, and Alt-dragging a corner pulls one out. Everything below
 is done; deviations and choices are noted inline as *Built:*. See
 `plans/status.md` (Path, Drawing a path, Editing a path, Node card,
 Segment card).
@@ -71,7 +72,10 @@ curves so the shape is unchanged), `setPolyClosed`, for segments
   only that handle (added if absent; the other untouched). A curve is
   smooth (the other turns opposite, keeping its length; auto becomes
   manual), unless `independent`: then the node becomes a cusp, the other
-  handle staying where it was drawn.
+  handle staying where it was drawn. A zero offset (dragged onto the
+  node, where it would be out of reach under it) takes the handle off: a
+  cusp loses that key; a curve becomes a cusp without it, keeping the
+  other as drawn.
 - `insertPolyNode`: a segment is split as a curve when either end has a
   handle on it; a cusp end gets the split control point on that side and
   keeps its other handle as stored (possibly absent).
@@ -147,7 +151,16 @@ Moving, duplicating, links and lasso treat a path like any shape
   guide lines; drag them to reshape (smooth). A corner shows the handles
   it has; dragging one moves it alone. *Built:* Alt (Option) held at the
   press or during a handle drag on a smooth node breaks it into a corner,
-  the other handle staying put.
+  the other handle staying put. A handle dropped on its node (as the grid
+  snap will) comes off (`setPolyHandle`, zero offset), so the corner is
+  sharp that side; a smooth node becomes a corner. Only on release: a
+  drag passing over the node skips that move. **Alt-drag a node** to
+  pull a handle out: the node is selected, and once the drag passes 3 px
+  `pullHandleSide` (`canvas/polyEdit.ts`) picks a corner's side with a
+  segment but no handle (or a zero-length one), with both missing the one
+  whose neighbour lies more the way the drag heads; the rest is a handle
+  drag on that side (one undo step). A smooth node, or a corner missing
+  none, just moves. The Corner tooltip and the path hint say so.
 - Click a segment (away from nodes and handles) to select it: it draws
   thicker in the selection colour and shows the handles on it (its
   start's out, its end's in) on guide lines, dragged like node handles.
@@ -189,5 +202,4 @@ Moving, duplicating, links and lasso treat a path like any shape
 Dimensions for paths, scaling the whole path by its bounds, a symmetric
 (equal-length) handle mode, converting rects/circles to paths. Selecting
 several nodes or segments; joining ends by dropping one onto another
-(now: drop it, then Join in the node card). Pulling a handle out of a corner that has none on
-that side other than via the segment (Curve, or a bend).
+(now: drop it, then Join in the node card).

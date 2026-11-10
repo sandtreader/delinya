@@ -1,12 +1,11 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-10. Repo `sandtreader/delinya`, branch `main`. The
-path (Bézier) tool and its node/segment editing are committed; in the
-working tree, not yet committed: breaking a path apart at a node and
-joining end nodes on the same spot (`breakPolyNode`, `joinPolyEnds`, the
-node card's Join / Break apart, a dragged node snapping to its own
-path's other nodes; `tests/pathJoin.test.ts`). Vitest tests, `tsc` and
-the build pass.
+path (Bézier) tool, its node/segment editing, and breaking/joining are
+committed; in the working tree, not yet committed: a handle dragged onto
+its node comes off (`setPolyHandle`, zero offset), and Alt-dragging a
+corner node pulls a missing handle out (`pullHandleSide`;
+`tests/pullHandle.test.ts`). Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -58,7 +57,8 @@ but has no UI.
   length, turns one's partner opposite at a third of the way to that
   neighbour, else auto), `setPolyHandle` (cusp: that handle only, added
   if absent; curve: smooth, materialising an auto node, or with
-  `independent` breaks it into a cusp), `deletePolyNode`,
+  `independent` breaks it into a cusp; a zero offset takes the handle
+  off, a curve becoming a cusp keeping its other as drawn), `deletePolyNode`,
   `insertPolyNode` (de Casteljau; shape unchanged; a cusp keeps its other
   handle as stored), `setPolyClosed`; for segments `setPolySegmentCurved`
   (handles at thirds, or off with smooth ends becoming corners),
@@ -219,7 +219,15 @@ through `useSyncExternalStore`.
   in the drag passes `independent`, so a smooth node's handle breaks it
   into a corner (the other handle stays put; it stays broken). Handle
   beats node only when nearer (a zero-length handle leaves its node
-  draggable). **Segments**: a click on the selected path away from its
+  draggable). A handle dropped on its node comes off (the corner is
+  sharp that side; a smooth node becomes a corner); only on release,
+  so passing over the node mid-drag changes nothing. **Alt-drag a node**
+  selects it and, past 3 px, pulls out a handle it lacks: `pullHandleSide`
+  (`canvas/polyEdit.ts`) picks a corner's side with a segment but no
+  handle (or a zero-length one), with both missing the one whose
+  neighbour lies more the way the drag heads; the drag then turns into a
+  handle drag on that side (`independent`; one gesture). A smooth node,
+  or a corner missing none, moves as usual. **Segments**: a click on the selected path away from its
   nodes and handles selects the segment there (within 6 px; editor
   `segment: NodeRef` named by its start node, action `segment`; never
   with a node: setting either clears the other; same lifetime as `node`;
@@ -246,8 +254,8 @@ through `useSyncExternalStore`.
   `panels/PathCard.tsx`, shared with the segment card), following it
   (named "Node N of M" for screen readers; no visible number). Top row: a
   two-way icon toggle, Corner (lines meeting at a filled square) / Smooth
-  (aria-labels; tooltips explain each, the smooth one mentioning
-  Alt-drag; `setPolyNodeType`), **Join** (chain; only on an open path's
+  (aria-labels; tooltips explain each, the corner one taking a handle
+  off and pulling one out, the smooth one Alt-drag; `setPolyNodeType`), **Join** (chain; only on an open path's
   end with another open end within 0.005 mm, `joinTarget` in
   `canvas/polyEdit.ts`: its own other end first if 3+ nodes would be
   left, else other paths' in drawing order, not on hidden or locked
