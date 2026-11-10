@@ -25,6 +25,7 @@ export function AboutDialog() {
         <div className="about-body">
           <p className="about-name">Delinya <span className="about-version">version {APP_VERSION}</span></p>
           <p>2D drawing with real units.</p>
+          <p>by Paul Clark <a href="https://github.com/sandtreader" target="_blank" rel="noreferrer">@sandtreader</a></p>
           <div className="buttons">
             <button className="primary" onClick={close} autoFocus>OK</button>
           </div>

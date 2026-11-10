@@ -200,6 +200,7 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .about-dialog { width: 340px; }
 .about-body { padding: 14px; }
 .about-body p { margin: 0 0 8px; }
+.about-body a { color: var(--accent); }
 .about-name { font-weight: 600; font-size: 15px; }
 .about-version { font-weight: normal; font-size: 13px; color: var(--muted); margin-left: 6px; }
 .about-body .buttons { justify-content: flex-end; margin-top: 14px; }
