@@ -7,7 +7,8 @@ import { OutputDialog } from "./panels/OutputDialog";
 import { PropertiesDialog } from "./panels/PropertiesDialog";
 import { AskDialog } from "./panels/AskDialog";
 import { Tooltip } from "./panels/Tooltip";
-import { SelectionPanel, deleteSelection } from "./panels/SelectionPanel";
+import { SelectionPanel, deleteSelection, duplicateSelection } from "./panels/SelectionPanel";
+import { duplicateStep } from "./model";
 import { LinkButtons } from "./panels/LinkButtons";
 import { ToolPalette } from "./panels/ToolPalette";
 import { LayerPalette } from "./panels/LayerPalette";
@@ -75,6 +76,17 @@ function Shell() {
         if (e.key.toLowerCase() === "o") file.open();
         else if (e.shiftKey) file.saveAs();
         else file.save();
+        return;
+      }
+      // ⌘D: duplicate the selection a step down and right, and select the
+      // copies, so pressing again carries on. Never the browser's bookmark.
+      // From a field too, like ⌘S: blurring first commits its value.
+      if (mod && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        if (!editor.selection.length) return;
+        (document.activeElement as HTMLElement | null)?.blur?.();
+        const copies = duplicateSelection(editor.selection, duplicateStep(store.resolved.document.gridSpacing));
+        if (copies) dispatch({ type: "select", ids: copies });
         return;
       }
       const t = e.target as HTMLElement | null;

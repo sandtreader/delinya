@@ -219,8 +219,10 @@ through `useSyncExternalStore`.
   cancels. Outside-click handlers (the layer card) ignore clicks while a
   question is up.
 - **Keys**: ⌘Z / ⇧⌘Z (Ctrl+Y) undo/redo, Delete/Backspace, Escape to
-  select and clear, ⌘P print/export. File keys work from inside a field:
-  they blur it first so its value commits.
+  select and clear, ⌘P print/export, ⌘D duplicate the selection a step
+  down and right (`duplicateStep`: about 10 mm, on the grid) selecting
+  the copies, so repeating it makes a diagonal run. File keys and ⌘D
+  work from inside a field: they blur it first so its value commits.
 
 ### Output (`src/output/`, all pure, fully tested)
 
@@ -372,7 +374,6 @@ through `useSyncExternalStore`.
 
 UI to-do (requested 2026-11-10, in the order given):
 
-11. ⌘D: immediate duplicate, stepped down and to the right.
 12. "Delinya" in the header opens an About dialog with the version (text
     to come).
 13. Rulers along the top and left edges of the canvas.
