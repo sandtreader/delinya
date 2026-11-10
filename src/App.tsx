@@ -85,15 +85,15 @@ function Shell() {
         else file.save();
         return;
       }
-      // ⌘D: duplicate the selection as the panel's Duplicate does (its last
-      // direction and gap) and select the copies, so pressing again carries
-      // on. Never the browser's bookmark.
+      // ⌘D: one copy of the selection, in the panel's Duplicate direction
+      // and gap whatever its count, selected, so pressing again carries on.
+      // Never the browser's bookmark.
       // From a field too, like ⌘S: blurring first commits its value.
       if (mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         if (!editor.selection.length) return;
         (document.activeElement as HTMLElement | null)?.blur?.();
-        const copies = duplicateSelection(editor.selection, editor.duplicate);
+        const copies = duplicateSelection(editor.selection, { ...editor.duplicate, count: 1 });
         if (copies) dispatch({ type: "select", ids: copies });
         return;
       }

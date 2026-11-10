@@ -1,11 +1,11 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-10. Repo `sandtreader/delinya`, branch `main`. The
-path (Bézier) tool, its node/segment editing, and breaking/joining are
-committed; in the working tree, not yet committed: a handle dragged onto
-its node comes off (`setPolyHandle`, zero offset), and Alt-dragging a
-corner node pulls a missing handle out (`pullHandleSide`;
-`tests/pullHandle.test.ts`). Vitest tests, `tsc` and the build pass.
+path (Bézier) tool, its node/segment editing, breaking/joining, and
+taking off / pulling out handles are committed; in the working tree, not
+yet committed: a count for the panel's Duplicate (`duplicateBeside`
+`count`; `tests/duplicate.test.ts`). Vitest tests, `tsc` and the build
+pass.
 
 ## Where we are
 
@@ -345,10 +345,12 @@ through `useSyncExternalStore`.
   switches every action from a one-off move/resize to a live link; equal
   values then go through a named variable.
 - **Duplicate** (both selection panels, above Delete): direction toggles
-  (→ ↓ ← ↑) and a gap in mm (editor state `duplicate`, default right,
-  10 mm, not saved). The copy sits beside the selection's bounds, the gap
-  clear of it (`duplicateOffset`), and becomes the selection, so pressing
-  again carries on the row. `duplicateShapes` (`model/duplicate.ts`)
+  (→ ↓ ← ↑), a count (× 1–100, under the button) and a gap in mm (editor
+  state `duplicate`, default one copy right, 10 mm, not saved). The copy
+  sits beside the selection's bounds, the gap clear of it
+  (`duplicateOffset`); N copies make a row, copy k at k steps
+  (`duplicateBeside`). The copies become the selection, so pressing again
+  carries on the row. `duplicateShapes` (`model/duplicate.ts`)
   copies shapes at their drawn position (link-derived positions copied as
   drawn, links not copied), keeps sizes' variable refs, radii and layer,
   and copies their dimensions and radius labels; one batch, one undo.
@@ -403,10 +405,9 @@ through `useSyncExternalStore`.
   path node or segment, else the selection; while drawing a path, its
   last node), Escape (a selected path node or segment first; while
   drawing a path, finishes it;
-  else back to select and clear), V/L/R/C/P tools, ⌘P print/export, ⌘D duplicate the selection exactly
-  as the panel's Duplicate does (its last direction and gap, via
-  `duplicateBeside`), selecting the copies so repeating it carries on the
-  row. File keys and ⌘D
+  else back to select and clear), V/L/R/C/P tools, ⌘P print/export, ⌘D one copy of the selection in
+  the panel's Duplicate direction and gap (always one, whatever its count;
+  via `duplicateBeside`), selecting it so repeating carries on the row. File keys and ⌘D
   work from inside a field: they blur it first so its value commits.
 
 ### Output (`src/output/`, all pure, fully tested)

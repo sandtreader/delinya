@@ -78,15 +78,29 @@ export function duplicateOffset(bounds: Bounds, direction: DuplicateDirection, s
 
 /**
  * Copy the shapes beside the bounds they make together, `spacing` mm clear
- * in `direction`: the selection panel's Duplicate and ⌘D. Undefined when
- * none of `ids` are shapes.
+ * in `direction`: the selection panel's Duplicate and ⌘D. `count` copies
+ * (a whole number, at least one; default one, and ⌘D asks for one) make
+ * a row, each one step on from the last. One batch, so one undo step; the IDs come copy by
+ * copy, in the order of `ids` within each. Undefined when none of `ids`
+ * are shapes.
  */
 export function duplicateBeside(
-  state: DocState, ids: EntityId[], placement: { direction: DuplicateDirection; spacing: number }, makeId: (prefix: string) => EntityId,
+  state: DocState, ids: EntityId[], placement: { direction: DuplicateDirection; spacing: number; count?: number },
+  makeId: (prefix: string) => EntityId,
 ): { change: Change; ids: EntityId[] } | undefined {
   const r = resolve(state);
   const shapes = ids.filter((id) => Object.hasOwn(r.shapes, id));
   if (shapes.length === 0) return undefined;
   const bounds = unionBounds(shapes.map((id) => r.shapes[id]!.bounds));
-  return duplicateShapes(state, shapes, duplicateOffset(bounds, placement.direction, placement.spacing), makeId);
+  const [dx, dy] = duplicateOffset(bounds, placement.direction, placement.spacing);
+  const whole = Math.floor(placement.count ?? 1);
+  const count = Number.isFinite(whole) && whole > 1 ? whole : 1;
+  const changes: Change[] = [];
+  const copies: EntityId[] = [];
+  for (let k = 1; k <= count; k++) {
+    const out = duplicateShapes(state, shapes, [snapNumber(k * dx), snapNumber(k * dy)], makeId)!;
+    changes.push(...(out.change.type === "batch" ? out.change.changes : [out.change]));
+    copies.push(...out.ids);
+  }
+  return { change: batch(changes), ids: copies };
 }

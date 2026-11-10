@@ -27,7 +27,7 @@ function escape(draft: FieldDraft, rerender: () => void, e: React.KeyboardEvent<
   e.currentTarget.blur();
 }
 
-/** A number field; text that isn't a number, or that `valid` refuses, goes back to the value. */
+/** A number field; text that isn't a number, or that `valid` refuses, goes back to the value. An empty `unit` shows none. */
 export function Num({ value, onCommit, disabled, unit = "mm", valid }: {
   value: number; onCommit: (v: number) => void; disabled?: boolean; unit?: string; valid?: (v: number) => boolean;
 }) {
@@ -48,7 +48,7 @@ export function Num({ value, onCommit, disabled, unit = "mm", valid }: {
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") escape(draft, rerender, e); }}
       />
-      <span className="unit">{unit}</span>
+      {unit && <span className="unit">{unit}</span>}
     </span>
   );
 }

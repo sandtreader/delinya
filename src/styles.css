@@ -295,11 +295,14 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .selection-panel button.icon.linked svg .guide { stroke: var(--link); }
 .selection-panel select { font: inherit; padding: 2px 4px; min-width: 0; flex: 1; }
 .selection-panel .keep-linked { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
-/* Duplicate: the button, then which way the copy goes and the gap under it. */
+/* Duplicate: the button and which way the copies go; under them, how many and the gap. */
 .selection-panel .duplicate {
   display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center;
   margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
 }
+.selection-panel .duplicate .count { grid-column: 1; display: flex; align-items: center; gap: 4px; }
+.selection-panel .duplicate .count .num, .selection-panel .duplicate .count input { min-width: 0; flex: 1; }
+.selection-panel .duplicate .count input { width: 0; }
 .selection-panel .duplicate .spacing { grid-column: 2; display: flex; align-items: center; gap: 6px; }
 .selection-panel button.icon.on { background: #e3f0f6; border-color: var(--accent); color: var(--accent); }
 
@@ -395,3 +398,6 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .delink:hover { background: var(--link); color: white; border-color: var(--link); }
 .delink.icon-only { padding: 3px; border-radius: 50%; line-height: 0; }
 .delink.popup { transform: translate(-50%, calc(-100% - 10px)); }
+
+/* Text for screen readers only. */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }

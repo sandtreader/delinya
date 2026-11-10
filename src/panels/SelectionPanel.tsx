@@ -77,7 +77,7 @@ export function deleteSelection(ids: EntityId[]) {
 /**
  * Copies the shapes beside themselves, as the Duplicate settings say, with
  * their dimensions and radius labels, as one undo step: the panel's button
- * and ⌘D. Returns the copies' IDs, in the same order.
+ * and ⌘D. Returns the copies' IDs, copy by copy, in the same order.
  */
 export function duplicateSelection(ids: EntityId[], settings: DuplicateSettings): EntityId[] | undefined {
   const out = duplicateBeside(store.state, ids, settings, newId);
@@ -88,21 +88,27 @@ export function duplicateSelection(ids: EntityId[], settings: DuplicateSettings)
 /** Where each direction puts the copy, for tooltips. */
 const BESIDE: Record<DuplicateDirection, string> = { right: "to the right", down: "below", left: "to the left", up: "above" };
 
+/** Whole numbers 1–100: how many copies Duplicate makes. */
+const validCount = (v: number) => Number.isInteger(v) && v >= 1 && v <= 100;
+
 /**
- * Duplicate: the button, which way the copy goes and how far clear of the
- * selection's bounds. The copies become the selection, so pressing again
- * carries on the row.
+ * Duplicate: the button, how many copies, which way they go and how far
+ * apart. The copies become the selection, so pressing again carries on the
+ * row. ⌘D always makes one copy, so the button only mentions it then.
  */
 function Duplicate({ shapes }: { shapes: EntityId[] }) {
   const { editor, dispatch } = useEditor();
-  const { direction, spacing } = editor.duplicate;
+  const { direction, spacing, count } = editor.duplicate;
   const run = () => {
     const copies = duplicateSelection(shapes, editor.duplicate);
     if (copies) dispatch({ type: "select", ids: copies });
   };
+  const what = count === 1
+    ? `Copy ${BESIDE[direction]}, ${formatMm(spacing)} mm clear, and select the copy (⌘D)`
+    : `Copy ${count} times ${BESIDE[direction]}, ${formatMm(spacing)} mm apart, and select the copies (⌘D makes one)`;
   return (
     <div className="duplicate">
-      <button onClick={run} {...tip(`Copy ${BESIDE[direction]}, ${formatMm(spacing)} mm clear, and select the copy (⌘D)`)}>Duplicate</button>
+      <button onClick={run} {...tip(what)}>Duplicate</button>
       <div className="icons" role="group" aria-label="Duplicate direction">
         {DUPLICATE_DIRECTIONS.map((d) => (
           <IconButton
@@ -113,7 +119,12 @@ function Duplicate({ shapes }: { shapes: EntityId[] }) {
           </IconButton>
         ))}
       </div>
-      <label className="spacing" {...tip("Gap between the selection and its copy")}>
+      <label className="count" {...tip("Number of copies")}>
+        {/* Read as "copies"; × is just the look. */}
+        <span className="hint"><span aria-hidden="true">×</span><span className="sr-only">copies</span></span>
+        <Num value={count} unit="" valid={validCount} onCommit={(v) => dispatch({ type: "duplicate", settings: { count: v } })} />
+      </label>
+      <label className="spacing" {...tip("Gap between the selection and its copy, and between copies")}>
         <span className="hint">gap</span>
         <Num value={spacing} valid={(v) => v >= 0} onCommit={(v) => dispatch({ type: "duplicate", settings: { spacing: v } })} />
       </label>
