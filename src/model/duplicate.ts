@@ -5,10 +5,10 @@
 // Everything else, including lengths linked to variables, is copied as stored.
 
 import type { Change, DocState, Entity, Props } from "@sandtreader/collab/protocol";
-import { type Bounds, boundsSize, snapNumber } from "./geometry";
-import { type ResolvedShape, isGridSpacing, resolve } from "./resolve";
+import { type Bounds, boundsSize, snapNumber, unionBounds } from "./geometry";
+import { type ResolvedShape, resolve } from "./resolve";
 import { batch } from "./actions";
-import { type EntityId, DEFAULT_GRID_SPACING, KINDS, SHAPE_KINDS } from "./types";
+import { type EntityId, KINDS, SHAPE_KINDS } from "./types";
 
 export type DuplicateDirection = "right" | "down" | "left" | "up";
 export const DUPLICATE_DIRECTIONS: readonly DuplicateDirection[] = ["right", "down", "left", "up"];
@@ -72,16 +72,17 @@ export function duplicateOffset(bounds: Bounds, direction: DuplicateDirection, s
   }
 }
 
-/** How far ⌘D steps a copy, mm, before rounding up to the grid. */
-export const DUPLICATE_STEP = 10;
-
 /**
- * The ⌘D offset: about DUPLICATE_STEP down and to the right, rounded up to a
- * whole number of grid spacings so a shape on the grid stays on it.
+ * Copy the shapes beside the bounds they make together, `spacing` mm clear
+ * in `direction`: the selection panel's Duplicate and ⌘D. Undefined when
+ * none of `ids` are shapes.
  */
-export function duplicateStep(gridSpacing: number): [number, number] {
-  const s = isGridSpacing(gridSpacing) ? gridSpacing : DEFAULT_GRID_SPACING;
-  // Rounded before ceil so float noise can't add a step, and after so 0.15 × 67 is 10.05.
-  const step = snapNumber(s * Math.ceil(snapNumber(DUPLICATE_STEP / s)));
-  return [step, step];
+export function duplicateBeside(
+  state: DocState, ids: EntityId[], placement: { direction: DuplicateDirection; spacing: number }, makeId: (prefix: string) => EntityId,
+): { change: Change; ids: EntityId[] } | undefined {
+  const r = resolve(state);
+  const shapes = ids.filter((id) => Object.hasOwn(r.shapes, id));
+  if (shapes.length === 0) return undefined;
+  const bounds = unionBounds(shapes.map((id) => r.shapes[id]!.bounds));
+  return duplicateShapes(state, shapes, duplicateOffset(bounds, placement.direction, placement.spacing), makeId);
 }

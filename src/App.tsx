@@ -10,7 +10,6 @@ import { AboutDialog } from "./panels/AboutDialog";
 import { AskDialog } from "./panels/AskDialog";
 import { Tooltip } from "./panels/Tooltip";
 import { SelectionPanel, deleteSelection, duplicateSelection } from "./panels/SelectionPanel";
-import { duplicateStep } from "./model";
 import { LinkButtons } from "./panels/LinkButtons";
 import { ToolPalette } from "./panels/ToolPalette";
 import { LayerPalette } from "./panels/LayerPalette";
@@ -82,14 +81,15 @@ function Shell() {
         else file.save();
         return;
       }
-      // ⌘D: duplicate the selection a step down and right, and select the
-      // copies, so pressing again carries on. Never the browser's bookmark.
+      // ⌘D: duplicate the selection as the panel's Duplicate does (its last
+      // direction and gap) and select the copies, so pressing again carries
+      // on. Never the browser's bookmark.
       // From a field too, like ⌘S: blurring first commits its value.
       if (mod && e.key.toLowerCase() === "d") {
         e.preventDefault();
         if (!editor.selection.length) return;
         (document.activeElement as HTMLElement | null)?.blur?.();
-        const copies = duplicateSelection(editor.selection, duplicateStep(store.resolved.document.gridSpacing));
+        const copies = duplicateSelection(editor.selection, editor.duplicate);
         if (copies) dispatch({ type: "select", ids: copies });
         return;
       }
@@ -113,7 +113,7 @@ function Shell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editor.selection, editor.dialog, dispatch, file]);
+  }, [editor.selection, editor.dialog, editor.duplicate, dispatch, file]);
 
   return (
     <div className="app" style={APP_COLOURS}>

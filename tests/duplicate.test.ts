@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { applyChange, type DocState } from "@sandtreader/collab/protocol";
 import {
-  KINDS, addCircle, addDimension, addLine, addRadiusLabel, addRect, addVariable, duplicateOffset, duplicateShapes,
-  duplicateStep, linkAlign, resolve,
+  KINDS, addCircle, addDimension, addLine, addRadiusLabel, addRect, addVariable, duplicateBeside, duplicateOffset,
+  duplicateShapes, linkAlign, resolve,
 } from "../src/model";
 import { editorReducer, initialEditor } from "../src/app/editor";
 import { doc } from "./helpers";
@@ -76,13 +76,21 @@ describe("duplicateOffset", () => {
   });
 });
 
-describe("duplicateStep (⌘D)", () => {
-  it("steps about 10 mm down and right, staying on the grid", () => {
-    expect(duplicateStep(1)).toEqual([10, 10]);
-    expect(duplicateStep(5)).toEqual([10, 10]);
-    expect(duplicateStep(3)).toEqual([12, 12]);
-    expect(duplicateStep(0.5)).toEqual([10, 10]);
-    expect(duplicateStep(25)).toEqual([25, 25]);
+describe("duplicateBeside (the panel's Duplicate and ⌘D)", () => {
+  // Together 0..50 × 0..30.
+  const st = doc(addRect("a", { x: 0, y: 0, width: 30, height: 10 }), addRect("b", { x: 40, y: 20, width: 10, height: 10 }));
+
+  it("copies the selection beside its bounds, the gap clear, in the last chosen direction", () => {
+    const down = applyChange(st, duplicateBeside(st, ["a", "b"], { direction: "down", spacing: 5 }, counter())!.change);
+    expect(down.entities["rect-1"]!.props).toMatchObject({ x: 0, y: 35 });
+    expect(down.entities["rect-2"]!.props).toMatchObject({ x: 40, y: 55 });
+    const right = duplicateBeside(st, ["a"], { direction: "right", spacing: 10 }, counter())!;
+    expect(right.ids).toEqual(["rect-1"]);
+    expect(applyChange(st, right.change).entities["rect-1"]!.props).toMatchObject({ x: 40, y: 0 });
+  });
+
+  it("has nothing to copy without shapes", () => {
+    expect(duplicateBeside(st, ["gone"], { direction: "down", spacing: 5 }, counter())).toBeUndefined();
   });
 });
 

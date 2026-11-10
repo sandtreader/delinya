@@ -8,12 +8,12 @@
 
 import { applyChange, type Change } from "@sandtreader/collab/protocol";
 import {
-  DUPLICATE_DIRECTIONS, KINDS, alignLinksAmong, alignOnce, batch, deleteEntity, derivedAxes, duplicateOffset, duplicateShapes, equaliseOnce,
-  linkAlign, linkLengths, linkSpacing, newId, outerAnchors, setAlignMode, spaceOnce, unionBounds,
+  DUPLICATE_DIRECTIONS, KINDS, alignLinksAmong, alignOnce, batch, deleteEntity, derivedAxes, duplicateBeside, equaliseOnce,
+  linkAlign, linkLengths, linkSpacing, newId, outerAnchors, setAlignMode, spaceOnce,
   type AlignMode, type Axis, type DuplicateDirection, type EntityId, type SpacingMode,
 } from "../model";
 import { store, useDocument } from "../app/store";
-import { panelFor, useEditor } from "../app/editor";
+import { panelFor, useEditor, type DuplicateSettings } from "../app/editor";
 import { formatMm } from "../view/format";
 import { ShapeFields } from "./ShapeFields";
 import { LayerSelect, hasLayerChoice } from "./LayerSelect";
@@ -75,11 +75,12 @@ export function deleteSelection(ids: EntityId[]) {
 }
 
 /**
- * Copies the shapes, moved by `delta`, with their dimensions and radius
- * labels, as one undo step. Returns the copies' IDs, in the same order.
+ * Copies the shapes beside themselves, as the Duplicate settings say, with
+ * their dimensions and radius labels, as one undo step: the panel's button
+ * and ⌘D. Returns the copies' IDs, in the same order.
  */
-export function duplicateSelection(ids: EntityId[], delta: readonly [number, number]): EntityId[] | undefined {
-  const out = duplicateShapes(store.state, ids, delta, newId);
+export function duplicateSelection(ids: EntityId[], settings: DuplicateSettings): EntityId[] | undefined {
+  const out = duplicateBeside(store.state, ids, settings, newId);
   if (out) store.commit(out.change);
   return out?.ids;
 }
@@ -96,13 +97,12 @@ function Duplicate({ shapes }: { shapes: EntityId[] }) {
   const { editor, dispatch } = useEditor();
   const { direction, spacing } = editor.duplicate;
   const run = () => {
-    const bounds = unionBounds(shapes.map((id) => store.resolved.shapes[id]!.bounds));
-    const copies = duplicateSelection(shapes, duplicateOffset(bounds, direction, spacing));
+    const copies = duplicateSelection(shapes, editor.duplicate);
     if (copies) dispatch({ type: "select", ids: copies });
   };
   return (
     <div className="duplicate">
-      <button onClick={run} {...tip(`Copy ${BESIDE[direction]}, ${formatMm(spacing)} mm clear, and select the copy`)}>Duplicate</button>
+      <button onClick={run} {...tip(`Copy ${BESIDE[direction]}, ${formatMm(spacing)} mm clear, and select the copy (⌘D)`)}>Duplicate</button>
       <div className="icons" role="group" aria-label="Duplicate direction">
         {DUPLICATE_DIRECTIONS.map((d) => (
           <IconButton

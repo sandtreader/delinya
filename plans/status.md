@@ -232,9 +232,10 @@ through `useSyncExternalStore`.
   cancels. Outside-click handlers (the layer card) ignore clicks while a
   question is up.
 - **Keys**: ⌘Z / ⇧⌘Z (Ctrl+Y) undo/redo, Delete/Backspace, Escape to
-  select and clear, ⌘P print/export, ⌘D duplicate the selection a step
-  down and right (`duplicateStep`: about 10 mm, on the grid) selecting
-  the copies, so repeating it makes a diagonal run. File keys and ⌘D
+  select and clear, ⌘P print/export, ⌘D duplicate the selection exactly
+  as the panel's Duplicate does (its last direction and gap, via
+  `duplicateBeside`), selecting the copies so repeating it carries on the
+  row. File keys and ⌘D
   work from inside a field: they blur it first so its value commits.
 
 ### Output (`src/output/`, all pure, fully tested)
