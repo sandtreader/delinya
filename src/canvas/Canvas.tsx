@@ -190,7 +190,7 @@ export function Canvas() {
           }
         }
         d.applied = delta;
-        dispatch({ type: "pointer", cursor: mp, snap });
+        dispatch({ type: "pointer", cursor: mp, snap, measure: d.primary });
         return;
       }
       case "resize": {
@@ -200,7 +200,7 @@ export function Canvas() {
           if (!d.moved) { store.beginGesture(); d.moved = true; }
           store.commit(change);
         }
-        dispatch({ type: "pointer", cursor: point, snap });
+        dispatch({ type: "pointer", cursor: point, snap, measure: d.id });
         return;
       }
       case "draw": {

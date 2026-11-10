@@ -39,6 +39,8 @@ export interface EditorState {
   snap: SnapPoint | null;
   /** While a new shape is dragged out: its tool and start, for the status bar. */
   draw: { tool: DrawTool; start: [number, number] } | null;
+  /** While a selected shape is dragged (moved or resized): which, for the status bar. */
+  measure: EntityId | null;
   dialog: Dialog | null;
   /** Arrange actions create live links instead of moving shapes once. */
   keepLinked: boolean;
@@ -58,6 +60,7 @@ export const initialEditor: EditorState = {
   cursor: null,
   snap: null,
   draw: null,
+  measure: null,
   dialog: null,
   keepLinked: false,
   linkPopup: null,
@@ -75,7 +78,7 @@ export type EditorAction =
   | { type: "view"; view: View }
   | { type: "panBy"; dx: number; dy: number }
   | { type: "zoomAt"; factor: number; at: [number, number] }
-  | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null; draw?: EditorState["draw"] }
+  | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null; draw?: EditorState["draw"]; measure?: EntityId }
   | { type: "dialog"; dialog: Dialog | null }
   | { type: "keepLinked"; on: boolean }
   | { type: "linkPopup"; popup: EditorState["linkPopup"] }
@@ -85,7 +88,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
   switch (a.type) {
     // A link popup belongs to the moment it was opened: any other choice closes it.
     // Hovering with select shows no position, so arriving at it clears the readout.
-    case "tool": return { ...s, tool: a.tool, linkPopup: null, ...(hoverShowsPosition(a.tool) ? {} : { cursor: null, snap: null, draw: null }) };
+    case "tool": return { ...s, tool: a.tool, linkPopup: null, ...(hoverShowsPosition(a.tool) ? {} : { cursor: null, snap: null, draw: null, measure: null }) };
     case "select": return { ...s, selection: a.ids, linkPopup: null };
     case "toggleSelect":
       return { ...s, linkPopup: null, selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id] };
@@ -104,8 +107,8 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "zoomAt": return { ...s, view: zoomAt(s.view, a.factor, a.at) };
     case "pointer":
       // Hovering with select clears it on every move; when already clear, keep the state so nothing re-renders.
-      if (!a.cursor && !a.snap && !a.draw && !s.cursor && !s.snap && !s.draw) return s;
-      return { ...s, cursor: a.cursor, snap: a.snap, draw: a.draw ?? null };
+      if (!a.cursor && !a.snap && !a.draw && !a.measure && !s.cursor && !s.snap && !s.draw && !s.measure) return s;
+      return { ...s, cursor: a.cursor, snap: a.snap, draw: a.draw ?? null, measure: a.measure ?? null };
     case "dialog": return { ...s, dialog: a.dialog };
     case "keepLinked": return { ...s, keepLinked: a.on };
     case "linkPopup": return { ...s, linkPopup: a.popup };

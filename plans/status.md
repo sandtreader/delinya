@@ -157,6 +157,12 @@ through `useSyncExternalStore`.
   lassoing do. While a new shape is dragged out
   it shows its start and size instead of the pointer (`drawStatus` in
   `view/format.ts`: from x, y · w × h; centre · ⌀; from · length at angle).
+  Moving a selected shape or dragging its handle shows that shape's live
+  position and size the same way (`shapeStatus`, editor `measure`; the
+  grabbed shape when several move), and with the select tool the
+  selection shows it as soon as it is selected (several: their bounds,
+  from x, y · w × h). Priority is `positionStatus` in `view/format.ts`:
+  drawing, dragging, selection, pointer.
 - **Resize handles** on a single selection: rect corners (anchor opposite
   corner, flips across it), circle centre and radius, line ends.
 - **No sidebar.** The selection gets one floating panel top right of the

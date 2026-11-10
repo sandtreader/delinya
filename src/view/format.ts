@@ -1,6 +1,8 @@
 // Number formatting shared by the canvas, panels and output, so a length
 // reads the same on screen, in a printout and in an export.
 
+import { type EntityId, type Resolved, type ResolvedShape, unionBounds } from "../model";
+
 /** A length in mm for display: at most two decimals, no trailing zeros. */
 export function formatMm(v: number): string {
   return (Math.round(v * 100) / 100).toString();
@@ -30,4 +32,46 @@ export function drawStatus(tool: DrawTool, start: readonly [number, number], cur
 export function quotedTitle(title: string, fileName: string): string | null {
   const t = title.replace(/\s+/g, " ").trim();
   return t && t !== fileName ? `“${t}”` : null;
+}
+
+/**
+ * The status bar while a selected shape is dragged (moved, or resized by a
+ * handle): its position and size, reading as drawing it does.
+ */
+export function shapeStatus(s: ResolvedShape): string {
+  const at = (p: readonly [number, number]) => `${formatMm(p[0])}, ${formatMm(p[1])} mm`;
+  switch (s.kind) {
+    case "rect": return `from ${at([s.x, s.y])} · ${formatMm(s.width)} × ${formatMm(s.height)} mm`;
+    case "circle": return `centre ${at(s.centre)} · ⌀ ${formatMm(s.diameter)} mm`;
+    case "line": return `from ${at(s.from)} · ${formatMm(s.length)} mm at ${formatMm(s.angle)}°`;
+  }
+}
+
+/** What the status bar's position readout depends on (from editor state). */
+export interface PositionState {
+  tool: "select" | DrawTool;
+  selection: readonly EntityId[];
+  cursor: readonly [number, number] | null;
+  draw: { tool: DrawTool; start: readonly [number, number] } | null;
+  measure: EntityId | null;
+}
+
+/**
+ * The status bar's position readout, first that applies: the shape being
+ * drawn; the shape being dragged; with the select tool, the selection (one
+ * shape's position and size, or the bounds of several); the pointer.
+ */
+export function positionStatus(e: PositionState, r: Resolved): string {
+  if (e.draw && e.cursor) return drawStatus(e.draw.tool, e.draw.start, e.cursor);
+  const dragged = e.measure ? r.shapes[e.measure] : undefined;
+  if (dragged) return shapeStatus(dragged);
+  if (e.tool === "select") {
+    const shapes = e.selection.flatMap((id) => (Object.hasOwn(r.shapes, id) ? [r.shapes[id]!] : []));
+    if (shapes.length === 1) return shapeStatus(shapes[0]!);
+    if (shapes.length > 1) {
+      const b = unionBounds(shapes.map((s) => s.bounds));
+      return drawStatus("rect", [b.minX, b.minY], [b.maxX, b.maxY]);
+    }
+  }
+  return e.cursor ? `${formatMm(e.cursor[0])}, ${formatMm(e.cursor[1])} mm` : "";
 }
