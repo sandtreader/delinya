@@ -14,6 +14,7 @@ import { store, useDocument } from "../app/store";
 import { panelFor, useEditor } from "../app/editor";
 import { ShapeFields } from "./ShapeFields";
 import { LayerSelect, hasLayerChoice } from "./LayerSelect";
+import { tip } from "./tip";
 
 const SHAPE_LABEL: Record<string, string> = { rect: "Rectangle", circle: "Circle", line: "Line" };
 
@@ -49,7 +50,7 @@ export function SelectionPanel() {
     >
       {panel === "shape" ? <ShapeFields id={ids[0]!} /> : <Arrange shapes={ids} />}
       <div className="actions">
-        <button className="danger" onClick={remove} data-tip="Delete (Del)">Delete</button>
+        <button className="danger" onClick={remove} {...tip("Delete (Del)")}>Delete</button>
       </div>
     </div>
   );
@@ -120,7 +121,7 @@ function Arrange({ shapes }: { shapes: EntityId[] }) {
     <>
       <header>
         <strong>{shapes.length} selected</strong>
-        <span className="hint" data-tip="The first shape you selected; the others move to it">
+        <span className="hint" {...tip("The first shape you selected; the others move to it")}>
           reference: {SHAPE_LABEL[state.entities[ref]!.kind] ?? "shape"}
         </span>
       </header>
@@ -154,16 +155,16 @@ function Arrange({ shapes }: { shapes: EntityId[] }) {
       })}
       <div className="group">
         <span className="label">Centre</span>
-        <button onClick={centre} data-tip="Centre the others on the reference, both ways">On reference</button>
+        <button onClick={centre} {...tip("Centre the others on the reference, both ways")}>On reference</button>
       </div>
       {shapes.length >= 3 && (
         <div className="group">
           <span className="label">Space</span>
           <div className="buttons">
-            <button onClick={() => space("x", "gaps")} data-tip="Equal gaps across, between the outermost two">Gaps ↔</button>
-            <button onClick={() => space("y", "gaps")} data-tip="Equal gaps down, between the outermost two">Gaps ↕</button>
-            <button onClick={() => space("x", "centres")} data-tip="Equal centre pitch across, between the outermost two">Centres ↔</button>
-            <button onClick={() => space("y", "centres")} data-tip="Equal centre pitch down, between the outermost two">Centres ↕</button>
+            <button onClick={() => space("x", "gaps")} {...tip("Equal gaps across, between the outermost two")}>Gaps ↔</button>
+            <button onClick={() => space("y", "gaps")} {...tip("Equal gaps down, between the outermost two")}>Gaps ↕</button>
+            <button onClick={() => space("x", "centres")} {...tip("Equal centre pitch across, between the outermost two")}>Centres ↔</button>
+            <button onClick={() => space("y", "centres")} {...tip("Equal centre pitch down, between the outermost two")}>Centres ↕</button>
           </div>
         </div>
       )}
@@ -172,14 +173,14 @@ function Arrange({ shapes }: { shapes: EntityId[] }) {
           <span className="label">Equal</span>
           <div className="buttons">
             {equal.map((e) => (
-              <button key={e.prop} onClick={() => equalise(e.prop)} data-tip={linked ? `Link ${e.prop}s to one shared value` : `Set ${e.prop}s to the reference's`}>
+              <button key={e.prop} onClick={() => equalise(e.prop)} {...tip(linked ? `Link ${e.prop}s to one shared value` : `Set ${e.prop}s to the reference's`)}>
                 {e.label}
               </button>
             ))}
           </div>
         </div>
       )}
-      <label className="keep-linked" data-tip="Off: move or resize once. On: create live links that follow the reference.">
+      <label className="keep-linked" {...tip("Off: move or resize once. On: create live links that follow the reference.")}>
         <input type="checkbox" checked={linked} onChange={(e) => dispatch({ type: "keepLinked", on: e.target.checked })} />
         Keep linked
       </label>

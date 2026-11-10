@@ -2,6 +2,7 @@
 // button's text colour. Drawn larger, the stroke stays 1.5 px.
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { tip as tipProps } from "./tip";
 
 export function Icon({ size = 16, className, children }: { size?: number; className?: string; children: ReactNode }) {
   const box = size === 18 ? 18 : 16;
@@ -17,12 +18,13 @@ export function Icon({ size = 16, className, children }: { size?: number; classN
 
 /**
  * An icon-only button, named by `label`, with `tip` (the label unless
- * given) in the shared tooltip (data-tip, see Tooltip.tsx). Pass
+ * given) in the shared tooltip and, if it says more, as its description
+ * (see tip.ts). Pass
  * data-tip-side to put the tooltip somewhere other than below.
  */
 export function IconButton({ label, tip = label, children, ...rest }:
   { label: string; tip?: string; children: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {
-  return <button type="button" className="icon" aria-label={label} data-tip={tip} {...rest}>{children}</button>;
+  return <button type="button" className="icon" aria-label={label} {...tipProps(tip, label)} {...rest}>{children}</button>;
 }
 
 // ---- Header and status bar ----

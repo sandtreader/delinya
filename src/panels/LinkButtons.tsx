@@ -8,6 +8,7 @@ import { useEditor } from "../app/editor";
 import { describeLink, linkButtons } from "../view/linkButtons";
 import { GUIDE_OVERHANG_PX } from "../view/linkGuides";
 import { toScreen } from "../view/viewport";
+import { tip } from "./tip";
 
 export function LinkButtons() {
   const state = useDocument();
@@ -43,7 +44,7 @@ export function LinkButtons() {
       {popup && (
         <button
           className="delink popup" style={{ left: popup.at[0], top: popup.at[1] }}
-          data-tip="Remove this link; the shapes stay where they are"
+          {...tip("Remove this link; the shapes stay where they are")}
           onPointerDown={(e) => e.stopPropagation()} onClick={() => remove(popup.target)}
         >
           <BrokenChain /> <span>{describeLink(state, popup.target)}</span>

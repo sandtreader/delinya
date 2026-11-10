@@ -12,6 +12,7 @@ import { ALIGN_LABELS } from "../view/linkButtons";
 import { formatMm } from "../view/format";
 import { Num, Row } from "./fields";
 import { LayerSelect, hasLayerChoice } from "./LayerSelect";
+import { tip } from "./tip";
 
 export function ShapeFields({ id }: { id: EntityId }) {
   const state = useDocument();
@@ -74,7 +75,7 @@ function LengthRow({ id, prop, label }: { id: EntityId; prop: string; label: str
     <Row label={label}>
       <Num value={value} onCommit={(v) => { const c = setLength(state, id, prop, v); if (c) store.commit(c); }} />
       {isRef(raw) && (
-        <span className="linked" data-tip={`Linked to variable ${raw.ref}`}>
+        <span className="linked" {...tip(`Linked to variable ${raw.ref}`)}>
           = {linked?.name ?? raw.ref}
           <button className="small" onClick={() => { const c = unlinkLength(store.state, id, prop); if (c) store.commit(c); }}>unlink</button>
         </span>
@@ -101,7 +102,7 @@ function Corners({ id }: { id: EntityId }) {
           <Row key={name} label={name}>
             <Num value={value} onCommit={(v) => { const c = setCornerRadius(store.state, id, corner, v); if (c) store.commit(c); }} />
             {isRef(raw) && <span className="linked">= {entityAs(state, raw.ref, KINDS.variable)?.name ?? raw.ref}</span>}
-            {effective !== undefined && effective !== value && <span className="warn" data-tip="Clamped to fit">→ {formatMm(effective)}</span>}
+            {effective !== undefined && effective !== value && <span className="warn" {...tip("Clamped to fit")}>→ {formatMm(effective)}</span>}
           </Row>
         );
       })}

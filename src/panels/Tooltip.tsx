@@ -5,7 +5,9 @@
 // default, "right" in a palette, "above" in the status bar; placeTip flips
 // it when there is no room. A click, key, wheel or window switch hides it,
 // and nothing shows while a button is held, so drags don't pop tips.
-// Timing and placement are in view/tooltip.ts.
+// Timing and placement are in view/tooltip.ts. The bubble is for sighted
+// users only: screen readers get the text all the time as the element's
+// aria-description, set alongside data-tip by tip() (panels/tip.ts).
 //
 // The element under the pointer comes from pointerover's target and from
 // pointerout's relatedTarget, so a browser that sends nothing to a
@@ -14,7 +16,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { TipTimer, placeTip, type TipSide } from "../view/tooltip";
 
-const ID = "tooltip";
 const SIDES: readonly string[] = ["below", "above", "right", "left"] satisfies TipSide[];
 
 interface Shown { anchor: HTMLElement; text: string }
@@ -54,13 +55,6 @@ function fit(bubble: HTMLElement): void {
   const cs = getComputedStyle(bubble);
   const edges = ["paddingLeft", "paddingRight", "borderLeftWidth", "borderRightWidth"] as const;
   bubble.style.width = `${Math.ceil(text + edges.reduce((sum, k) => sum + parseFloat(cs[k]), 0))}px`;
-}
-
-function describe(anchor: HTMLElement, on: boolean): void {
-  const ids = (anchor.getAttribute("aria-describedby") ?? "").split(/\s+/).filter((id) => id && id !== ID);
-  if (on) ids.push(ID);
-  if (ids.length) anchor.setAttribute("aria-describedby", ids.join(" "));
-  else anchor.removeAttribute("aria-describedby");
 }
 
 export function Tooltip() {
@@ -154,12 +148,8 @@ export function Tooltip() {
   useLayoutEffect(() => {
     if (!shown) return;
     if (bubble.current) { fit(bubble.current); place(bubble.current, shown.anchor); }
-    // The tip describes its anchor while it shows, unless it's just the anchor's name.
-    if (shown.text === shown.anchor.getAttribute("aria-label")) return;
-    describe(shown.anchor, true);
-    return () => describe(shown.anchor, false);
   }, [shown]);
 
   if (!shown) return null;
-  return <div ref={bubble} id={ID} role="tooltip" className="tooltip">{shown.text}</div>;
+  return <div ref={bubble} className="tooltip" aria-hidden="true">{shown.text}</div>;
 }

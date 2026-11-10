@@ -5,6 +5,7 @@ import { newDrawing, openDrawing, saveDrawing, saveDrawingAs, useDirty, useFileN
 import { tell } from "../app/ask";
 import { DEFAULT_VIEW } from "../view/viewport";
 import { HistoryIcon, IconButton, NewIcon, OpenIcon, PrintIcon, PropertiesIcon, SaveAsIcon, SaveIcon } from "./icons";
+import { tip } from "./tip";
 
 /**
  * File commands that also reset editor state when a drawing is replaced:
@@ -40,7 +41,7 @@ export function Toolbar() {
   return (
     <header className="toolbar">
       <span className="brand">Delinya</span>
-      <span className="filename" data-tip={dirty ? "Unsaved changes" : "Saved"}>
+      <span className="filename" {...tip(dirty ? "Unsaved changes" : "Saved")}>
         {name}{dirty && <span className="dirty"> •</span>}
       </span>
       <div className="group">

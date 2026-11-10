@@ -104,9 +104,10 @@ through `useSyncExternalStore`.
   (below by default; right in the palettes, above for Reset view);
   `placeTip` flips it and keeps it in the window. A click, key, wheel or
   window blur hides it; nothing shows while a pointer button is held, so
-  drags don't pop tips. Disabled buttons still show theirs. While shown
-  it is the anchor's `aria-describedby`, unless it equals the
-  `aria-label`.
+  drags don't pop tips. Disabled buttons still show theirs. The bubble
+  is aria-hidden: `tip()` (`panels/tip.ts`) sets the same text as the
+  element's `aria-description` all the time, unless it is just its name,
+  so screen readers get it on focus without waiting.
 - **Tools**: select (V), line (L), rect (R), circle (C). Drawing a shape
   also adds its dimensions (rect: width and height; circle: diameter;
   line: length) and returns to select unless Shift is held. Shift

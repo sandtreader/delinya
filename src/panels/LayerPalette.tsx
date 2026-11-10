@@ -15,6 +15,7 @@ import { dropIndex } from "../view/reorder";
 import { Grip, useFloating } from "./floating";
 import { Text } from "./fields";
 import { Icon } from "./icons";
+import { tip } from "./tip";
 
 const STORAGE_KEY = "delinya.layerPalette";
 // Just below the tool palette at its home (10, 10), which is 157 px tall.
@@ -174,7 +175,7 @@ export function LayerPalette() {
           </div>
         );
       })}
-      <button className="layer-add" data-tip="Add a layer in front" data-tip-side="right" aria-label="Add a layer" onClick={add}>
+      <button className="layer-add" {...tip("Add a layer in front", "Add a layer")} data-tip-side="right" aria-label="Add a layer" onClick={add}>
         <Icon size={18}><path d="M9 4v10M4 9h10" /></Icon>
       </button>
     </div>

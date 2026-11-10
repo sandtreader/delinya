@@ -7,6 +7,7 @@ import { store, useDocument } from "../app/store";
 import { useEditor } from "../app/editor";
 import { useFileName } from "../app/file";
 import { Num, Row, Text } from "./fields";
+import { tip } from "./tip";
 
 export function PropertiesDialog() {
   const { dispatch } = useEditor();
@@ -27,7 +28,7 @@ export function PropertiesDialog() {
       <div className="modal properties-dialog" role="dialog" aria-modal="true" aria-labelledby="properties-title">
         <header>
           <h2 id="properties-title">Properties</h2>
-          <button className="close" onClick={close} data-tip="Close (Esc)" aria-label="Close">×</button>
+          <button className="close" onClick={close} {...tip("Close (Esc)", "Close")} aria-label="Close">×</button>
         </header>
         <div className="properties-body">
           <Properties />
