@@ -6,7 +6,7 @@
 // footer band, a small "Delinya" under the block, and dashed guides where
 // it overlaps its neighbours.
 
-import { type Bounds, type EntityId, type Path, type Point, type Resolved, arc, isVisible, segment } from "../model";
+import { type Bounds, type EntityId, type Path, type PathElement, type Point, type Resolved, arc, cubic, isVisible, segment } from "../model";
 import { planPages } from "./layout";
 import { formatScale } from "./paper";
 import { drawingPrimitives, primitivesBounds } from "./primitives";
@@ -48,10 +48,14 @@ const pad = (b: Bounds, d: number): Bounds => ({ minX: b.minX - d, minY: b.minY 
 function toPaper(p: Primitive, window: Bounds, area: Rect, scale: number): Primitive {
   const pt = ([x, y]: Point): Point => [area.x + (x - window.minX) * scale, area.y + (y - window.minY) * scale];
   if (p.kind === "text") return { ...p, at: pt(p.at), size: p.size * scale };
-  return {
-    ...p,
-    path: p.path.map((e) => (e.kind === "segment" ? segment(pt(e.from), pt(e.to)) : arc(pt(e.centre), e.radius * scale, e.start, e.end))),
+  const map = (e: PathElement): PathElement => {
+    switch (e.kind) {
+      case "segment": return segment(pt(e.from), pt(e.to));
+      case "arc": return arc(pt(e.centre), e.radius * scale, e.start, e.end);
+      case "cubic": return cubic(pt(e.from), pt(e.c1), pt(e.c2), pt(e.to));
+    }
   };
+  return { ...p, path: p.path.map(map) };
 }
 
 const furniturePath = (path: Path): PathPrim => ({ kind: "path", role: "furniture", path });

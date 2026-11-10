@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { addCircle, addDimension, addLine, addRect, arcEnd, arcStart, resolve } from "../../src/model";
+import { addCircle, addDimension, addLine, addRect, arcEnd, elementStart, resolve } from "../../src/model";
 import { exportDxf } from "../../src/output/dxf";
 import { doc } from "../helpers";
 
@@ -72,7 +72,7 @@ describe("exportDxf", () => {
     expect((num(ents[0]!, 70)! & 1)).toBe(1);
     expect(num(ents[0]!, 66)).toBe(1);
     const verts = ents.filter((e) => e.type === "VERTEX").map((v) => [num(v, 10), num(v, 20)]);
-    const expected = r.shapes.a!.path.map((e) => (e.kind === "segment" ? e.from : arcStart(e))).map(([x, y]) => [x, -y + 0]);
+    const expected = r.shapes.a!.path.map(elementStart).map(([x, y]) => [x, -y + 0]);
     expect(verts).toEqual(expected);
     for (const v of ents.filter((e) => e.type === "VERTEX")) expect(num(v, 42) ?? 0).toBe(0);
   });
@@ -84,7 +84,7 @@ describe("exportDxf", () => {
     expect(ents.length).toBe(path.length);
     path.forEach((e, i) => {
       const v = ents[i]!;
-      const start = e.kind === "segment" ? e.from : arcStart(e);
+      const start = elementStart(e);
       expect(num(v, 10)).toBeCloseTo(start[0]);
       expect(num(v, 20)).toBeCloseTo(-start[1]);
       if (e.kind === "arc") {

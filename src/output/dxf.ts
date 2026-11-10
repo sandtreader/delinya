@@ -10,7 +10,9 @@
 //
 // Each shape's path becomes CIRCLE, LINE or ARC when it is one element, or a
 // POLYLINE with bulges for a connected run of several. Disconnected runs
-// become separate entities.
+// become separate entities. R12 has no splines CAM tools all read, so a
+// cubic Bézier becomes polyline vertices along it, within FLATTEN of the
+// curve, joined into its run (closed when the run closes).
 //
 // Each visible drawing layer becomes a DXF layer, in layer order, and each
 // entity goes on its shape's layer (colour BYLAYER). Layers the viewer has
@@ -20,12 +22,15 @@
 
 import {
   type Arc, type Path, type PathElement, type Point, type ResolvedLayer,
-  arcEnd, arcStart, elementLength, isVisible, layerColourEntry, pointsNear, unionBounds,
+  elementEnd, elementLength, elementStart, flattenCubic, isVisible, layerColourEntry, pointsNear, unionBounds,
 } from "../model";
 import type { EntityId, Resolved } from "../model";
 
 /** Endpoints closer than this (mm) count as joined. */
 const JOIN = 1e-6;
+
+/** Furthest (mm) a flattened curve's chords stray from it. */
+const FLATTEN = 0.01;
 
 /** Longest layer name R12 allows. */
 const MAX_NAME = 31;
@@ -93,7 +98,7 @@ function dxfLayerNames(layers: ResolvedLayer[]): Map<EntityId, string> {
 function writePath(out: Writer, path: Path, layer: string): void {
   for (const run of runs(path)) {
     const e = run[0]!;
-    if (run.length > 1) writePolyline(out, run, layer);
+    if (run.length > 1 || e.kind === "cubic") writePolyline(out, run, layer);
     else if (e.kind === "segment") writeLine(out, e.from, e.to, layer);
     else if (isFullCircle(e)) writeCircle(out, e, layer);
     else writeArc(out, e, layer);
@@ -138,6 +143,12 @@ function writePolyline(out: Writer, run: PathElement[], layer: string): void {
   const closed = pointsNear(endOf(run[run.length - 1]!), startOf(run[0]!), JOIN);
   out.entity("POLYLINE", layer).pair(66, 1).point([0, 0]).pair(70, closed ? 1 : 0);
   for (const e of run) {
+    if (e.kind === "cubic") {
+      // Every point but the last, which starts the next element (or ends the run).
+      const pts = flattenCubic(e, FLATTEN);
+      for (let i = 0; i < pts.length - 1; i++) out.entity("VERTEX", layer).point(pts[i]!);
+      continue;
+    }
     out.entity("VERTEX", layer).point(startOf(e));
     // Bulge is tan(sweep/4), positive counter-clockwise in DXF's frame;
     // our arcs are clockwise as drawn, hence the minus. It is small for
@@ -152,13 +163,8 @@ function isFullCircle(e: PathElement): e is Arc {
   return e.kind === "arc" && Math.abs(e.end - e.start) >= 360 - 1e-9;
 }
 
-function startOf(e: PathElement): Point {
-  return e.kind === "segment" ? e.from : arcStart(e);
-}
-
-function endOf(e: PathElement): Point {
-  return e.kind === "segment" ? e.to : arcEnd(e);
-}
+const startOf = elementStart;
+const endOf = elementEnd;
 
 /** Degrees in [0, 360). */
 function angle(deg: number): string {

@@ -29,6 +29,7 @@ export const KINDS = {
   line: "line",
   rect: "rect",
   circle: "circle",
+  polyline: "polyline",
   variable: "variable",
   spacing: "link.spacing",
   align: "link.align",
@@ -39,8 +40,8 @@ export const KINDS = {
 } as const;
 
 export type Kind = (typeof KINDS)[keyof typeof KINDS];
-export type ShapeKind = "line" | "rect" | "circle";
-export const SHAPE_KINDS: ReadonlySet<string> = new Set<ShapeKind>(["line", "rect", "circle"]);
+export type ShapeKind = "line" | "rect" | "circle" | "polyline";
+export const SHAPE_KINDS: ReadonlySet<string> = new Set<ShapeKind>(["line", "rect", "circle", "polyline"]);
 
 // ---- Shapes ----
 
@@ -67,6 +68,35 @@ export interface CircleProps {
   cx: number;
   cy: number;
   diameter: Length;
+  layer?: EntityId;
+}
+
+export type PolyNodeType = "cusp" | "curve";
+
+/**
+ * A node of a path, at (x, y). A cusp is a sharp corner and has no handles.
+ * A curve node is smooth: `in` and `out` are its handles, offsets from the
+ * node, opposite each other. A curve node with neither is "auto": resolve
+ * smooths it from its neighbours (see resolve.ts), so it follows them.
+ */
+// A type, not an interface, so it reads as a wire value (PropValue) and
+// stored nodes cast to it cleanly.
+export type PolyNode = {
+  x: number;
+  y: number;
+  type: PolyNodeType;
+  in?: [number, number];
+  out?: [number, number];
+};
+
+/**
+ * A free path ("Path" in the UI) through `nodes`: segment i runs node i to
+ * i + 1, and last to first when `closed`. A segment is a cubic Bézier when
+ * either end is a curve node, else straight. At least 2 nodes; closed needs 3.
+ */
+export interface PolyProps {
+  nodes: PolyNode[];
+  closed?: boolean;
   layer?: EntityId;
 }
 
@@ -168,6 +198,7 @@ export interface PropsByKind {
   line: LineProps;
   rect: RectProps;
   circle: CircleProps;
+  polyline: PolyProps;
   variable: VariableProps;
   "link.spacing": SpacingProps;
   "link.align": AlignProps;

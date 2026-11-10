@@ -1,5 +1,5 @@
 import { useEffect, useReducer, type CSSProperties } from "react";
-import { EditorContext, editorReducer, initialEditor, selectableOnly, useEditor, type Tool } from "./app/editor";
+import { EditorContext, editorReducer, initialEditor, selectableOnly, selectedPathNode, useEditor, type Tool } from "./app/editor";
 import { store, useDocument } from "./app/store";
 import { Canvas } from "./canvas/Canvas";
 import { Rulers } from "./canvas/Rulers";
@@ -11,6 +11,7 @@ import { AskDialog } from "./panels/AskDialog";
 import { Tooltip } from "./panels/Tooltip";
 import { SelectionPanel, deleteSelection, duplicateSelection } from "./panels/SelectionPanel";
 import { LinkButtons } from "./panels/LinkButtons";
+import { NodeCard, deleteNode } from "./panels/NodeCard";
 import { ToolPalette } from "./panels/ToolPalette";
 import { LayerPalette } from "./panels/LayerPalette";
 import { Toolbar, useFileCommands } from "./panels/Toolbar";
@@ -25,7 +26,7 @@ import "./styles.css";
 const APP_COLOURS = { "--dimension": STYLE.colour.dimension } as CSSProperties;
 const RULER_SIZE = { "--ruler": `${RULER_PX}px` } as CSSProperties;
 
-const TOOL_KEYS: Record<string, Tool> = { v: "select", l: "line", r: "rect", c: "circle" };
+const TOOL_KEYS: Record<string, Tool> = { v: "select", l: "line", r: "rect", c: "circle", p: "polyline" };
 
 export function App() {
   // Showing and snapping to the grid are this browser's choice, kept between visits.
@@ -102,18 +103,27 @@ function Shell() {
       }
       if (mod && e.key.toLowerCase() === "y") { e.preventDefault(); store.redo(); return; }
       if (mod) return;
+      // A path's selected node comes first: Delete takes it, not the path, and Escape lets go of it.
+      // (While a path is being drawn, the canvas has these keys.)
+      const node = selectedPathNode(store.resolved, { tool: editor.tool, selection: editor.selection, node: editor.node });
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        if (editor.selection.length) { deleteSelection(editor.selection); dispatch({ type: "select", ids: [] }); }
+        if (node) deleteNode(node.shape.id, node.node.index, dispatch);
+        else if (editor.selection.length) { deleteSelection(editor.selection); dispatch({ type: "select", ids: [] }); }
         return;
       }
-      if (e.key === "Escape") { dispatch({ type: "tool", tool: "select" }); dispatch({ type: "select", ids: [] }); return; }
+      if (e.key === "Escape") {
+        if (node) { dispatch({ type: "node", node: null }); return; }
+        dispatch({ type: "tool", tool: "select" });
+        dispatch({ type: "select", ids: [] });
+        return;
+      }
       const tool = TOOL_KEYS[e.key.toLowerCase()];
       if (tool) dispatch({ type: "tool", tool });
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editor.selection, editor.dialog, editor.duplicate, dispatch, file]);
+  }, [editor.selection, editor.dialog, editor.duplicate, editor.tool, editor.node, dispatch, file]);
 
   return (
     <div className="app" style={APP_COLOURS}>
@@ -126,6 +136,7 @@ function Shell() {
           <Canvas />
           <SelectionPanel />
           <LinkButtons />
+          <NodeCard />
           <ToolPalette />
           <LayerPalette />
         </div>

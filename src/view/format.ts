@@ -8,12 +8,13 @@ export function formatMm(v: number): string {
   return (Math.round(v * 100) / 100).toString();
 }
 
-export type DrawTool = "line" | "rect" | "circle";
+export type DrawTool = "line" | "rect" | "circle" | "polyline";
 
 /**
  * The status bar while a new shape is dragged out from `start` to
  * `current`: where it started and how big it is. Angles as the shape
- * panel shows them, degrees from +x towards +y.
+ * panel shows them, degrees from +x towards +y. A path being drawn reads
+ * as a line: its segment from the last node to the pointer.
  */
 export function drawStatus(tool: DrawTool, start: readonly [number, number], current: readonly [number, number]): string {
   const [x0, y0] = start, dx = current[0] - x0, dy = current[1] - y0;
@@ -21,7 +22,8 @@ export function drawStatus(tool: DrawTool, start: readonly [number, number], cur
   switch (tool) {
     case "rect": return `from ${at} · ${formatMm(Math.abs(dx))} × ${formatMm(Math.abs(dy))} mm`;
     case "circle": return `centre ${at} · ⌀ ${formatMm(2 * Math.hypot(dx, dy))} mm`;
-    case "line": return `from ${at} · ${formatMm(Math.hypot(dx, dy))} mm at ${formatMm((Math.atan2(dy, dx) * 180) / Math.PI)}°`;
+    case "line":
+    case "polyline": return `from ${at} · ${formatMm(Math.hypot(dx, dy))} mm at ${formatMm((Math.atan2(dy, dx) * 180) / Math.PI)}°`;
   }
 }
 
@@ -44,6 +46,10 @@ export function shapeStatus(s: ResolvedShape): string {
     case "rect": return `from ${at([s.x, s.y])} · ${formatMm(s.width)} × ${formatMm(s.height)} mm`;
     case "circle": return `centre ${at(s.centre)} · ⌀ ${formatMm(s.diameter)} mm`;
     case "line": return `from ${at(s.from)} · ${formatMm(s.length)} mm at ${formatMm(s.angle)}°`;
+    case "polyline": {
+      const b = s.bounds;
+      return `path · ${s.nodes.length} nodes · from ${at([b.minX, b.minY])} · ${formatMm(b.maxX - b.minX)} × ${formatMm(b.maxY - b.minY)} mm`;
+    }
   }
 }
 
@@ -54,18 +60,28 @@ export interface PositionState {
   cursor: readonly [number, number] | null;
   draw: { tool: DrawTool; start: readonly [number, number] } | null;
   measure: EntityId | null;
+  /** The selected node of a path: its stored index. */
+  node?: { shape: EntityId; index: number } | null;
 }
 
 /**
  * The status bar's position readout, first that applies: the shape being
- * drawn; the shape being dragged; with the select tool, the selection (one
- * shape's position and size, or the bounds of several); the pointer.
+ * drawn (a path: its segment to the pointer); the shape being
+ * dragged; with the select tool, a path's selected node (its number and
+ * drawn position), then the selection (one shape's position and size, or
+ * the bounds of several); the pointer.
  */
 export function positionStatus(e: PositionState, r: Resolved): string {
   if (e.draw && e.cursor) return drawStatus(e.draw.tool, e.draw.start, e.cursor);
   const dragged = e.measure ? r.shapes[e.measure] : undefined;
   if (dragged) return shapeStatus(dragged);
   if (e.tool === "select") {
+    const path = e.node ? r.shapes[e.node.shape] : undefined;
+    if (path?.kind === "polyline") {
+      const k = path.nodes.findIndex((n) => n.index === e.node!.index);
+      const n = path.nodes[k];
+      if (n) return `node ${k + 1} of ${path.nodes.length} · ${formatMm(n.point[0])}, ${formatMm(n.point[1])} mm`;
+    }
     const shapes = e.selection.flatMap((id) => (Object.hasOwn(r.shapes, id) ? [r.shapes[id]!] : []));
     if (shapes.length === 1) return shapeStatus(shapes[0]!);
     if (shapes.length > 1) {

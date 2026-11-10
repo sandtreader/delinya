@@ -7,6 +7,7 @@ import { DEFAULT_VIEW } from "../view/viewport";
 import { HistoryIcon, IconButton, NewIcon, OpenIcon, PrintIcon, PropertiesIcon, SaveAsIcon, SaveIcon } from "./icons";
 import { tip } from "./tip";
 import { quotedTitle } from "../view/format";
+import { discardPathDraft } from "../canvas/Canvas";
 
 /**
  * File commands that also reset editor state when a drawing is replaced:
@@ -17,6 +18,8 @@ export function useFileCommands() {
   return useMemo(() => {
     const reset = (replaced: boolean) => {
       if (!replaced) return;
+      // A path half drawn on the old drawing goes with it, rather than being finished onto the new one.
+      discardPathDraft();
       dispatch({ type: "select", ids: [] });
       dispatch({ type: "tool", tool: "select" });
       dispatch({ type: "view", view: DEFAULT_VIEW });

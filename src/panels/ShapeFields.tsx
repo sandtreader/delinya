@@ -4,10 +4,11 @@
 
 import {
   KINDS, derivedAxes, entitiesOfKind, entityAs, isRef, lengthValue, propsChanged,
-  setCornerRadius, setLength, unlinkAlign, unlinkLength, unlinkSpacing,
+  setCornerRadius, setLength, setPolyClosed, unlinkAlign, unlinkLength, unlinkSpacing,
   type EntityId, type Length, type ResolvedRect,
 } from "../model";
 import { store, useDocument } from "../app/store";
+import { useEditor } from "../app/editor";
 import { ALIGN_LABELS } from "../view/linkButtons";
 import { formatMm } from "../view/format";
 import { Num, Row } from "./fields";
@@ -28,7 +29,8 @@ export function ShapeFields({ id }: { id: EntityId }) {
     if (!s || !derived.has(i === 0 ? "x" : "y")) return num(k);
     if (s.kind === "rect") return i === 0 ? s.x : s.y;
     if (s.kind === "circle") return s.centre[i];
-    return s.from[i];
+    if (s.kind === "line") return s.from[i];
+    return num(k);
   };
 
   return (
@@ -59,10 +61,33 @@ export function ShapeFields({ id }: { id: EntityId }) {
           <Row label="angle"><Num value={num("angle")} onCommit={(v) => commit({ angle: v })} unit="°" /></Row>
         </>
       )}
+      {e.kind === KINDS.polyline && <PathFields id={id} />}
       {derived.size > 0 && <p className="hint">Position along {[...derived].sort().join(" and ")} is set by a link.</p>}
       <SpacingMembership id={id} />
       <AlignMembership id={id} />
     </section>
+  );
+}
+
+/** A path: how many nodes, open or closed. Its shape is edited on the canvas, node by node. */
+function PathFields({ id }: { id: EntityId }) {
+  useDocument();
+  const { editor } = useEditor();
+  const s = store.resolved.shapes[id];
+  if (s?.kind !== "polyline") return null;
+  const n = s.nodes.length;
+  return (
+    <>
+      <Row label="nodes"><span>{n}</span></Row>
+      <label className="row check" {...tip(n < 3 ? "A closed path needs at least 3 nodes" : "Join the last node back to the first")}>
+        <span className="label">closed</span>
+        <input
+          type="checkbox" checked={s.closed} disabled={n < 3}
+          onChange={(ev) => { const c = setPolyClosed(store.state, id, ev.target.checked); if (c) store.commit(c); }}
+        />
+      </label>
+      {editor.tool === "select" && <p className="hint">Drag a node to move it, click one to edit it; double-click the path to add one.</p>}
+    </>
   );
 }
 
@@ -145,5 +170,5 @@ function AlignMembership({ id }: { id: EntityId }) {
 }
 
 export function kindLabel(kind: string): string {
-  return { rect: "Rectangle", circle: "Circle", line: "Line" }[kind] ?? kind;
+  return { rect: "Rectangle", circle: "Circle", line: "Line", polyline: "Path" }[kind] ?? kind;
 }

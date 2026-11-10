@@ -3,12 +3,15 @@
 // Never synced, saved or undoable.
 
 import { createContext, useContext, type Dispatch } from "react";
-import { isSelectable, type DuplicateDirection, type EntityId, type LayerView, type LinkTarget, type Resolved, type SnapPoint } from "../model";
+import {
+  isSelectable, type DuplicateDirection, type EntityId, type LayerView, type LinkTarget, type Resolved, type ResolvedPolyNode,
+  type ResolvedPolyline, type SnapPoint,
+} from "../model";
 import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
 import type { DrawTool } from "../view/format";
 import { DEFAULT_GRID_VIEW, type GridView } from "./gridView";
 
-export type Tool = "select" | "line" | "rect" | "circle";
+export type Tool = "select" | "line" | "rect" | "circle" | "polyline";
 export type Dialog = "output" | "properties" | "about";
 
 /** The selection panel's Duplicate: which way the copy goes and how far clear of the original, mm. */
@@ -17,9 +20,20 @@ export interface DuplicateSettings {
   spacing: number;
 }
 
+/** One node of a path: the path and the node's stored index (what the node actions take). */
+export interface NodeRef {
+  shape: EntityId;
+  index: number;
+}
+
 export interface EditorState {
   tool: Tool;
   selection: EntityId[];
+  /**
+   * The selected node of the one selected path, edited with the select
+   * tool. Cleared whenever the selection changes or the tool leaves select.
+   */
+  node: NodeRef | null;
   /** The layer new shapes go on; null or gone means the first (see currentLayer). */
   layer: EntityId | null;
   /**
@@ -53,6 +67,7 @@ export interface EditorState {
 export const initialEditor: EditorState = {
   tool: "select",
   selection: [],
+  node: null,
   layer: null,
   layerView: { hidden: new Set(), locked: new Set() },
   grid: DEFAULT_GRID_VIEW,
@@ -71,6 +86,7 @@ export type EditorAction =
   | { type: "tool"; tool: Tool }
   | { type: "select"; ids: EntityId[] }
   | { type: "toggleSelect"; id: EntityId }
+  | { type: "node"; node: NodeRef | null }
   | { type: "layer"; id: EntityId }
   | { type: "toggleLayer"; id: EntityId; flag: "hidden" | "locked" }
   | { type: "resetLayers" }
@@ -88,10 +104,16 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
   switch (a.type) {
     // A link popup belongs to the moment it was opened: any other choice closes it.
     // Hovering with select shows no position, so arriving at it clears the readout.
-    case "tool": return { ...s, tool: a.tool, linkPopup: null, ...(hoverShowsPosition(a.tool) ? {} : { cursor: null, snap: null, draw: null, measure: null }) };
-    case "select": return { ...s, selection: a.ids, linkPopup: null };
+    // Nodes are edited with select only.
+    case "tool": return {
+      ...s, tool: a.tool, linkPopup: null, node: a.tool === "select" ? s.node : null,
+      ...(hoverShowsPosition(a.tool) ? {} : { cursor: null, snap: null, draw: null, measure: null }),
+    };
+    // A selected node belongs to its path being the whole selection.
+    case "select": return { ...s, selection: a.ids, linkPopup: null, node: a.ids.length === 1 && a.ids[0] === s.node?.shape ? s.node : null };
     case "toggleSelect":
-      return { ...s, linkPopup: null, selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id] };
+      return { ...s, linkPopup: null, node: null, selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id] };
+    case "node": return { ...s, node: a.node };
     case "layer": return { ...s, layer: a.id };
     case "toggleLayer": {
       const set = new Set(s.layerView[a.flag]);
@@ -139,6 +161,20 @@ export function panelFor(tool: Tool, selection: EntityId[], shapes: Record<strin
 /** The layer new shapes go on: the chosen one while it exists, else the first (back) layer. */
 export function currentLayer(r: Resolved, wanted: EntityId | null): EntityId {
   return wanted !== null && r.layers.some((l) => l.id === wanted) ? wanted : r.layers[0]!.id;
+}
+
+/**
+ * The selected path node, while it can be edited: the select tool, its path
+ * the whole selection, and the node still there (undo or a peer may have
+ * taken it). `position` is its place among the drawn nodes, from 0.
+ */
+export function selectedPathNode(r: Resolved, e: Pick<EditorState, "tool" | "selection" | "node">): { shape: ResolvedPolyline; node: ResolvedPolyNode; position: number } | null {
+  const ref = e.node;
+  if (!ref || e.tool !== "select" || e.selection.length !== 1 || e.selection[0] !== ref.shape) return null;
+  const shape = r.shapes[ref.shape];
+  if (shape?.kind !== "polyline") return null;
+  const position = shape.nodes.findIndex((n) => n.index === ref.index);
+  return position < 0 ? null : { shape, node: shape.nodes[position]!, position };
 }
 
 /** The ids a selection may keep: shapes that exist on a layer this viewer has neither hidden nor locked. */

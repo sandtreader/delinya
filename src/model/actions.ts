@@ -4,15 +4,15 @@
 // the other clients see are one object. See "What each local action sends"
 // in plans/collab.md.
 
-import type { Change, DocState, Props } from "@sandtreader/collab/protocol";
-import { EPS, boundsMin } from "./geometry";
+import type { Change, DocState, Props, PropValue } from "@sandtreader/collab/protocol";
+import { EPS, boundsMin, snapNumber } from "./geometry";
 import {
   type Resolved, type ResolvedShape,
   alignedPosition, derivedAxes, isGridSpacing, lengthValue, placeAlong, resolve, spacedPositions,
 } from "./resolve";
 import {
   type AlignMode, type AlignProps, type Axis, type CircleProps, type DimensionProp, type DocumentField,
-  type EntityId, type Length, type LineProps, type RectProps, type SpacingMode, type SpacingProps,
+  type EntityId, type Length, type LineProps, type PolyProps, type RectProps, type SpacingMode, type SpacingProps,
   DEFAULT_GRID_SPACING, DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, entityAs, isRef, kindOf, toProps,
 } from "./types";
 
@@ -33,6 +33,10 @@ export function addRect(id: EntityId, props: RectProps): Change {
 
 export function addCircle(id: EntityId, props: CircleProps): Change {
   return { type: "entity_added", id, kind: KINDS.circle, props: toProps(props) };
+}
+
+export function addPolyline(id: EntityId, props: PolyProps): Change {
+  return { type: "entity_added", id, kind: KINDS.polyline, props: toProps(props) };
 }
 
 export function addDimension(id: EntityId, target: EntityId, prop: DimensionProp, offset = 10): Change {
@@ -78,18 +82,52 @@ export function moveBy(state: DocState, id: EntityId, dx: number, dy: number, ge
     case KINDS.circle:
       props = { cx: (p.cx as number) + dx, cy: (p.cy as number) + dy };
       break;
+    case KINDS.polyline:
+      if (!Array.isArray(p.nodes)) return undefined;
+      props = { nodes: shiftNodes(p.nodes, dx, dy) };
+      break;
     default:
       return undefined;
   }
   return propsChanged(id, props, gesture);
 }
 
-/** Set a shape's position outright (x,y for lines and rects, centre for circles). */
+/**
+ * Set a shape's position outright: x,y for lines and rects, centre for
+ * circles, the first node for paths (the rest move with it).
+ */
 export function moveTo(state: DocState, id: EntityId, x: number, y: number, gesture: Gesture = {}): Change | undefined {
   const kind = kindOf(state, id);
   if (kind === KINDS.circle) return propsChanged(id, { cx: x, cy: y }, gesture);
   if (kind === KINDS.line || kind === KINDS.rect) return propsChanged(id, { x, y }, gesture);
+  if (kind === KINDS.polyline) {
+    const nodes = state.entities[id]!.props.nodes;
+    const first = Array.isArray(nodes) ? nodes.find(hasPosition) : undefined;
+    if (!first) return undefined;
+    return propsChanged(id, { nodes: shiftNodes(nodes as PropValue[], x - first.x, y - first.y) }, gesture);
+  }
   return undefined;
+}
+
+/** A stored path node with a usable position (other props unchecked). */
+function hasPosition(n: unknown): n is { x: number; y: number } {
+  if (n === null || typeof n !== "object" || Array.isArray(n)) return false;
+  const { x, y } = n as Record<string, unknown>;
+  return typeof x === "number" && Number.isFinite(x) && typeof y === "number" && Number.isFinite(y);
+}
+
+/**
+ * Stored path nodes moved by (dx, dy), carrying their handles (offsets).
+ * Nodes without a usable position are kept as they are. New objects
+ * throughout, so the original state is never shared or touched.
+ */
+export function shiftNodes(nodes: readonly unknown[], dx: number, dy: number, round = false): PropValue[] {
+  const at = (v: number, d: number) => (round ? snapNumber(v + d) : v + d);
+  return nodes.map((n) => {
+    const copy = structuredClone(n) as PropValue;
+    if (!hasPosition(n)) return copy;
+    return { ...(copy as Record<string, PropValue>), x: at(n.x, dx), y: at(n.y, dy) };
+  });
 }
 
 // ---- Lengths and equal-value links ----
@@ -167,7 +205,7 @@ export function linkSpacing(id: EntityId, anchorA: EntityId, anchorB: EntityId, 
 export function unlinkSpacing(state: DocState, id: EntityId): Change | undefined {
   if (!entityAs(state, id, KINDS.spacing)) return undefined;
   const r = resolve(state);
-  return batch(writeBackAndRemove(id, r, r.spacings.find((l) => l.id === id)));
+  return batch(writeBackAndRemove(state, id, r, r.spacings.find((l) => l.id === id)));
 }
 
 /**
@@ -182,7 +220,7 @@ export function spaceOnce(state: DocState, ids: EntityId[], axis: Axis, mode: Sp
   const free = items.filter((i) => !derivedAxes(r, i).has(axis));
   if (free.length === 0) return undefined;
   const { positions } = spacedPositions(r.shapes[anchorA]!.bounds, r.shapes[anchorB]!.bounds, free.map((i) => r.shapes[i]!.bounds), axis, mode);
-  return placeOnce(r, axis, free.map((i, k) => [i, positions[k]!]));
+  return placeOnce(state, r, axis, free.map((i, k) => [i, positions[k]!]));
 }
 
 /**
@@ -208,7 +246,7 @@ export function linkAlign(id: EntityId, anchor: EntityId, items: EntityId[], axi
 export function unlinkAlign(state: DocState, id: EntityId): Change | undefined {
   if (!entityAs(state, id, KINDS.align)) return undefined;
   const r = resolve(state);
-  return batch(writeBackAndRemove(id, r, r.aligns.find((l) => l.id === id)));
+  return batch(writeBackAndRemove(state, id, r, r.aligns.find((l) => l.id === id)));
 }
 
 /** Align links on `axis` whose anchor and at least one item are in `ids`, in ID order. */
@@ -236,7 +274,7 @@ export function alignOnce(state: DocState, reference: EntityId, items: EntityId[
   const ref = r.shapes[reference];
   if (!ref) return undefined;
   const free = items.filter((i) => i !== reference && r.shapes[i] && !derivedAxes(r, i).has(axis));
-  return placeOnce(r, axis, free.map((i) => [i, alignedPosition(ref.bounds, r.shapes[i]!.bounds, axis, mode)]));
+  return placeOnce(state, r, axis, free.map((i) => [i, alignedPosition(ref.bounds, r.shapes[i]!.bounds, axis, mode)]));
 }
 
 /**
@@ -352,13 +390,13 @@ export function deleteEntity(state: DocState, id: EntityId): Change | undefined 
   }
   for (const [linkId, l] of entitiesOfKind(state, KINDS.spacing)) {
     const items = idList(l.items);
-    if (l.anchorA === id || l.anchorB === id) changes.push(...writeBackAndRemove(linkId, before(), before().spacings.find((s) => s.id === linkId)));
+    if (l.anchorA === id || l.anchorB === id) changes.push(...writeBackAndRemove(state, linkId, before(), before().spacings.find((s) => s.id === linkId)));
     else if (items.includes(id)) changes.push(propsChanged(linkId, { items: items.filter((i) => i !== id) }));
   }
   for (const [linkId, l] of entitiesOfKind(state, KINDS.align)) {
     const items = idList(l.items);
     const rest = items.filter((i) => i !== id);
-    if (l.anchor === id) changes.push(...writeBackAndRemove(linkId, before(), before().aligns.find((a) => a.id === linkId)));
+    if (l.anchor === id) changes.push(...writeBackAndRemove(state, linkId, before(), before().aligns.find((a) => a.id === linkId)));
     else if (rest.length === 0 && items.length > 0) changes.push({ type: "entity_removed", id: linkId });
     else if (rest.length < items.length) changes.push(propsChanged(linkId, { items: rest }));
   }
@@ -388,14 +426,33 @@ function idList(v: unknown): EntityId[] {
   return Array.isArray(v) ? v.filter((i): i is EntityId => typeof i === "string") : [];
 }
 
-/** The stored prop holding a shape's position on one axis, set to where it now resolves. */
-function storedAlong(s: ResolvedShape, axis: Axis): Props {
+/**
+ * The stored prop holding a shape's position on one axis, set to where it
+ * now resolves. A path's nodes hold both axes, so only this one moves.
+ */
+function storedAlong(state: DocState, s: ResolvedShape, axis: Axis): Props {
   const at = axis === "x" ? 0 : 1;
   switch (s.kind) {
     case "line": return { [axis]: s.from[at] };
     case "rect": return { [axis]: axis === "x" ? s.x : s.y };
     case "circle": return { [axis === "x" ? "cx" : "cy"]: s.centre[at] };
+    case "polyline": {
+      const [dx, dy] = drawnOffset(state, s);
+      return { nodes: shiftNodes(state.entities[s.id]!.props.nodes as PropValue[], axis === "x" ? dx : 0, axis === "y" ? dy : 0) };
+    }
   }
+}
+
+/**
+ * How far a resolved path is drawn from its stored nodes (links translate
+ * it whole). Zero if it can't tell.
+ */
+export function drawnOffset(state: DocState, s: { id: EntityId; nodes: ReadonlyArray<{ index: number; point: readonly [number, number] }> }): [number, number] {
+  const nodes = state.entities[s.id]?.props.nodes;
+  const first = s.nodes[0];
+  const stored = first && Array.isArray(nodes) ? nodes[first.index] : undefined;
+  if (!first || !hasPosition(stored)) return [0, 0];
+  return [first.point[0] - stored.x, first.point[1] - stored.y];
 }
 
 /**
@@ -403,11 +460,11 @@ function storedAlong(s: ResolvedShape, axis: Axis): Props {
  * moves. Only the link's own axis is written: the other may belong to
  * another link, and an inactive link derived nothing.
  */
-function writeBackAndRemove(id: EntityId, r: Resolved, link: { axis: Axis; positions: Record<EntityId, number> } | undefined): Change[] {
+function writeBackAndRemove(state: DocState, id: EntityId, r: Resolved, link: { axis: Axis; positions: Record<EntityId, number> } | undefined): Change[] {
   const changes: Change[] = [];
   if (link) for (const item of Object.keys(link.positions)) {
     const s = r.shapes[item];
-    if (s) changes.push(propsChanged(item, storedAlong(s, link.axis)));
+    if (s) changes.push(propsChanged(item, storedAlong(state, s, link.axis)));
   }
   changes.push({ type: "entity_removed", id });
   return changes;
@@ -418,12 +475,12 @@ function writeBackAndRemove(id: EntityId, r: Resolved, link: { axis: Axis; posit
  * so a one-off lands exactly where a live link puts it. Shapes already in
  * place are skipped; undefined if none move.
  */
-function placeOnce(r: Resolved, axis: Axis, targets: Array<[EntityId, number]>): Change | undefined {
+function placeOnce(state: DocState, r: Resolved, axis: Axis, targets: Array<[EntityId, number]>): Change | undefined {
   const changes: Change[] = [];
   for (const [id, at] of targets) {
     const s = r.shapes[id]!;
     if (Math.abs(at - boundsMin(s.bounds, axis)) < EPS) continue;
-    changes.push(propsChanged(id, storedAlong(placeAlong(s, axis, at), axis)));
+    changes.push(propsChanged(id, storedAlong(state, placeAlong(s, axis, at), axis)));
   }
   return single(changes);
 }
@@ -434,5 +491,6 @@ function sizeOf(s: ResolvedShape, prop: string): number | undefined {
     case "rect": return prop === "width" ? s.width : prop === "height" ? s.height : undefined;
     case "circle": return prop === "diameter" ? s.diameter : undefined;
     case "line": return prop === "length" ? s.length : undefined;
+    case "polyline": return undefined;
   }
 }

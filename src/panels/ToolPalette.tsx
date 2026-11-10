@@ -5,11 +5,13 @@ import { type ReactNode } from "react";
 import { useEditor, type Tool } from "../app/editor";
 import type { Point } from "../app/floatPosition";
 import { Grip, useFloating } from "./floating";
+import { tip } from "./tip";
 
 const STORAGE_KEY = "delinya.toolPalette";
 const HOME: Point = { x: 10, y: 10 };
 
-const TOOLS: Array<{ tool: Tool; label: string; key: string; icon: ReactNode }> = [
+/** `hint`: a longer tooltip, for a tool that needs telling how it works. */
+const TOOLS: Array<{ tool: Tool; label: string; key: string; hint?: string; icon: ReactNode }> = [
   { tool: "select", label: "Select", key: "V", icon: <path d="M4.5 2.5v12l3-3 2.2 4.6 2-.9-2.2-4.5h4.2z" fill="currentColor" strokeLinejoin="round" /> },
   {
     tool: "line", label: "Line", key: "L",
@@ -17,6 +19,18 @@ const TOOLS: Array<{ tool: Tool; label: string; key: string; icon: ReactNode }> 
   },
   { tool: "rect", label: "Rectangle", key: "R", icon: <rect x="3.5" y="3.5" width="11" height="11" /> },
   { tool: "circle", label: "Circle", key: "C", icon: <circle cx="9" cy="9" r="6" /> },
+  {
+    tool: "polyline", label: "Path", key: "P",
+    hint: "Path (P): click for straight, Shift-click for curves; click the start to close; Enter or Esc to finish",
+    icon: (
+      <>
+        <path d="M3.5 14.5C4 8.5 7 6.5 9 9s5 .5 5.5-5.5" />
+        <rect x="2" y="13" width="3" height="3" fill="currentColor" stroke="none" />
+        <circle cx="9" cy="9" r="1.6" fill="currentColor" stroke="none" />
+        <rect x="13" y="2" width="3" height="3" fill="currentColor" stroke="none" />
+      </>
+    ),
+  },
 ];
 
 export function ToolPalette() {
@@ -42,7 +56,7 @@ export function ToolPalette() {
             key={t.tool}
             className={editor.tool === t.tool ? "active" : ""}
             onClick={() => dispatch({ type: "tool", tool: t.tool })}
-            data-tip={name}
+            {...tip(t.hint ?? name, name)}
             data-tip-side="right"
             aria-label={name}
             aria-pressed={editor.tool === t.tool}

@@ -146,6 +146,11 @@ function pathDrawOps(path: Path): string[] {
       moveTo(e.from);
       ops.push(`${pt(e.to)} l`);
       cursor = e.to;
+    } else if (e.kind === "cubic") {
+      if (!finite(...e.from, ...e.c1, ...e.c2, ...e.to)) { cursor = null; continue; }
+      moveTo(e.from);
+      ops.push(`${pt(e.c1)} ${pt(e.c2)} ${pt(e.to)} c`);
+      cursor = e.to;
     } else {
       const span = arcSpan(e);
       if (!finite(...e.centre, e.radius, e.start, span) || span === 0) { cursor = null; continue; }

@@ -7,7 +7,7 @@
 import type { Change, DocState, Entity, Props } from "@sandtreader/collab/protocol";
 import { type Bounds, boundsSize, snapNumber, unionBounds } from "./geometry";
 import { type ResolvedShape, resolve } from "./resolve";
-import { batch } from "./actions";
+import { batch, drawnOffset, shiftNodes } from "./actions";
 import { type EntityId, KINDS, SHAPE_KINDS } from "./types";
 
 export type DuplicateDirection = "right" | "down" | "left" | "up";
@@ -41,7 +41,7 @@ export function duplicateShapes(
     if (!e || !s || !SHAPE_KINDS.has(e.kind)) continue;
     const copy = makeId(e.kind);
     copies.push(copy);
-    changes.push({ type: "entity_added", id: copy, kind: e.kind, props: { ...structuredClone(e.props), ...movedPosition(s, delta) } });
+    changes.push({ type: "entity_added", id: copy, kind: e.kind, props: { ...structuredClone(e.props), ...movedPosition(state, s, delta) } });
     for (const label of labels.get(id) ?? []) {
       changes.push({ type: "entity_added", id: makeId(ATTACHED[label.kind]!), kind: label.kind, props: { ...structuredClone(label.props), target: copy } });
     }
@@ -50,12 +50,16 @@ export function duplicateShapes(
 }
 
 /** The stored position props that put a shape where it is drawn now, moved by `delta`. */
-function movedPosition(s: ResolvedShape, [dx, dy]: readonly [number, number]): Props {
+function movedPosition(state: DocState, s: ResolvedShape, [dx, dy]: readonly [number, number]): Props {
   const at = (v: number, d: number) => snapNumber(v + d);
   switch (s.kind) {
     case "rect": return { x: at(s.x, dx), y: at(s.y, dy) };
     case "circle": return { cx: at(s.centre[0], dx), cy: at(s.centre[1], dy) };
     case "line": return { x: at(s.from[0], dx), y: at(s.from[1], dy) };
+    case "polyline": {
+      const [ox, oy] = drawnOffset(state, s);
+      return { nodes: shiftNodes(state.entities[s.id]!.props.nodes as unknown[], ox + dx, oy + dy, true) };
+    }
   }
 }
 

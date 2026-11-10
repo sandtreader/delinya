@@ -1,6 +1,6 @@
 // Geometry path -> SVG `d` attribute.
 
-import { type Path, type Point, arcEnd, arcStart, pointsNear } from "../model";
+import { type Path, type Point, arcEnd, elementStart, pointsNear } from "../model";
 
 const f = (n: number) => (Math.round(n * 1000) / 1000).toString();
 
@@ -8,10 +8,13 @@ export function pathToSvg(path: Path): string {
   let d = "";
   let cursor: Point | null = null;
   for (const e of path) {
-    const start = e.kind === "segment" ? e.from : arcStart(e);
+    const start = elementStart(e);
     if (!cursor || !pointsNear(cursor, start, 1e-6)) d += `M${f(start[0])} ${f(start[1])}`;
     if (e.kind === "segment") {
       d += `L${f(e.to[0])} ${f(e.to[1])}`;
+      cursor = e.to;
+    } else if (e.kind === "cubic") {
+      d += `C${f(e.c1[0])} ${f(e.c1[1])} ${f(e.c2[0])} ${f(e.c2[1])} ${f(e.to[0])} ${f(e.to[1])}`;
       cursor = e.to;
     } else {
       const span = e.end - e.start;

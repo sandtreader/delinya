@@ -73,6 +73,9 @@ export function handlesFor(shape: ResolvedShape, locks: LinkLocks = {}): HandleS
         { handle: { kind: "line-end", end: 1 }, point: shape.to, anchor: shape.from, cursor },
       ];
     }
+    // Paths are edited by their nodes, not resized.
+    case "polyline":
+      return [];
   }
 }
 

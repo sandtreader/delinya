@@ -15,12 +15,12 @@
 import type { DocState } from "@sandtreader/collab/protocol";
 import {
   type Arc, type Bounds, type Path, type Point, type Segment,
-  arc, arcMid, boundsMax, boundsMin, boundsOfPoints, boundsSize, fullCircle, midpoint,
+  arc, arcMid, boundsMax, boundsMin, boundsOfPoints, boundsSize, cubic, distance, fullCircle, midpoint,
   pathBounds, polar, segment, snapNumber,
 } from "./geometry";
 import {
   type Axis, type DimensionProp, type DimensionProps, type EntityId, type Length,
-  type AlignMode, type RadiusLabelProps, type SpacingMode, type SpacingProps,
+  type AlignMode, type PolyNodeType, type RadiusLabelProps, type SpacingMode, type SpacingProps,
   BASE_LAYER_ID, DEFAULT_GRID_SPACING, DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, isRef,
 } from "./types";
 
@@ -88,7 +88,36 @@ export interface ResolvedCircle extends ResolvedBase {
   radius: number;
 }
 
-export type ResolvedShape = ResolvedLine | ResolvedRect | ResolvedCircle;
+/** A path's node as drawn. */
+export interface ResolvedPolyNode {
+  /** Its index in the stored `nodes`, which the node actions take. */
+  index: number;
+  point: Point;
+  type: PolyNodeType;
+  /**
+   * A curve node's handles, offsets from `point`: its own, or smoothed from
+   * its neighbours when `auto`. Absent on a cusp.
+   */
+  in?: Point;
+  out?: Point;
+  /** A curve node with no handles of its own. */
+  auto: boolean;
+}
+
+/**
+ * A path. `path[k]` runs nodes[k] to nodes[k + 1], and the last back to the
+ * first when closed: a cubic if either end is a curve node, else a segment.
+ * Snaps: every node (open ends as endpoints, cusps as corners, curve nodes
+ * as tangents) and the middle of each straight segment.
+ */
+export interface ResolvedPolyline extends ResolvedBase {
+  kind: "polyline";
+  /** The usable nodes, in order; at least 2 (3 when closed). */
+  nodes: ResolvedPolyNode[];
+  closed: boolean;
+}
+
+export type ResolvedShape = ResolvedLine | ResolvedRect | ResolvedCircle | ResolvedPolyline;
 
 export interface ResolvedDimension {
   id: EntityId;
@@ -318,6 +347,7 @@ function resolveShape(ctx: Ctx, id: EntityId, kind: string, p: Record<string, un
     case KINDS.line: return resolveLine(ctx, id, layer, p);
     case KINDS.rect: return resolveRect(ctx, id, layer, p);
     case KINDS.circle: return resolveCircle(ctx, id, layer, p);
+    case KINDS.polyline: return resolvePolyline(ctx, id, layer, p);
     default: return undefined;
   }
 }
@@ -449,6 +479,97 @@ function buildCircle(id: EntityId, layer: EntityId, centre: Point, diameter: num
   };
 }
 
+// A path's props arrive unchecked: nodes that aren't usable are dropped with
+// an issue, and a path left with fewer than 2 is no shape at all.
+function resolvePolyline(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, unknown>): ResolvedPolyline | undefined {
+  const bad = (message: string) => ctx.issues.push({ entity: id, code: "bad-value", message });
+  if (!Array.isArray(p.nodes)) { bad("nodes is not a list"); return undefined; }
+  const nodes: ResolvedPolyNode[] = [];
+  p.nodes.forEach((n: unknown, index) => {
+    const node = n !== null && typeof n === "object" && !Array.isArray(n) ? (n as Record<string, unknown>) : undefined;
+    if (!node || !isFiniteNum(node.x) || !isFiniteNum(node.y) || (node.type !== "cusp" && node.type !== "curve")) {
+      bad(`node ${index} is not a node`);
+      return;
+    }
+    const out: ResolvedPolyNode = { index, point: [node.x, node.y], type: node.type, auto: false };
+    if (node.type === "curve") {
+      const hi = handle(node.in), ho = handle(node.out);
+      if (hi && ho) { out.in = hi; out.out = ho; }
+      else {
+        out.auto = true;
+        if (node.in != null || node.out != null) bad(`node ${index} needs both handles or neither`);
+      }
+    }
+    nodes.push(out);
+  });
+  if (nodes.length < 2) { bad("a path needs at least 2 nodes"); return undefined; }
+  if (p.closed != null && typeof p.closed !== "boolean") bad("closed is not true or false");
+  let closed = p.closed === true;
+  if (closed && nodes.length < 3) { bad("a closed path needs at least 3 nodes"); closed = false; }
+  smoothAutoNodes(nodes, closed);
+  return buildPolyline(id, layer, nodes, closed);
+}
+
+function isFiniteNum(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
+}
+
+/** A stored handle offset, if it is a pair of finite numbers. */
+function handle(v: unknown): Point | undefined {
+  return Array.isArray(v) && v.length === 2 && isFiniteNum(v[0]) && isFiniteNum(v[1]) ? [v[0], v[1]] : undefined;
+}
+
+/**
+ * Give each auto curve node its smoothed handles, Catmull-Rom style: the
+ * tangent runs along next − prev, and each handle is a third of the way to
+ * that neighbour. An open path's end node points along its one neighbour,
+ * the unused handle mirroring the other.
+ */
+function smoothAutoNodes(nodes: ResolvedPolyNode[], closed: boolean): void {
+  const n = nodes.length;
+  for (let i = 0; i < n; i++) {
+    const node = nodes[i]!;
+    if (!node.auto) continue;
+    const p = node.point;
+    const prev = closed || i > 0 ? nodes[(i - 1 + n) % n]!.point : undefined;
+    const next = closed || i < n - 1 ? nodes[(i + 1) % n]!.point : undefined;
+    if (prev && next) {
+      const dx = next[0] - prev[0], dy = next[1] - prev[1], len = Math.hypot(dx, dy);
+      const ux = len > 0 ? dx / len : 0, uy = len > 0 ? dy / len : 0;
+      const li = distance(prev, p) / 3, lo = distance(p, next) / 3;
+      node.in = [0 - ux * li, 0 - uy * li];   // 0 - v, never -0
+      node.out = [ux * lo, uy * lo];
+    } else if (next) {
+      node.out = [(next[0] - p[0]) / 3, (next[1] - p[1]) / 3];
+      node.in = [0 - node.out[0], 0 - node.out[1]];
+    } else if (prev) {
+      node.in = [(prev[0] - p[0]) / 3, (prev[1] - p[1]) / 3];
+      node.out = [0 - node.in[0], 0 - node.in[1]];
+    }
+  }
+}
+
+/** Path, bounds and snaps from nodes whose curve nodes all have their handles. */
+function buildPolyline(id: EntityId, layer: EntityId, nodes: ResolvedPolyNode[], closed: boolean): ResolvedPolyline {
+  const n = nodes.length;
+  const path: Path = [];
+  const snaps: SnapPoint[] = nodes.map((node, i) => ({
+    point: node.point,
+    type: !closed && (i === 0 || i === n - 1) ? "endpoint" : node.type === "cusp" ? "corner" : "tangent",
+  }));
+  const offsetBy = (p: Point, d: Point | undefined): Point => (d ? [p[0] + d[0], p[1] + d[1]] : p);
+  for (let i = 0; i < (closed ? n : n - 1); i++) {
+    const a = nodes[i]!, b = nodes[(i + 1) % n]!;
+    if (a.type === "cusp" && b.type === "cusp") {
+      path.push(segment(a.point, b.point));
+      snaps.push({ point: midpoint(a.point, b.point), type: "midpoint" });
+    } else {
+      path.push(cubic(a.point, a.type === "curve" ? offsetBy(a.point, a.out) : a.point, b.type === "curve" ? offsetBy(b.point, b.in) : b.point, b.point));
+    }
+  }
+  return { id, kind: "polyline", layer, nodes, closed, path, bounds: pathBounds(path), snaps };
+}
+
 /** Rebuild a shape at a new position. Sizes are untouched. */
 export function translateShape(s: ResolvedShape, dx: number, dy: number): ResolvedShape {
   if (dx === 0 && dy === 0) return s;
@@ -456,6 +577,8 @@ export function translateShape(s: ResolvedShape, dx: number, dy: number): Resolv
     case "line": return buildLine(s.id, s.layer, [s.from[0] + dx, s.from[1] + dy], s.length, s.angle);
     case "rect": return buildRect(s.id, s.layer, s.x + dx, s.y + dy, s.width, s.height, s.r);
     case "circle": return buildCircle(s.id, s.layer, [s.centre[0] + dx, s.centre[1] + dy], s.diameter);
+    // Handles are offsets, so they move with their nodes.
+    case "polyline": return buildPolyline(s.id, s.layer, s.nodes.map((n) => ({ ...n, point: [n.point[0] + dx, n.point[1] + dy] })), s.closed);
   }
 }
 
@@ -770,6 +893,8 @@ function measure(s: ResolvedShape, prop: DimensionProp): { value: number; anchor
         const n = polar([0, 0], 1, s.angle - 90);
         return { value: s.length, anchors: [s.from, s.to], normal: [snapNumber(n[0]), snapNumber(n[1])] };
       }
+      return undefined;
+    case "polyline":
       return undefined;
   }
 }

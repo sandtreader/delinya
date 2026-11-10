@@ -21,7 +21,7 @@ import { Num } from "./fields";
 import { ArrowIcon, IconButton } from "./icons";
 import { tip } from "./tip";
 
-const SHAPE_LABEL: Record<string, string> = { rect: "Rectangle", circle: "Circle", line: "Line" };
+const SHAPE_LABEL: Record<string, string> = { rect: "Rectangle", circle: "Circle", line: "Line", polyline: "Path" };
 
 const EQUAL_PROPS: Record<string, Array<{ prop: string; label: string }>> = {
   [KINDS.rect]: [{ prop: "width", label: "Width" }, { prop: "height", label: "Height" }],

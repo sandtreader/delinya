@@ -1,27 +1,61 @@
 // The drawing surface: an SVG with a model-space layer. Reads the resolved
 // geometry, writes only through the store. Tools are a small pointer state
 // machine kept in a ref so pointer moves don't re-render.
+//
+// The Path tool draws by clicks rather than a drag: the nodes so far are a
+// draft (polyDraft.ts), committed as one addPolyline when it is finished
+// (Enter, Escape, double-click, clicking the start to close, or switching
+// tool). With the select tool, one selected path shows its nodes, which
+// drag and select (polyEdit.ts hit-tests them).
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent } from "react";
 import {
-  KINDS, addCircle, addDimension, addLine, addRect, batch, derivedAxes, dragHandle, entityAs, freeDelta, handlesFor, isRef, isVisible, linkLocks,
-  moveBy, newId, snapNumber,
-  type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
+  useCallback, useEffect, useRef, useState,
+  type CSSProperties, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent,
+} from "react";
+import {
+  KINDS, addCircle, addDimension, addLine, addPolyline, batch, addRect, derivedAxes, distance, dragHandle, drawnOffset, entityAs, freeDelta,
+  handlesFor, insertPolyNode, isRef, isVisible, linkLocks, moveBy, movePolyNode, newId, setPolyHandle, snapNumber,
+  type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type ResolvedDimension, type ResolvedPolyline,
+  type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
-import { currentLayer, hoverShowsPosition, useEditor, type Tool } from "../app/editor";
+import { currentLayer, hoverShowsPosition, selectedPathNode, useEditor } from "../app/editor";
+import { currentQuestion } from "../app/ask";
 import { gridPitch, toModel, toScreen, wheelZoom, type View } from "../view/viewport";
 import { pathToSvg } from "../view/svgPath";
-import { formatMm } from "../view/format";
+import { formatMm, type DrawTool } from "../view/format";
 import { snapMove, snapPoint } from "./snap";
 import { lassoMode, lassoSelect } from "./lasso";
 import { setHover } from "./hover";
+import { draftAdd, draftCloses, draftFinish, draftPreview, draftShape, draftUndo, type PolyDraft } from "./polyDraft";
+import { handleAt, nodeAt, nodeHandles, segmentAt } from "./polyEdit";
 import { GUIDE_OVERHANG_PX, linkGuides, type LinkGuide } from "../view/linkGuides";
 
 const SNAP_PX = 10;
 const DIMENSION_OFFSET = 10;
 /** A press that moves less than this (screen px) is a click, not a drag. */
 const CLICK_PX = 3;
+/** Reach (screen px) of a path's node and of a selected node's handle; they are drawn a little smaller. */
+const NODE_PX = 7;
+const NODE_HANDLE_PX = 6;
+/** Reach of a path's segment for a double-click: half the shape's hit stroke. */
+const SEGMENT_PX = 6;
+/** A path click this close (screen px) to the last node adds none: the second click of a double-click. */
+const SAME_NODE_PX = 4;
+
+/** A path being drawn, and the layer it will go on (the current one when it was started). */
+type Draft = PolyDraft & { layer: EntityId };
+
+// Set while a Canvas is mounted: drops its path draft (see discardPathDraft).
+let discardDraft: (() => void) | null = null;
+
+/**
+ * Drop a path being drawn, without drawing it: for New and Open, so a draft
+ * isn't finished into the drawing that replaced the one it was drawn on.
+ */
+export function discardPathDraft(): void {
+  discardDraft?.();
+}
 
 type Drag =
   | { kind: "pan"; last: Point; start: Point; clearOnClick: boolean }
@@ -31,7 +65,13 @@ type Drag =
   | { kind: "lasso"; at: Point; start: Point; current: Point; moved: boolean; shift: boolean; base: EntityId[]; prior: EntityId[]; last: EntityId[] }
   | { kind: "move"; ids: EntityId[]; primary: EntityId; origin: Point; applied: Point; moved: boolean }
   | { kind: "resize"; id: EntityId; spot: HandleSpot; locks: LinkLocks; moved: boolean }
-  | { kind: "draw"; tool: Exclude<Tool, "select">; layer: EntityId; start: Point; current: Point };
+  | { kind: "draw"; tool: Exclude<DrawTool, "polyline">; layer: EntityId; start: Point; current: Point }
+  // A press with the Path tool: a click (no drag) adds a node.
+  | { kind: "pathClick"; at: Point }
+  // A selected path's node or handle. `offset`: how far a link draws the path
+  // from its stored nodes, at the press. `gesture`: an undo step is open.
+  | { kind: "node"; id: EntityId; index: number; offset: Point; at: Point; moved: boolean; gesture: boolean }
+  | { kind: "nodeHandle"; id: EntityId; index: number; which: "in" | "out"; at: Point; moved: boolean; gesture: boolean };
 
 export function Canvas() {
   useDocument();
@@ -46,6 +86,16 @@ export function Canvas() {
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [preview, setPreview] = useState<Drag | null>(null);
   const [size, setSize] = useState<[number, number]>([800, 600]);
+  // The path being drawn: the ref is what handlers read, the state what renders.
+  const draftRef = useRef<Draft | null>(null);
+  const [draft, setDraftState] = useState<Draft | null>(null);
+  const setDraft = useCallback((d: Draft | null) => { draftRef.current = d; setDraftState(d); }, []);
+  // Shift makes the next path node a curve, so the preview follows it.
+  const [shiftHeld, setShiftHeld] = useState(false);
+  // The pointer is on the draft's start: a click there closes the path.
+  const [closing, setClosing] = useState(false);
+  const cursorRef = useRef(editor.cursor);
+  cursorRef.current = editor.cursor;
 
   useEffect(() => {
     const el = svgRef.current;
@@ -57,10 +107,16 @@ export function Canvas() {
   }, []);
 
   useEffect(() => {
-    const down = (e: KeyboardEvent) => { if (e.code === "Space" && !isTyping(e)) { spaceRef.current = true; setSpaceHeld(true); e.preventDefault(); } };
-    const up = (e: KeyboardEvent) => { if (e.code === "Space") { spaceRef.current = false; setSpaceHeld(false); } };
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "Shift") setShiftHeld(true);
+      if (e.code === "Space" && !isTyping(e)) { spaceRef.current = true; setSpaceHeld(true); e.preventDefault(); }
+    };
+    const up = (e: KeyboardEvent) => {
+      if (e.key === "Shift") setShiftHeld(false);
+      if (e.code === "Space") { spaceRef.current = false; setSpaceHeld(false); }
+    };
     // A keyup while another window has focus never arrives.
-    const blur = () => { spaceRef.current = false; setSpaceHeld(false); };
+    const blur = () => { spaceRef.current = false; setSpaceHeld(false); setShiftHeld(false); };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", blur);
@@ -84,7 +140,7 @@ export function Canvas() {
     return () => window.removeEventListener("keydown", esc, true);
   }, [dispatch]);
 
-  const screenPoint = (e: RPointerEvent): Point => {
+  const screenPoint = (e: { clientX: number; clientY: number }): Point => {
     const r = svgRef.current!.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top];
   };
@@ -101,14 +157,123 @@ export function Canvas() {
   const layerId = currentLayer(resolved, editor.layer);
   const blocked = tool !== "select" && (hiddenLayers.has(layerId) || layerView.locked.has(layerId));
 
+  // One selected path, with the select tool, shows its nodes to edit (not on a locked layer).
+  const single = tool === "select" && selection.length === 1 ? resolved.shapes[selection[0]!] : undefined;
+  const editPath = single?.kind === "polyline" && isVisible(resolved, single.id, hiddenLayers) && !layerView.locked.has(single.layer) ? single : undefined;
+  const pathNode = selectedPathNode(resolved, editor);
+
+  // ---- The Path tool's draft ----
+
+  /** Commit the draft (if it has 2 nodes) as one undo step and select it; back to select unless `keepTool`. */
+  const finishDraft = useCallback((closed: boolean, keepTool: boolean) => {
+    const d = draftRef.current;
+    setDraft(null);
+    setClosing(false);
+    dispatch({ type: "pointer", cursor: null, snap: null });
+    const out = d && draftFinish(d, closed);
+    if (d && out) {
+      const id = newId("path");
+      store.commit(addPolyline(id, { nodes: out.nodes, ...(out.closed ? { closed: true } : {}), layer: d.layer }));
+      dispatch({ type: "select", ids: [id] });
+    }
+    if (!keepTool) dispatch({ type: "tool", tool: "select" });
+  }, [dispatch, setDraft]);
+
+  useEffect(() => {
+    discardDraft = () => { setDraft(null); setClosing(false); };
+    return () => { discardDraft = null; };
+  }, [setDraft]);
+
+  // Switching tool mid-path finishes it, open, as drawn so far (nothing if a single node).
+  useEffect(() => { if (tool !== "polyline" && draftRef.current) finishDraft(false, true); }, [tool, finishDraft]);
+
+  // While drawing a path, Enter and Escape finish it and Backspace/Delete take
+  // back the last node. Capture, so the app's own keys (back to select, delete
+  // the selection) don't also run.
+  const drafting = draft !== null;
+  const dialogOpen = editor.dialog !== null;
+  useEffect(() => {
+    if (!drafting) return;
+    const onKey = (e: KeyboardEvent) => {
+      const d = draftRef.current;
+      if (!d || dialogOpen || currentQuestion() || isTyping(e) || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (e.key === "Escape" || e.key === "Enter") {
+        e.preventDefault();
+        e.stopPropagation();
+        finishDraft(false, e.shiftKey);
+      } else if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        e.stopPropagation();
+        const next = draftUndo(d);
+        setDraft(next && { ...next, layer: d.layer });
+        setClosing(false);
+        const end = next?.nodes[next.nodes.length - 1];
+        dispatch({ type: "pointer", cursor: cursorRef.current, snap: null, ...(end ? { draw: { tool: "polyline", start: [end.x, end.y] } } : {}) });
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [drafting, dialogOpen, finishDraft, setDraft, dispatch]);
+
+  /** Where a path click at `mp` puts its node: the draft's start if it closes there, else snapped as other tools snap. */
+  const pathTarget = (mp: Point): { point: Point; snap: SnapPoint | null; closes: boolean } => {
+    const d = draftRef.current;
+    if (d && draftCloses(d, mp, tolerance)) {
+      const start: Point = [d.nodes[0]!.x, d.nodes[0]!.y];
+      return { point: start, snap: { point: start, type: "endpoint" }, closes: true };
+    }
+    return { ...snapPoint(store.resolved, mp, tolerance, new Set(), grid, hiddenLayers), closes: false };
+  };
+
+  /** The pointer over the canvas with the Path tool: the status bar shows the segment from the last node to it. */
+  const pathHover = (mp: Point) => {
+    const d = draftRef.current;
+    const { point, snap, closes } = blocked ? { point: mp, snap: null, closes: false } : pathTarget(mp);
+    setClosing(closes);
+    const end = d?.nodes[d.nodes.length - 1];
+    dispatch({ type: "pointer", cursor: point, snap, ...(end ? { draw: { tool: "polyline", start: [end.x, end.y] } } : {}) });
+  };
+
+  /** A click with the Path tool: close and finish on the start, else add a node (a curve with Shift). */
+  const pathClick = (mp: Point, shift: boolean) => {
+    const d = draftRef.current;
+    const { point, closes } = pathTarget(mp);
+    if (d && closes) { finishDraft(true, shift); return; }
+    const next = draftAdd(d, point, shift, SAME_NODE_PX / view.scale);
+    if (next === d) return;
+    setDraft({ ...next, layer: d?.layer ?? layerId });
+    dispatch({ type: "pointer", cursor: point, snap: null, draw: { tool: "polyline", start: point } });
+  };
+
   const onPointerDown = (e: RPointerEvent<SVGSVGElement>) => {
     if (e.button !== 0 && e.button !== 1) return;
+    // A field being edited (the node card's, a panel's) commits first: what
+    // this press does may unmount it before the browser would blur it.
+    const active = document.activeElement;
+    if (active instanceof HTMLElement && active.matches("input, textarea")) active.blur();
     svgRef.current!.setPointerCapture(e.pointerId);
     const sp = screenPoint(e);
     if (e.button === 1 || spaceRef.current) { dragRef.current = { kind: "pan", last: sp, start: sp, clearOnClick: false }; return; }
 
     const mp = toModel(view, sp);
     if (tool === "select") {
+      // A selected path's nodes, and the selected node's handles, are on top of everything.
+      if (editPath) {
+        const which = pathNode ? handleAt(editPath, pathNode.node.index, mp, NODE_HANDLE_PX / view.scale) : null;
+        const index = nodeAt(editPath, mp, NODE_PX / view.scale);
+        const handlePoint = which && nodeHandles(editPath, pathNode!.node.index).find((h) => h.which === which)!.point;
+        const nodePoint = index === null ? undefined : editPath.nodes.find((n) => n.index === index)!.point;
+        // The nearer wins; a handle lying on its node leaves the node to drag.
+        if (pathNode && which && handlePoint && (!nodePoint || distance(handlePoint, mp) < distance(nodePoint, mp))) {
+          dragRef.current = { kind: "nodeHandle", id: editPath.id, index: pathNode.node.index, which, at: sp, moved: false, gesture: false };
+          return;
+        }
+        if (index !== null) {
+          dispatch({ type: "node", node: { shape: editPath.id, index } });
+          dragRef.current = { kind: "node", id: editPath.id, index, offset: drawnOffset(store.state, editPath), at: sp, moved: false, gesture: false };
+          return;
+        }
+      }
       const handleIndex = (e.target as Element).closest<SVGElement>("[data-handle]")?.dataset.handle;
       if (handleIndex !== undefined && selection.length === 1) {
         const shape = resolved.shapes[selection[0]!];
@@ -140,6 +305,7 @@ export function Canvas() {
       return;
     }
     if (blocked) return;
+    if (tool === "polyline") { dragRef.current = { kind: "pathClick", at: sp }; return; }
     const { point, snap } = snapPoint(resolved, mp, tolerance, new Set(), grid, hiddenLayers);
     dragRef.current = { kind: "draw", tool, layer: layerId, start: point, current: point };
     dispatch({ type: "pointer", cursor: point, snap, draw: { tool, start: point } });
@@ -149,11 +315,13 @@ export function Canvas() {
   const onPointerMove = (e: RPointerEvent<SVGSVGElement>) => {
     const sp = screenPoint(e);
     setHover(sp);   // the rulers' markers, in any tool
+    if (e.shiftKey !== shiftHeld) setShiftHeld(e.shiftKey);   // Shift pressed or let go outside the window
     const mp = toModel(view, sp);
     const d = dragRef.current;
     if (!d) {
       // Hovering with select shows no position; a drag below does.
       if (!hoverShowsPosition(tool)) { dispatch({ type: "pointer", cursor: null, snap: null }); return; }
+      if (tool === "polyline") { pathHover(mp); return; }
       const { point, snap } = blocked ? { point: mp, snap: null } : snapPoint(resolved, mp, tolerance, new Set(), grid, hiddenLayers);
       dispatch({ type: "pointer", cursor: point, snap });
       return;
@@ -213,6 +381,38 @@ export function Canvas() {
         setPreview({ ...d });
         return;
       }
+      case "pathClick":
+        pathHover(mp);
+        return;
+      case "node": {
+        if (!d.moved && Math.hypot(sp[0] - d.at[0], sp[1] - d.at[1]) < CLICK_PX) return;
+        d.moved = true;
+        // Not onto the path's own points: the node being dragged is one of them.
+        const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid, hiddenLayers);
+        const at: Point = [snapNumber(point[0] - d.offset[0]), snapNumber(point[1] - d.offset[1])];
+        const change = movePolyNode(store.state, d.id, d.index, at);
+        if (change) {
+          if (!d.gesture) { store.beginGesture(); d.gesture = true; }
+          store.commit(change);
+        }
+        // No measure: the status bar shows the selected node, which this is.
+        dispatch({ type: "pointer", cursor: point, snap });
+        return;
+      }
+      case "nodeHandle": {
+        if (!d.moved && Math.hypot(sp[0] - d.at[0], sp[1] - d.at[1]) < CLICK_PX) return;
+        d.moved = true;
+        const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid, hiddenLayers);
+        const path = store.resolved.shapes[d.id];
+        const node = path?.kind === "polyline" ? path.nodes.find((n) => n.index === d.index) : undefined;
+        const change = node && setPolyHandle(store.state, d.id, d.index, d.which, [snapNumber(point[0] - node.point[0]), snapNumber(point[1] - node.point[1])]);
+        if (change) {
+          if (!d.gesture) { store.beginGesture(); d.gesture = true; }
+          store.commit(change);
+        }
+        dispatch({ type: "pointer", cursor: point, snap });
+        return;
+      }
     }
   };
 
@@ -232,6 +432,14 @@ export function Canvas() {
       store.endGesture();
     }
     if (d.kind === "resize" && d.moved) store.endGesture();
+    if ((d.kind === "node" || d.kind === "nodeHandle") && d.gesture) store.endGesture();
+    // A click on a selected path away from its nodes lets go of the node.
+    if (d.kind === "move" && !d.moved && editor.node) dispatch({ type: "node", node: null });
+    if (d.kind === "pathClick") {
+      const sp = screenPoint(e);
+      if (Math.hypot(sp[0] - d.at[0], sp[1] - d.at[1]) < CLICK_PX) pathClick(toModel(view, sp), e.shiftKey);
+      return;
+    }
     // The drag is over: back to what hovering shows (nothing, with select).
     if (d.kind !== "draw" && !hoverShowsPosition(tool)) dispatch({ type: "pointer", cursor: null, snap: null });
     if (d.kind === "draw") {
@@ -241,6 +449,22 @@ export function Canvas() {
       if (id) dispatch({ type: "select", ids: [id] });
       if (!e.shiftKey) dispatch({ type: "tool", tool: "select" });
     }
+  };
+
+  // Double-click: with the Path tool it finishes the path (its first click
+  // added the last node, its second nothing); on a selected path's segment
+  // it adds a node there and selects it.
+  const onDoubleClick = (e: RMouseEvent<SVGSVGElement>) => {
+    if (tool === "polyline") { if (draftRef.current) finishDraft(false, e.shiftKey); return; }
+    if (!editPath) return;
+    const mp = toModel(view, screenPoint(e));
+    if (nodeAt(editPath, mp, NODE_PX / view.scale) !== null) return;
+    const hit = segmentAt(editPath, mp, SEGMENT_PX / view.scale);
+    const change = hit && insertPolyNode(store.state, editPath.id, hit.segment, hit.t);
+    if (!hit || !change) return;
+    store.commit(change);
+    // Inserted just after the segment's start node, in the stored list.
+    dispatch({ type: "node", node: { shape: editPath.id, index: hit.segment + 1 } });
   };
 
   const onWheel = useCallback((e: RWheelEvent<SVGSVGElement>) => {
@@ -272,7 +496,8 @@ export function Canvas() {
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
-      onPointerLeave={() => { if (!dragRef.current) { dispatch({ type: "pointer", cursor: null, snap: null }); setHover(null); } }}
+      onDoubleClick={onDoubleClick}
+      onPointerLeave={() => { if (!dragRef.current) { dispatch({ type: "pointer", cursor: null, snap: null }); setHover(null); setClosing(false); } }}
       onWheel={onWheel}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -296,10 +521,12 @@ export function Canvas() {
         {resolved.dimensions.filter((d) => shown(d.target)).map((d) => <DimensionView key={d.id} dim={d} fontSize={fontSize} hair={hair} link={varName(d.target, d.prop)} />)}
         {resolved.radiusLabels.filter((l) => shown(l.target)).map((l) => <RadiusLabelView key={l.id} label={l} fontSize={fontSize} link={varName(l.target, "r", l.corner)} />)}
         {preview?.kind === "draw" && <DrawPreview d={preview} hair={hair} />}
+        {tool === "polyline" && draft && <PathDraftPreview draft={draft} pointer={editor.cursor} curve={shiftHeld} closing={closing} hair={hair} />}
       </g>
-      {tool === "select" && selection.length === 1 && resolved.shapes[selection[0]!] && (
-        <Handles shape={resolved.shapes[selection[0]!]!} view={view} />
-      )}
+      {editPath
+        ? <PathNodes path={editPath} view={view} selected={pathNode?.node.index ?? null} />
+        : single && <Handles shape={single} view={view} />}
+      {tool === "polyline" && draft && <DraftNodes draft={draft} view={view} closing={closing} />}
       {editor.snap && <SnapMarker snap={editor.snap} view={view} />}
       {preview?.kind === "lasso" && <LassoView d={preview} view={view} />}
     </svg>
@@ -502,6 +729,62 @@ function DrawPreview({ d, hair }: { d: Extract<Drag, { kind: "draw" }>; hair: nu
     case "line":
       return <line {...props} x1={x0} y1={y0} x2={x1} y2={y1} />;
   }
+}
+
+/**
+ * The path being drawn: its nodes and a provisional one at the pointer
+ * (Shift: a curve), so auto curves bend as it moves; closed when the pointer
+ * is on the start. Dashed, as other previews.
+ */
+function PathDraftPreview({ draft, pointer, curve, closing, hair }: { draft: Draft; pointer: readonly [number, number] | null; curve: boolean; closing: boolean; hair: number }) {
+  const nodes = closing || !pointer ? draft.nodes : draftPreview(draft, [pointer[0], pointer[1]], curve);
+  const shape = draftShape(nodes, closing);
+  return shape ? <path className="preview" d={pathToSvg(shape.path)} strokeWidth={hair * 1.2} /> : null;
+}
+
+/** The draft's nodes in screen space (squares for cusps, circles for curves); the start fills when a click would close it. */
+function DraftNodes({ draft, view, closing }: { draft: Draft; view: View; closing: boolean }) {
+  return (
+    <g className="draft-nodes">
+      {draft.nodes.map((n, i) => {
+        const [x, y] = toScreen(view, [n.x, n.y]);
+        const cls = `draft-node${i === 0 && closing ? " closing" : ""}`;
+        return n.type === "curve"
+          ? <circle key={i} className={cls} cx={x} cy={y} r={3.5} />
+          : <rect key={i} className={cls} x={x - 3} y={y - 3} width={6} height={6} />;
+      })}
+    </g>
+  );
+}
+
+/**
+ * A selected path's nodes in screen space, like resize handles: squares for
+ * cusps, circles for curves, the selected one filled. A selected curve node
+ * also shows its handles, joined to it by guide lines.
+ */
+function PathNodes({ path, view, selected }: { path: ResolvedPolyline; view: View; selected: number | null }) {
+  const node = selected === null ? undefined : path.nodes.find((n) => n.index === selected);
+  const handles = node ? nodeHandles(path, node.index) : [];
+  const at = node && toScreen(view, node.point);
+  return (
+    <g className="path-nodes">
+      {at && handles.map((h) => {
+        const [x, y] = toScreen(view, h.point);
+        return <line key={`guide-${h.which}`} className="node-guide" x1={at[0]} y1={at[1]} x2={x} y2={y} />;
+      })}
+      {path.nodes.map((n) => {
+        const [x, y] = toScreen(view, n.point);
+        const cls = `node${n.index === selected ? " selected" : ""}`;
+        return n.type === "curve"
+          ? <circle key={n.index} className={cls} cx={x} cy={y} r={4.5} />
+          : <rect key={n.index} className={cls} x={x - 4} y={y - 4} width={8} height={8} />;
+      })}
+      {handles.map((h) => {
+        const [x, y] = toScreen(view, h.point);
+        return <circle key={h.which} className="node-handle" cx={x} cy={y} r={3.5} />;
+      })}
+    </g>
+  );
 }
 
 /** The lasso rectangle, in screen space so its dashes stay the same at any zoom. */
