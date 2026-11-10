@@ -25,13 +25,21 @@ export interface PrimitiveOptions {
 
 const NO_LAYERS: ReadonlySet<EntityId> = new Set();
 
-/** The visible shapes, and with `dimensions` their dimensions and labels; hidden layers are left out. */
+/**
+ * The visible shapes, in their layer's colour if it has one, and with
+ * `dimensions` their dimensions and labels; hidden layers are left out.
+ */
 export function drawingPrimitives(resolved: Resolved, o: PrimitiveOptions): Primitive[] {
   const hidden = o.hidden ?? NO_LAYERS;
   const shown = (id: EntityId) => isVisible(resolved, id, hidden);
+  // Map, not object: a layer ID like "__proto__" stays data.
+  const colours = new Map(resolved.layers.map((l) => [l.id, l.colour]));
   const out: Primitive[] = [];
   for (const id of resolved.order) {
-    if (shown(id)) out.push({ kind: "path", role: "shape", path: resolved.shapes[id]!.path });
+    if (!shown(id)) continue;
+    const shape = resolved.shapes[id]!;
+    const colour = colours.get(shape.layer);
+    out.push({ kind: "path", role: "shape", path: shape.path, ...(colour ? { colour } : {}) });
   }
   if (!o.dimensions) return out;
   for (const d of resolved.dimensions) if (shown(d.target)) out.push(...dimensionPrims(d, o));

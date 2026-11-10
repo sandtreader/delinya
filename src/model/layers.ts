@@ -7,8 +7,56 @@
 
 import { applyChange, type Change, type DocState, type Props } from "@sandtreader/collab/protocol";
 import { batch, deleteEntity, propsChanged } from "./actions";
-import { type Resolved, type StoredLayer, resolve, storedLayers } from "./resolve";
+import { type Resolved, type StoredLayer, isLayerColour, resolve, storedLayers } from "./resolve";
 import { type EntityId, BASE_LAYER_ID, KINDS, entityAs } from "./types";
+
+// ---- Colours ----
+
+/** A colour a layer's shapes can be drawn in. */
+export interface LayerColour {
+  name: string;
+  /** "#rrggbb", lower case; null is the default ink. */
+  hex: string | null;
+  /** AutoCAD Colour Index, for DXF (R12 has nothing finer); 7 is black on white. */
+  aci: number;
+}
+
+/**
+ * The colours offered for layers, the default ink first. Dark enough for
+ * fine lines on white paper, and clear of the canvas's own colours
+ * (selection orange, link purple, broken-link red, dimension blue).
+ */
+export const LAYER_COLOURS: readonly LayerColour[] = [
+  { name: "Default", hex: null, aci: 7 },
+  { name: "Grey", hex: "#808080", aci: 8 },
+  { name: "Red", hex: "#e00000", aci: 1 },
+  { name: "Brown", hex: "#8b4513", aci: 34 },
+  { name: "Green", hex: "#1e8c1e", aci: 3 },
+  { name: "Teal", hex: "#00897b", aci: 4 },
+  { name: "Navy", hex: "#1a2b99", aci: 5 },
+  { name: "Magenta", hex: "#c0189c", aci: 6 },
+];
+
+/**
+ * The palette entry for a layer colour: exact, else the nearest by RGB
+ * distance, so a colour from outside the palette (a peer's, a hand-edited
+ * file's) still gets a name and an ACI. Null is the default.
+ */
+export function layerColourEntry(hex: string | null): LayerColour {
+  if (hex === null || !isLayerColour(hex)) return LAYER_COLOURS[0]!;
+  const exact = LAYER_COLOURS.find((c) => c.hex === hex);
+  if (exact) return exact;
+  const rgb = (h: string) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+  const [r, g, b] = rgb(hex) as [number, number, number];
+  let best = LAYER_COLOURS[0]!, bestD = Infinity;
+  for (const c of LAYER_COLOURS) {
+    // The default ink is black on paper.
+    const [cr, cg, cb] = rgb(c.hex ?? "#000000") as [number, number, number];
+    const d = (r - cr) ** 2 + (g - cg) ** 2 + (b - cb) ** 2;
+    if (d < bestD) { best = c; bestD = d; }
+  }
+  return best;
+}
 
 // ---- Queries ----
 
@@ -68,6 +116,22 @@ export function setLayerName(state: DocState, id: EntityId, name: string): Chang
   if (name === (typeof layer?.name === "string" ? layer.name : "")) return undefined;
   if (implicit) return { type: "entity_added", id, kind: KINDS.layer, props: { order: 0, name } };
   return propsChanged(id, { name });
+}
+
+/**
+ * Set a layer's colour ("#rrggbb", lower case), or clear it with null back
+ * to the default ink. Undefined if unchanged, there is no such layer, or the
+ * colour isn't "#rrggbb"; the implicit base layer is made real to hold it.
+ */
+export function setLayerColour(state: DocState, id: EntityId, hex: string | null): Change | undefined {
+  if (hex !== null && !isLayerColour(hex)) return undefined;
+  const layer = entityAs(state, id, KINDS.layer);
+  const implicit = !layer && id === BASE_LAYER_ID && storedLayers(state).length === 0;
+  if (!layer && !implicit) return undefined;
+  // Raw, so clearing a bad stored value is still a change.
+  if (hex === (state.entities[id]?.props.colour ?? null)) return undefined;
+  if (implicit) return { type: "entity_added", id, kind: KINDS.layer, props: { order: 0, colour: hex } };
+  return propsChanged(id, { colour: hex });
 }
 
 /**

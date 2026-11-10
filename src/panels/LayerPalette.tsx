@@ -1,12 +1,16 @@
 // Floating layer palette: a numbered button per layer, 1 (the back) at the
-// top. Clicking one makes it the current layer (new shapes go there) and
-// opens its card: name, hide/show, lock/unlock and delete. Dragging a
-// button reorders, and the numbers follow. "+" adds a layer in front.
-// Hiding and locking are this viewer's own choice (editor state), not edits.
+// top, with a bar in the layer's colour if it has one. Clicking one makes it
+// the current layer (new shapes go there) and opens its card: name, line
+// colour, hide/show, lock/unlock and delete. Dragging a button reorders, and
+// the numbers follow. "+" adds a layer in front. The colour is part of the
+// drawing (an edit); hiding and locking are this viewer's own choice
+// (editor state), not edits.
 
-import { useEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent } from "react";
 import type { Change } from "@sandtreader/collab/protocol";
-import { addLayer, deleteLayer, moveLayer, newId, setLayerName, type EntityId, type ResolvedLayer } from "../model";
+import {
+  LAYER_COLOURS, addLayer, deleteLayer, moveLayer, newId, setLayerColour, setLayerName, type EntityId, type ResolvedLayer,
+} from "../model";
 import { store, useDocument } from "../app/store";
 import { currentLayer, useEditor } from "../app/editor";
 import { ask, currentQuestion } from "../app/ask";
@@ -23,7 +27,7 @@ const HOME: Point = { x: 10, y: 177 };
 /** Movement before a press on a layer button becomes a drag rather than a click. */
 const DRAG_PX = 4;
 /** Room the card needs to the right of the palette before it flips to the left. */
-const CARD_ROOM = 290;
+const CARD_ROOM = 320;
 
 interface Drag { id: EntityId; from: number; startY: number; centres: number[]; active: boolean }
 
@@ -167,6 +171,7 @@ export function LayerPalette() {
               onPointerCancel={(e) => onButtonUp(e, false)}
               onClick={() => { if (!suppressClick.current) choose(l.id); }}
             >
+              {l.colour && <span className="layer-colour" style={{ background: l.colour }} />}
               <span className="layer-number">{l.number}</span>
               {isHidden && <Icon className="mark mark-hidden" size={9}><EyeOff /></Icon>}
               {isLocked && <Icon className="mark mark-locked" size={9}><LockShape /></Icon>}
@@ -207,6 +212,7 @@ function LayerCard({ layer, only, flip, onDeleted }: { layer: ResolvedLayer; onl
     <div className={`layer-card${flip ? " flip" : ""}`} role="group" aria-label={`Layer ${layer.number}`}>
       <span className="layer-card-number">{layer.number}</span>
       <Text value={layer.name} placeholder={`Layer ${layer.number}`} onCommit={(name) => commit(setLayerName(store.state, layer.id, name))} />
+      <ColourControl colour={layer.colour} onChoose={(hex) => commit(setLayerColour(store.state, layer.id, hex))} />
       <button
         className={`icon${hidden ? " on" : ""}`} data-tip={hideTitle} aria-label={hideTitle} aria-pressed={hidden}
         onClick={() => dispatch({ type: "toggleLayer", id: layer.id, flag: "hidden" })}
@@ -224,6 +230,80 @@ function LayerCard({ layer, only, flip, onDeleted }: { layer: ResolvedLayer; onl
       </button>
     </div>
   );
+}
+
+/** A palette colour's name, or the colour itself if it isn't one (a peer's, a hand-edited file's). */
+function colourName(hex: string | null): string {
+  return LAYER_COLOURS.find((c) => c.hex === hex)?.name ?? hex!;
+}
+
+/** Swatches per row in the colour picker. */
+const PICKER_COLUMNS = 4;
+
+/**
+ * The layer's line colour: a swatch button that opens a small grid of the
+ * palette's colours. Choosing one sets it and closes the grid; so do Escape
+ * (only the grid: the card stays) and a press anywhere else.
+ */
+function ColourControl({ colour, onChoose }: { colour: string | null; onChoose: (hex: string | null) => void }) {
+  const [picking, setPicking] = useState(false);
+  const ref = useRef<HTMLSpanElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+
+  const stop = (refocus: boolean) => {
+    setPicking(false);
+    if (refocus) button.current?.focus();
+  };
+
+  // Into the grid at the current colour, so the keyboard can carry on there.
+  useEffect(() => {
+    if (picking) ref.current?.querySelector<HTMLElement>(".swatch[aria-pressed=true]")?.focus();
+  }, [picking]);
+
+  // A press outside the control closes the grid; outside the palette, the card's own handler closes the card too.
+  useEffect(() => {
+    if (!picking) return;
+    const onDown = (e: PointerEvent) => { if (!currentQuestion() && !ref.current?.contains(e.target as Node)) setPicking(false); };
+    document.addEventListener("pointerdown", onDown, true);
+    return () => document.removeEventListener("pointerdown", onDown, true);
+  }, [picking]);
+
+  const onKeyDown = (e: RKeyboardEvent) => {
+    if (e.key === "Escape" && picking) { e.stopPropagation(); stop(true); }
+  };
+
+  const label = `Line colour: ${colourName(colour)}`;
+  return (
+    <span ref={ref} className="colour-control" onKeyDown={onKeyDown}>
+      <button
+        ref={button} className="icon colour-button" aria-label={label} aria-haspopup="true" aria-expanded={picking}
+        // Not while the grid is open: it would cover it.
+        {...(picking ? {} : tip(label, label))}
+        onClick={() => setPicking(!picking)}
+      >
+        <Swatch colour={colour} />
+      </button>
+      {picking && (
+        <span className="colour-picker" role="group" aria-label="Line colour"
+          style={{ "--columns": PICKER_COLUMNS } as CSSProperties}>
+          {LAYER_COLOURS.map((c, i) => (
+            <button
+              key={c.name} className="icon swatch" aria-label={c.name} aria-pressed={c.hex === colour}
+              {...tip(c.name, c.name)} data-tip-side={i < PICKER_COLUMNS ? "above" : "below"}
+              onClick={() => { onChoose(c.hex); stop(true); }}
+            >
+              <Swatch colour={c.hex} />
+            </button>
+          ))}
+        </span>
+      )}
+    </span>
+  );
+}
+
+/** A small square of a layer colour; the default ink for null. */
+function Swatch({ colour }: { colour: string | null }) {
+  return <span className={`swatch-chip${colour ? "" : " default"}`} style={colour ? { background: colour } : undefined} />;
 }
 
 // ---- Icons (see icons.tsx) ----

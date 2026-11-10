@@ -1,8 +1,8 @@
 import { describe, it, expect } from "vitest";
 import { applyChange, type Change, type DocState } from "@sandtreader/collab/protocol";
 import {
-  BASE_LAYER_ID, KINDS, addDimension, addLayer, addRect, deleteLayer, isSelectable, isVisible, layerChoice,
-  moveLayer, resolve, setLayerName, setShapesLayer,
+  BASE_LAYER_ID, DrawingStore, KINDS, addDimension, addLayer, addRect, deleteLayer, isSelectable, isVisible, layerChoice,
+  moveLayer, resolve, setLayerColour, setLayerName, setShapesLayer,
 } from "../src/model";
 import { doc } from "./helpers";
 
@@ -20,7 +20,7 @@ const ids = (st: DocState) => resolve(st).layers.map((l) => l.id);
 describe("resolving layers", () => {
   it("gives a drawing with no layers one implicit base layer holding every shape", () => {
     const r = resolve(doc(sq("a")));
-    expect(r.layers).toEqual([{ id: BASE_LAYER_ID, name: "", number: 1 }]);
+    expect(r.layers).toEqual([{ id: BASE_LAYER_ID, name: "", number: 1, colour: null }]);
     expect(r.shapes.a!.layer).toBe(BASE_LAYER_ID);
   });
 
@@ -88,7 +88,23 @@ describe("setLayerName", () => {
 
   it("makes the implicit base layer real to name it", () => {
     const after = apply(doc(sq("a")), setLayerName(doc(sq("a")), BASE_LAYER_ID, "Carcass"));
-    expect(resolve(after).layers).toEqual([{ id: BASE_LAYER_ID, name: "Carcass", number: 1 }]);
+    expect(resolve(after).layers).toEqual([{ id: BASE_LAYER_ID, name: "Carcass", number: 1, colour: null }]);
+  });
+});
+
+describe("setLayerColour", () => {
+  it("clears a bad stored colour, and undoes like any edit", () => {
+    const st = doc(layer(BASE_LAYER_ID, 0, { colour: "green" }));
+    const c = setLayerColour(st, BASE_LAYER_ID, null);
+    expect(c).toEqual({ type: "props_changed", id: BASE_LAYER_ID, props: { colour: null } });
+    expect("colour" in apply(st, c).entities[BASE_LAYER_ID]!.props).toBe(false);
+
+    const store = new DrawingStore();
+    store.commit(layer(BASE_LAYER_ID, 0));
+    store.commit(setLayerColour(store.state, BASE_LAYER_ID, "#1e8c1e")!);
+    expect(store.resolved.layers[0]!.colour).toBe("#1e8c1e");
+    store.undo();
+    expect(store.resolved.layers[0]!.colour).toBeNull();
   });
 });
 

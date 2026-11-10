@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Change } from "@sandtreader/collab/protocol";
-import { BASE_LAYER_ID, KINDS, addDimension, addRadiusLabel, addRect, resolve } from "../../src/model";
+import { BASE_LAYER_ID, KINDS, LAYER_COLOURS, addDimension, addRadiusLabel, addRect, resolve } from "../../src/model";
 import { drawingPrimitives } from "../../src/output/primitives";
 import { exportDxf } from "../../src/output/dxf";
 import { exportSvg } from "../../src/output/svg";
@@ -89,5 +89,19 @@ describe("DXF layers", () => {
   it("uses Layer_1 for a drawing with no layers", () => {
     const r = resolve(doc(addRect("a", { x: 0, y: 0, width: 10, height: 10 })));
     expect(tableLayers(exportDxf(r)!)).toEqual(["Layer_1"]);
+  });
+
+  it("gives a colour outside the palette the nearest palette entry's number, and leaves entities BYLAYER", () => {
+    const r = resolve(doc(
+      layer(BASE_LAYER_ID, 0, { colour: "#f00000" }), layer("x", 1, { colour: "#ffffff" }),
+      addRect("a", { x: 0, y: 0, width: 10, height: 10 }),
+      addRect("b", { x: 0, y: 0, width: 10, height: 10, layer: "x" }),
+    ));
+    const lines = exportDxf(r)!.split(/\r?\n/).map((l) => l.trim());
+    const colours: number[] = [];
+    for (let i = 0; i + 7 < lines.length; i += 2) if (lines[i] === "0" && lines[i + 1] === "LAYER") colours.push(Number(lines[i + 7]));
+    const entityCodes = lines.slice(lines.indexOf("ENTITIES") + 1).filter((_, i) => i % 2 === 0);
+    expect(entityCodes).not.toContain("62");
+    expect(colours).toEqual([LAYER_COLOURS.find((c) => c.name === "Red")!.aci, LAYER_COLOURS.find((c) => c.name === "Grey")!.aci]);
   });
 });

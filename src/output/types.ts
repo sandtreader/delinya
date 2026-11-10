@@ -18,6 +18,8 @@ export interface PathPrim {
   role: Role;
   /** May hold several disjoint runs; renderers move between them. */
   path: Path;
+  /** Ink ("#rrggbb") in place of the role's: a shape on a coloured layer. */
+  colour?: string;
 }
 
 export interface TextPrim {
@@ -31,6 +33,8 @@ export interface TextPrim {
   /** Font size, same units as `at`. */
   size: number;
   anchor: "start" | "middle" | "end";
+  /** Ink ("#rrggbb") in place of the role's; nothing sets it yet. */
+  colour?: string;
 }
 
 export type Primitive = PathPrim | TextPrim;

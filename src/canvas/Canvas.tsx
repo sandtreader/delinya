@@ -2,7 +2,7 @@
 // geometry, writes only through the store. Tools are a small pointer state
 // machine kept in a ref so pointer moves don't re-render.
 
-import { useCallback, useEffect, useRef, useState, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent } from "react";
 import {
   KINDS, addCircle, addDimension, addLine, addRect, batch, derivedAxes, dragHandle, entityAs, freeDelta, handlesFor, isRef, isVisible, linkLocks,
   moveBy, newId, snapNumber,
@@ -93,6 +93,9 @@ export function Canvas() {
   // Grid snap off (this viewer's choice) leaves only shapes' snap points.
   const pitch = gridPitch(view, resolved.document.gridSpacing);
   const grid = editor.grid.snap ? pitch : null;
+
+  // Map, not object: a layer ID like "__proto__" stays data.
+  const layerColours = new Map(resolved.layers.map((l) => [l.id, l.colour]));
 
   // New shapes go on the current layer; one this viewer has hidden or locked takes none.
   const layerId = currentLayer(resolved, editor.layer);
@@ -282,7 +285,7 @@ export function Canvas() {
           const shape = resolved.shapes[id]!;
           return (
             <ShapeView
-              key={id} shape={shape} hair={hair}
+              key={id} shape={shape} hair={hair} colour={layerColours.get(shape.layer) ?? null}
               selected={selection.includes(id)}
               reference={selection.length > 1 && selection[0] === id}
               locked={derivedAxes(resolved, id)}
@@ -381,13 +384,16 @@ function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
  * `reference`: first of a multi-selection, the one others align to; it gets a halo.
  * `locked`: axes a link controls, so the cursor says which way it can still be dragged.
  * `inert`: on a locked layer, so clicks go through it and it never highlights.
+ * `colour`: its layer's, or null for the default ink. Set as --layer-colour,
+ * so selection and hover, which stroke in --select, still win.
  */
-function ShapeView({ shape, selected, reference, locked, inert, hair }: { shape: ResolvedShape; selected: boolean; reference: boolean; locked: ReadonlySet<string>; inert: boolean; hair: number }) {
+function ShapeView({ shape, selected, reference, locked, inert, hair, colour }: { shape: ResolvedShape; selected: boolean; reference: boolean; locked: ReadonlySet<string>; inert: boolean; hair: number; colour: string | null }) {
   const d = pathToSvg(shape.path);
-  if (inert) return <path d={d} className="shape inert" strokeWidth={hair * 1.2} />;
+  const style = colour ? ({ "--layer-colour": colour } as CSSProperties) : undefined;
+  if (inert) return <path d={d} className="shape inert" strokeWidth={hair * 1.2} style={style} />;
   const lock = locked.size === 2 ? " locked" : locked.has("x") ? " locked-x" : locked.has("y") ? " locked-y" : "";
   return (
-    <g data-id={shape.id} className={`shape${selected ? " selected" : ""}${lock}`}>
+    <g data-id={shape.id} className={`shape${selected ? " selected" : ""}${lock}`} style={style}>
       {reference && <path d={d} className="ref-halo" strokeWidth={hair * 7} />}
       <path d={d} className="hit" strokeWidth={hair * 12} stroke="transparent" />
       <path d={d} className="stroke" strokeWidth={hair * (selected ? 2 : 1.2)} />

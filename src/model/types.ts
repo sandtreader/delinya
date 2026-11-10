@@ -145,12 +145,14 @@ export const DEFAULT_GRID_SPACING = 1;
 /**
  * A layer: shapes on it draw together, above lower-numbered layers. Position
  * comes from `order` (lowest at the back); ties go by ID. Shapes name their
- * layer in their `layer` prop. Hiding and locking are each viewer's own
- * choice, held in editor state, never here.
+ * layer in their `layer` prop. `colour` ("#rrggbb", lower case) is the ink
+ * its shapes draw and print in; absent means the default ink. Hiding and
+ * locking are each viewer's own choice, held in editor state, never here.
  */
 export interface LayerProps {
   name?: string;
   order: number;
+  colour?: string;
 }
 
 /**

@@ -119,7 +119,7 @@ function pathOps(p: PathPrim, ops: string[], state: GState): void {
     ops.push(dashed ? `[${STYLE.guideDash.map((d) => f(d)).join(" ")}] 0 d` : "[] 0 d");
     state.dashed = dashed;
   }
-  const colour = rgb(STYLE.colour[p.role]);
+  const colour = rgb(p.colour ?? STYLE.colour[p.role]);
   if (state.stroke !== colour) {
     ops.push(`${colour} RG`);
     state.stroke = colour;
@@ -190,7 +190,7 @@ function bezier(a: Arc, from: number, to: number): [Point, Point, Point] {
 
 function textOps(t: TextPrim, ops: string[], state: GState): void {
   if (!t.text || !finite(...t.at, t.angle, t.size) || t.size <= 0) return;
-  const colour = rgb(STYLE.colour[t.role]);
+  const colour = rgb(t.colour ?? STYLE.colour[t.role]);
   if (state.fill !== colour) {
     ops.push(`${colour} rg`);
     state.fill = colour;

@@ -146,4 +146,15 @@ describe("exportPdf colours", () => {
     expectInk(moves["190 10"], [0, 0, 0]);     // guide
     expectInk(texts["(f\\(x\\) \\\\ 5\\260)"], [0, 0, 0]);
   });
+
+  it("strokes a shape on a coloured layer in its colour, and the next one back in black", () => {
+    const p = page(210, 297);
+    p.content.push(
+      { kind: "path", role: "shape", colour: "#1e8c1e", path: [{ kind: "segment", from: [30, 15], to: [110, 15] }] },
+      { kind: "path", role: "shape", path: [{ kind: "segment", from: [25, 200], to: [125, 200] }] },
+    );
+    const { moves } = inks(latin1(exportPdf([p], { title: "", author: "" })));
+    expectInk(moves["30 15"], hex("#1e8c1e"));
+    expectInk(moves["25 200"], [0, 0, 0]);
+  });
 });

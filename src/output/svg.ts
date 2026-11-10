@@ -5,7 +5,7 @@ import type { EntityId, Resolved } from "../model";
 import { pathToSvg } from "../view/svgPath";
 import { drawingPrimitives, primitivesBounds } from "./primitives";
 import { STYLE, SVG_PADDING } from "./style";
-import type { PageDrawing, Primitive, Role } from "./types";
+import type { PageDrawing, Primitive } from "./types";
 
 const FONT = "Helvetica, Arial, sans-serif";
 
@@ -44,7 +44,7 @@ export function pageToSvg(page: PageDrawing): string {
 
 /**
  * Paths in one stroked group, text in one filled group, both black; a role
- * inked in another colour says so on the element itself.
+ * or layer inked in another colour says so on the element itself.
  */
 function layer(prims: Primitive[]): string {
   const paths: string[] = [], texts: string[] = [];
@@ -52,11 +52,11 @@ function layer(prims: Primitive[]): string {
     if (p.kind === "path") {
       if (!p.path.length) continue;
       const dash = p.role === "guide" ? ` stroke-dasharray="${STYLE.guideDash.join(" ")}"` : "";
-      paths.push(`<path d="${pathToSvg(p.path)}" stroke-width="${STYLE.stroke[p.role]}"${dash}${ink("stroke", p.role)}/>`);
+      paths.push(`<path d="${pathToSvg(p.path)}" stroke-width="${STYLE.stroke[p.role]}"${dash}${ink("stroke", p.colour ?? STYLE.colour[p.role])}/>`);
     } else if (p.text) {
       const [x, y] = [num(p.at[0]), num(p.at[1])];
       const rotate = num(p.angle) !== "0" ? ` transform="rotate(${num(p.angle)} ${x} ${y})"` : "";
-      texts.push(`<text x="${x}" y="${y}" font-size="${num(p.size)}" text-anchor="${p.anchor}"${rotate}${ink("fill", p.role)}>${escapeXml(p.text)}</text>`);
+      texts.push(`<text x="${x}" y="${y}" font-size="${num(p.size)}" text-anchor="${p.anchor}"${rotate}${ink("fill", p.colour ?? STYLE.colour[p.role])}>${escapeXml(p.text)}</text>`);
     }
   }
   let out = "";
@@ -65,9 +65,8 @@ function layer(prims: Primitive[]): string {
   return out;
 }
 
-/** The role's colour as a stroke or fill attribute; nothing for black, which the group sets. */
-function ink(attr: "stroke" | "fill", role: Role): string {
-  const colour = STYLE.colour[role];
+/** A colour as a stroke or fill attribute; nothing for black, which the group sets. */
+function ink(attr: "stroke" | "fill", colour: string): string {
   return /^#(000|000000)$/i.test(colour) ? "" : ` ${attr}="${escapeXml(colour)}"`;
 }
 

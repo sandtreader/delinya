@@ -250,8 +250,9 @@ through `useSyncExternalStore`.
   roles (shape, dimension, furniture, guide) once; every format renders
   those. Text is measured with Helvetica metrics (`text.ts`) everywhere.
   Ink is per role in `STYLE.colour`: dimensions mid blue (`#3070c0`),
-  everything else black. The canvas takes its `--dimension` colour from
-  the same constant, so screen and paper match.
+  everything else black, unless a primitive carries its own `colour`
+  (shapes on a coloured layer; see Layers). The canvas takes its
+  `--dimension` colour from the same constant, so screen and paper match.
 - `planPages` lays the drawing onto sheets at a scale: margins 10 mm, a
   30 mm footer band, tiles overlapping 10 mm and labelled A1, A2, … B1.
 - `composePages` gives each sheet in paper mm: the drawing (clipped to
@@ -267,18 +268,34 @@ through `useSyncExternalStore`.
 ### Layers
 
 - **Model** (`model/layers.ts`, layer parts of `resolve.ts`/`types.ts`):
-  `layer` entities `{ name?, order }`, nothing else. Position comes from
+  `layer` entities `{ name?, order, colour? }`, nothing else. Position comes from
   a fractional `order` (lowest at the back, ties by ID), so
   `moveLayer` changes only the moved layer's order (midway between its new
   neighbours) and concurrent moves don't fight. A drawing with no layer
   entities has one implicit base layer at `BASE_LAYER_ID` (`"layer"`);
-  actions that need it real (`addLayer`, `setLayerName`) materialise it
+  actions that need it real (`addLayer`, `setLayerName`,
+  `setLayerColour`) materialise it
   in the same change, so a drawing only grows layer entities once layers
   are used. Shapes carry an optional `layer` prop; missing or dangling
   falls back to the base (else the first) layer. `resolved.layers` is
   back to front with 1-based `number`s; every resolved shape has `layer`;
   `resolved.order` is draw order (layer 1 at the back, document order
   within a layer).
+- **Line colour** is part of the drawing (saved, synced, undoable, unlike
+  hide/lock): `colour` on the layer entity, `"#rrggbb"` lower case,
+  absent = the default ink. `setLayerColour(state, id, hex | null)`
+  (undefined if unchanged, unknown, or not `#rrggbb`; null clears, even a
+  bad stored value). `ResolvedLayer.colour` is the hex or null; a bad
+  stored value resolves to null with a `bad-value` issue. The UI offers
+  `LAYER_COLOURS` (`{ name, hex, aci }`): Default (null, ACI 7), Grey
+  `#808080` (8), Red `#e00000` (1), Brown `#8b4513` (34), Green `#1e8c1e`
+  (3), Teal `#00897b` (4), Navy `#1a2b99` (5), Magenta `#c0189c` (6) —
+  dark enough for fine lines on paper, clear of the canvas's own orange,
+  purple, red and dimension blue. Any `#rrggbb` resolves; one outside the
+  palette gets the nearest entry's name/ACI (`layerColourEntry`). The
+  canvas strokes shapes via `--layer-colour` on the shape (selection,
+  hover and preview still win with `--select`); locked layers' shapes
+  keep their colour.
 - **Hidden and locked are local to each viewer**: editor state
   (`editor.layerView: { hidden, locked }`, sets of layer IDs; action
   `toggleLayer`), never in the document, so not synced, saved, undoable
@@ -305,11 +322,17 @@ through `useSyncExternalStore`.
   palette by default (`delinya.layerPalette`). A numbered button per
   layer, 1 at the top; the current layer is highlighted like the active
   tool; hidden layers' numbers are dimmed with an eye-off mark, locked
-  ones get a lock mark. The tooltip (to the right) shows the name
+  ones get a lock mark; a coloured layer has a thin bar in its colour
+  down the button's left edge (dimmed when hidden). The tooltip (to the right) shows the name
   ("Layer N" if unnamed) and "· hidden, locked"; not while its card is
   open. Clicking makes the layer current and opens its
   card (click again, Escape or click outside closes it; Escape only
-  closes the card): name field, hide/show, lock/unlock, and delete, which
+  closes the card): name field, line colour, hide/show, lock/unlock, and
+  delete. The colour is a swatch button opening a 4 × 2 grid of the
+  palette (each swatch a button with its name as tooltip, the current one
+  `aria-pressed`, focused on open); choosing commits `setLayerColour` and
+  closes the grid. Escape or a press elsewhere in the card closes just the
+  grid; a press outside the palette closes both. Delete
   deletes the layer and its shapes as one undo step (asks first, in the
   in-app dialog, if it has shapes; disabled for the only layer). "+" adds
   a layer in front and makes it current. Dragging a button (after 4 px) reorders, others
@@ -321,10 +344,14 @@ through `useSyncExternalStore`.
 - **Output** follows what you see: layers this viewer has hidden, with
   their dimensions and labels, are left out of print, PDF, SVG and DXF
   (`PrintOptions.hidden`, `exportSvg`'s `hidden`, `exportDxf(r, hidden)`),
-  and the dialog says "Hidden layers are left out." when any are. DXF gets
-  one layer per visible drawing layer, named after it ("Layer N" if
-  unnamed, sanitised to R12's 31-character names, duplicates suffixed
-  `_2`…).
+  and the dialog says "Hidden layers are left out." when any are. A
+  coloured layer's shapes print in its colour (`PathPrim.colour`, set by
+  `drawingPrimitives` on those shape paths only; SVG `stroke`, PDF `RG`);
+  dimensions, labels and furniture keep theirs. DXF gets one layer per
+  visible drawing layer, named after it ("Layer N" if unnamed, sanitised
+  to R12's 31-character names, duplicates suffixed `_2`…), with the
+  layer's ACI as its colour (group 62; 7 for the default); entities stay
+  BYLAYER.
 
 ## Decisions taken (not in the outline)
 

@@ -13,12 +13,14 @@
 // become separate entities.
 //
 // Each visible drawing layer becomes a DXF layer, in layer order, and each
-// entity goes on its shape's layer. Layers the viewer has hidden, and their
-// shapes, are left out. See dxfLayerNames for how layers are named.
+// entity goes on its shape's layer (colour BYLAYER). Layers the viewer has
+// hidden, and their shapes, are left out. See dxfLayerNames for how layers
+// are named. A layer's colour is its palette entry's ACI (7, black on white,
+// for the default; the nearest entry for a colour outside the palette).
 
 import {
   type Arc, type Path, type PathElement, type Point, type ResolvedLayer,
-  arcEnd, arcStart, elementLength, isVisible, pointsNear, unionBounds,
+  arcEnd, arcStart, elementLength, isVisible, layerColourEntry, pointsNear, unionBounds,
 } from "../model";
 import type { EntityId, Resolved } from "../model";
 
@@ -52,7 +54,9 @@ export function exportDxf(resolved: Resolved, hidden: ReadonlySet<EntityId> = ne
     .pair(72, 65).pair(73, 0).pair(40, 0);
   out.pair(0, "ENDTAB");
   out.pair(0, "TABLE").pair(2, "LAYER").pair(70, layers.length);
-  for (const l of layers) out.pair(0, "LAYER").pair(2, names.get(l.id)!).pair(70, 0).pair(62, 7).pair(6, "CONTINUOUS");
+  for (const l of layers) {
+    out.pair(0, "LAYER").pair(2, names.get(l.id)!).pair(70, 0).pair(62, layerColourEntry(l.colour).aci).pair(6, "CONTINUOUS");
+  }
   out.pair(0, "ENDTAB");
   out.endsec();
 

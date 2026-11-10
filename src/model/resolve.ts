@@ -146,6 +146,8 @@ export interface ResolvedLayer {
   id: EntityId;
   name: string;
   number: number;
+  /** Its shapes' ink, "#rrggbb"; null for the default. */
+  colour: string | null;
 }
 
 export interface Resolved {
@@ -287,18 +289,25 @@ export function storedLayers(state: DocState): StoredLayer[] {
     .sort((a, b) => a.order - b.order || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
 }
 
+/** A usable layer colour: "#rrggbb", lower case. */
+export function isLayerColour(v: unknown): v is string {
+  return typeof v === "string" && /^#[0-9a-f]{6}$/.test(v);
+}
+
 function layerOrder(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
 function resolveLayers(ctx: Ctx): ResolvedLayer[] {
   const stored = storedLayers(ctx.state);
-  if (stored.length === 0) return [{ id: BASE_LAYER_ID, name: "", number: 1 }];
+  if (stored.length === 0) return [{ id: BASE_LAYER_ID, name: "", number: 1, colour: null }];
   return stored.map(({ id }, i) => {
     const p = ctx.state.entities[id]!.props;
     if (layerOrder(p.order) !== p.order) ctx.issues.push({ entity: id, code: "bad-value", message: "layer order is not a number" });
     if (p.name != null && typeof p.name !== "string") ctx.issues.push({ entity: id, code: "bad-value", message: "layer name is not text" });
-    return { id, name: typeof p.name === "string" ? p.name : "", number: i + 1 };
+    const colour = isLayerColour(p.colour) ? p.colour : null;
+    if (p.colour != null && !colour) ctx.issues.push({ entity: id, code: "bad-value", message: "layer colour is not #rrggbb" });
+    return { id, name: typeof p.name === "string" ? p.name : "", number: i + 1, colour };
   });
 }
 
