@@ -8,10 +8,10 @@
 // Every change replaces the whole `nodes` list: props_changed merges
 // shallowly, and a node is one value of it.
 
-import type { Change, DocState, PropValue } from "@sandtreader/collab/protocol";
+import { type Change, type DocState, type PropValue, applyChange } from "@sandtreader/collab/protocol";
 import { type Point, cubic, distance, lerp, snapNumber, splitCubic } from "./geometry";
-import { type ResolvedPolyNode, resolve } from "./resolve";
-import { type Gesture, batch, deleteEntity, propsChanged } from "./actions";
+import { type Resolved, type ResolvedPolyNode, type ResolvedPolyline, resolve } from "./resolve";
+import { type Gesture, batch, deleteEntity, drawnOffset, propsChanged, shiftNodes } from "./actions";
 import { type EntityId, type PolyNode, type PolyNodeType, KINDS } from "./types";
 
 /** The stored nodes of path `id` (as stored, possibly malformed), or undefined if it isn't a path. */
@@ -362,4 +362,151 @@ export function setPolyClosed(state: DocState, id: EntityId, closed: boolean): C
   if ((state.entities[id]!.props.closed === true) === closed) return undefined;
   if (closed && nodes.length < 3) return undefined;
   return propsChanged(id, { closed });
+}
+
+// ---- Breaking and joining ----
+
+/** A node of a path: the path and the node's stored index (the editor's NodeRef). */
+export interface PolyNodeRef {
+  shape: EntityId;
+  index: number;
+}
+
+/**
+ * The end node `ref` names, if it is the first or last drawn node of an
+ * open path: the path, the node and which end. Undefined otherwise.
+ */
+export function polyEnd(r: Resolved, ref: PolyNodeRef): { shape: ResolvedPolyline; node: ResolvedPolyNode; first: boolean } | undefined {
+  const s = Object.hasOwn(r.shapes, ref.shape) ? r.shapes[ref.shape] : undefined;
+  if (s?.kind !== "polyline" || s.closed) return undefined;
+  const first = s.nodes[0]!, last = s.nodes[s.nodes.length - 1]!;
+  if (first.index === ref.index) return { shape: s, node: first, first: true };
+  if (last.index === ref.index) return { shape: s, node: last, first: false };
+  return undefined;
+}
+
+/** Stored node `n` (resolved as `r`) as a corner with only handle `which`, as drawn, if it has one. */
+function cornerWith(n: Record<string, unknown>, r: ResolvedPolyNode, which: "in" | "out"): Record<string, unknown> {
+  const h = r[which];
+  return { ...withoutHandles(n), type: "cusp", ...(h ? { [which]: [h[0], h[1]] } : {}) };
+}
+
+/**
+ * Break a path apart at a node, leaving two end nodes on top of each other:
+ * corners, each keeping the handle its own side uses (as drawn, so an auto
+ * node's smoothed one), so nothing moves. An open path splits in two: the
+ * nodes up to this one stay as `id`, those from it on become a new path
+ * (`makeId("polyline")`, on the same layer). A closed path opens there,
+ * running from the node round to itself. `ids`: the paths, `id` first;
+ * `node`: the stored index in `id` of the end left on the spot (the first
+ * part's last node; a closed path's last). One undo step. Undefined at an
+ * open path's end, or no such node.
+ */
+export function breakPolyNode(
+  state: DocState, id: EntityId, index: number, makeId: (prefix: string) => EntityId,
+): { change: Change; ids: EntityId[]; node: number } | undefined {
+  const stored = storedNodes(state, id);
+  const found = stored && resolvedNode(state, id, index);
+  if (!stored || !found) return undefined;
+  const { node, all, closed } = found;
+  const n = nodeAt(stored, index)!;
+  // Neighbours keep theirs, so auto nodes beside the break smooth as before.
+  const head = cornerWith(n, node, "in"), tail = cornerWith(n, node, "out");
+  if (closed) {
+    const nodes = [tail, ...stored.slice(index + 1), ...stored.slice(0, index), head];
+    return { change: propsChanged(id, { nodes: nodes as PropValue[], closed: false }), ids: [id], node: nodes.length - 1 };
+  }
+  const k = all.indexOf(node);
+  if (k === 0 || k === all.length - 1) return undefined;
+  const other = makeId(KINDS.polyline);
+  const layer = state.entities[id]!.props.layer;
+  return {
+    change: batch([
+      propsChanged(id, { nodes: [...stored.slice(0, index), head] as PropValue[] }),
+      { type: "entity_added", id: other, kind: KINDS.polyline, props: { nodes: structuredClone([tail, ...stored.slice(index + 1)]) as PropValue[], ...(layer !== undefined ? { layer } : {}) } },
+    ]),
+    ids: [id, other],
+    node: index,
+  };
+}
+
+/** Whether two handles point opposite ways, in line (within a small angle). */
+function opposed(a: Point, b: Point): boolean {
+  const la = Math.hypot(a[0], a[1]), lb = Math.hypot(b[0], b[1]);
+  if (la === 0 || lb === 0) return false;
+  return a[0] * b[0] + a[1] * b[1] < 0 && Math.abs(a[0] * b[1] - a[1] * b[0]) <= 1e-6 * la * lb;
+}
+
+/**
+ * Two ends merged into stored node `base`'s place: `hin` from one, `hout`
+ * from the other. Smooth if they line up opposite (so a smooth node broken
+ * apart joins back smooth), else a corner.
+ */
+function mergedNode(base: Record<string, unknown>, hin: Point | undefined, hout: Point | undefined): Record<string, unknown> {
+  const type = hin && hout && opposed(hin, hout) ? "curve" : "cusp";
+  return { ...withoutHandles(base), type, ...(hin ? { in: [hin[0], hin[1]] } : {}), ...(hout ? { out: [hout[0], hout[1]] } : {}) };
+}
+
+/** A stored node of a path turned round: its handles swap sides. */
+function turned(n: unknown): unknown {
+  if (n === null || typeof n !== "object" || Array.isArray(n)) return n;
+  const { in: hin, out: hout, ...rest } = n as Record<string, unknown>;
+  return { ...rest, ...(hout !== undefined ? { in: hout } : {}), ...(hin !== undefined ? { out: hin } : {}) };
+}
+
+/**
+ * Join two end nodes of open paths into one node (wherever b is, it comes
+ * to a). The two ends of one path close it: they merge at the first node,
+ * with the last's in and the first's out, and the last goes (undefined if
+ * fewer than 3 nodes would be left). Ends of two paths make one path, kept
+ * as a's: a's path runs to a, then on through b's (each turned round if
+ * need be, handles swapping sides), b's nodes brought into a's stored
+ * frame (a link may draw either away from its nodes); b's path is deleted
+ * with its links, as deleteEntity does. The merged node has the in its
+ * side of the path uses and the out of the other, smooth if they line up
+ * opposite, else a corner; an auto end's smoothed handles are kept, so
+ * nothing else moves. `node`: the merged node's stored index. One undo
+ * step. Undefined unless a and b are different ends of open paths.
+ */
+export function joinPolyEnds(state: DocState, a: PolyNodeRef, b: PolyNodeRef): { change: Change; node: number } | undefined {
+  const r = resolve(state);
+  const ea = polyEnd(r, a), eb = polyEnd(r, b);
+  if (!ea || !eb || ea.node === eb.node) return undefined;
+
+  if (a.shape === b.shape) {
+    const { nodes: all } = ea.shape;
+    if (all.length - 1 < 3) return undefined;
+    const first = all[0]!, last = all[all.length - 1]!;
+    const stored = storedNodes(state, a.shape)!;
+    const nodes = stored
+      .map((n, i) => (i === first.index ? mergedNode(n as Record<string, unknown>, last.in, first.out) : n))
+      .filter((_, i) => i !== last.index);
+    return { change: propsChanged(a.shape, { nodes: nodes as PropValue[], closed: true }), node: first.index };
+  }
+
+  // b's path goes first: a link anchored on it writes a's position back.
+  const gone = deleteEntity(state, b.shape)!;
+  const after = applyChange(state, gone);
+  const sa = resolve(after).shapes[a.shape];
+  const storedA = storedNodes(after, a.shape), storedB = storedNodes(state, b.shape)!;
+  if (sa?.kind !== "polyline" || !storedA) return undefined;
+
+  // a's path running up to a, then b's on from b, without a and b themselves.
+  const headA = ea.first ? storedA.slice(a.index + 1).reverse().map(turned) : storedA.slice(0, a.index);
+  const restB = eb.first ? storedB.slice(b.index + 1) : storedB.slice(0, b.index).reverse().map(turned);
+  const [ax, ay] = drawnOffset(after, sa), [bx, by] = drawnOffset(state, eb.shape);
+  const dx = bx - ax, dy = by - ay;
+  const merged = mergedNode(
+    nodeAt(storedA, a.index)!,
+    ea.first ? ea.node.out : ea.node.in,
+    eb.first ? eb.node.out : eb.node.in,
+  );
+  const nodes = [...headA, merged, ...shiftNodes(restB, dx, dy, dx !== 0 || dy !== 0)];
+  const props: Record<string, PropValue> = { nodes: nodes as PropValue[] };
+  // Stored closed but drawn open (too few nodes): it stays open.
+  if (after.entities[a.shape]!.props.closed === true) props.closed = false;
+  return {
+    change: batch([...(gone.type === "batch" ? gone.changes : [gone]), propsChanged(a.shape, props)]),
+    node: headA.length,
+  };
 }

@@ -1,11 +1,12 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-10. Repo `sandtreader/delinya`, branch `main`. The
-path (Bézier) tool is committed; in the working tree, not yet
-committed: the node card's icon layout, the two node types (Corner,
-Smooth: the standard Bézier editor's model, replacing the brief third
-"curved cusp") and segment selection (Straight/Curve, bend by dragging,
-delete; segment card). Vitest tests, `tsc` and the build pass.
+path (Bézier) tool and its node/segment editing are committed; in the
+working tree, not yet committed: breaking a path apart at a node and
+joining end nodes on the same spot (`breakPolyNode`, `joinPolyEnds`, the
+node card's Join / Break apart, a dragged node snapping to its own
+path's other nodes; `tests/pathJoin.test.ts`). Vitest tests, `tsc` and
+the build pass.
 
 ## Where we are
 
@@ -65,8 +66,16 @@ but has no UI.
   exactly the delta; linear in it; smooth ends stay smooth) and
   `deletePolySegment` (opens a closed path there, splits an open one into
   two paths on the same layer, dropping parts under 2 nodes; auto ends at
-  the cut keep their handles, so nothing left moves; returns the ids left). Moving, duplicating, links and one-shot arranging shift every
-  node (a link's write-back only on its own axis).
+  the cut keep their handles, so nothing left moves; returns the ids left),
+  `breakPolyNode` (two corners on the spot, each keeping the drawn handle
+  its side uses; splits an open path, opens a closed one; returns `ids`
+  and the end `node` left on the path) and `joinPolyEnds` (open ends as
+  `PolyNodeRef`s; one path's two ends close it, two paths become a's,
+  turned as needed with handles swapped, b's nodes moved into a's stored
+  frame, b deleted with its links; the merged node smooth if its handles
+  line up opposite, so break then join is exact). Moving, duplicating,
+  links and one-shot arranging shift every node (a link's write-back only
+  on its own axis).
 - **Geometry** has `Cubic` path elements (`cubic`, `cubicPoint`,
   `cubicBounds` from the derivative's roots, `splitCubic`, numeric
   `elementLength`, `flattenCubic(c, tol)` by adaptive subdivision) beside
@@ -199,8 +208,10 @@ through `useSyncExternalStore`.
   when the selection changes to anything but that path alone, by
   `toggleSelect`, or leaving the select tool; `selectedPathNode(r,
   editor)` also checks the node still exists); dragging it (past 3 px)
-  moves it with `movePolyNode`, snapped to other shapes' points and the
-  grid (not the path's own), as one gesture. If a link draws the path away
+  moves it with `movePolyNode`, snapped to other shapes' points, the
+  path's own other nodes (`ownNodeSnaps`, passed as `snapPoint`'s
+  `extra`; so an end drops onto the other end) and the grid, as one
+  gesture. If a link draws the path away
   from its stored nodes, the offset (`drawnOffset`) is taken at the press
   and subtracted, so the node follows the pointer. Dragging a handle uses
   `setPolyHandle` (smooth on a smooth node, alone on a corner; snapped the
@@ -236,8 +247,14 @@ through `useSyncExternalStore`.
   (named "Node N of M" for screen readers; no visible number). Top row: a
   two-way icon toggle, Corner (lines meeting at a filled square) / Smooth
   (aria-labels; tooltips explain each, the smooth one mentioning
-  Alt-drag; `setPolyNodeType`), and a bin (`deleteNode`, shared with the
-  Delete key). Then x and y on a row each, showing the drawn position
+  Alt-drag; `setPolyNodeType`), **Join** (chain; only on an open path's
+  end with another open end within 0.005 mm, `joinTarget` in
+  `canvas/polyEdit.ts`: its own other end first if 3+ nodes would be
+  left, else other paths' in drawing order, not on hidden or locked
+  layers; tooltip says whether it closes the path), **Break apart**
+  (broken chain; any node but an open path's end), and a bin
+  (`deleteNode`, shared with the Delete key). Join and Break select the
+  kept path and the end left on the spot, so each offers the other. Then x and y on a row each, showing the drawn position
   (typed values have `drawnOffset` taken off before `movePolyNode`).
   Escape in a field reverts as other fields do. A press on the canvas
   blurs a focused input first, so an edit in the card (or a panel)
@@ -279,8 +296,8 @@ through `useSyncExternalStore`.
   localStorage (`delinya.grid`, `app/gridView.ts`; loaded lazily into the
   reducer, saved on change). Hiding the grid keeps the origin axis lines
   (`grid-axis`): they are the axes, not the grid.
-- **Snapping** (`canvas/snap.ts`): to other shapes' snap points within
-  10 px, else to the drawn grid pitch. With grid snap off (`grid` null)
+- **Snapping** (`canvas/snap.ts`): to other shapes' snap points (and any
+  `extra` points passed) within 10 px, else to the drawn grid pitch. With grid snap off (`grid` null)
   free points and move deltas round only to 0.01 mm; shapes' snap points
   still apply. Moving snaps the moving shape's own points onto others.
   The status bar shows the snap type. Hovering with the select tool
@@ -564,7 +581,7 @@ through `useSyncExternalStore`.
    bounds, symmetric (equal-length) handles, converting rects/circles to
    paths; also Shift to constrain a handle's angle, selecting a node or
    segment on the click that selects the path, multi-node/segment
-   selection, joining open paths.
+   selection, joining by dropping one end on another (now via the card).
 
 ## Gotchas for whoever picks this up
 

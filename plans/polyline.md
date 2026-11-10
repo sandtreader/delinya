@@ -6,7 +6,8 @@ nodes, drawn by clicking, edited by dragging nodes and handles.
 **Status: built** (model, geometry, output, UI), 2026-11-10. The same
 day the node types became the usual Bézier editor's two (corner, smooth;
 a short-lived third "curved cusp" is gone) and segments became
-selectable (straight/curve, bend by dragging, delete). Everything below
+selectable (straight/curve, bend by dragging, delete), and nodes could
+be broken apart and end nodes joined (node card). Everything below
 is done; deviations and choices are noted inline as *Built:*. See
 `plans/status.md` (Path, Drawing a path, Editing a path, Node card,
 Segment card).
@@ -56,8 +57,9 @@ paths are drawn, bounded, transformed or exported (canvas, SVG `C`, PDF
 `addPolyline`, `movePolyNode`, `setPolyNodeType`, `setPolyHandle`,
 `deletePolyNode` (below 2 nodes deletes the shape; a closed path dropping
 below 3 opens), `insertPolyNode` (split a segment at t, de Casteljau for
-curves so the shape is unchanged), `setPolyClosed`, and for segments
-`setPolySegmentCurved`, `bendPolySegment`, `deletePolySegment`.
+curves so the shape is unchanged), `setPolyClosed`, for segments
+`setPolySegmentCurved`, `bendPolySegment`, `deletePolySegment`, and
+`breakPolyNode` / `joinPolyEnds` (each undoing the other).
 
 - `setPolyNodeType`: to cusp keeps the resolved handles (smoothed ones
   included), so the shape stays. To curve: a cusp with both handles has
@@ -91,6 +93,27 @@ curves so the shape is unchanged), `setPolyClosed`, and for segments
   fewer than 2 nodes goes, and if both do the path is deleted
   (`deleteEntity`). Auto smooth nodes at the cut keep their smoothed
   handles, so what's left keeps its shape. One undo step.
+- `breakPolyNode(…, index, makeId)` → `{ change, ids, node }`: the node
+  becomes two corners on the same spot, the first keeping only its drawn
+  `in`, the second only its `out` (an auto node's smoothed ones), so
+  nothing moves. An open path splits: nodes 0..i stay as the path, i..
+  become a new path (`makeId("polyline")`, same layer). A closed path
+  opens, rotated to [i′, i+1, …, i−1, i″]. `node`: the end left on the
+  original path (its last node). Undefined at an open path's end. One
+  undo step.
+- `joinPolyEnds(state, a, b)` (`PolyNodeRef { shape, index }`) →
+  `{ change, node }`: a and b different ends of open paths. One path's
+  two ends close it: merged at the first node (in from the last, out from
+  the first), the last dropped; undefined under 3 nodes. Two paths: a's
+  is kept, turned (if need be) to end at a, then b's turned to start at b
+  (turning swaps every node's in/out), b's nodes brought into a's stored
+  frame by the difference of their `drawnOffset`s, b's path deleted with
+  its links (`deleteEntity`, applied first so a link anchored on it
+  writes a's position back). The merged node sits at a; it is smooth if
+  its two handles line up opposite (so break then join restores a smooth
+  node exactly), else a corner. Distance isn't checked: the UI only
+  offers ends on the same spot. One undo step. `polyEnd(r, ref)` says
+  whether a node is an open path's end.
 
 Moving, duplicating, links and lasso treat a path like any shape
 (translate every node; bounds from the curve).
@@ -136,6 +159,15 @@ Moving, duplicating, links and lasso treat a path like any shape
   (`deletePolySegment`; selects what is left). Delete/Backspace deletes
   the selected segment; Escape deselects it first.
 - Double-click a segment to insert a node there.
+- *Built:* a node card's **Join** (chain icon) shows on an open path's
+  end with another open end on the same spot (`joinTarget` in
+  `canvas/polyEdit.ts`: within 0.005 mm, drawn; the path's own other end
+  first if closing leaves 3+ nodes, else other paths' ends in drawing
+  order, not on hidden or locked layers); **Break apart** (broken chain)
+  on any node that isn't an open path's end. Both select the kept path
+  and the end node left on the spot, so they toggle. A dragged node
+  snaps to its own path's other nodes too (`ownNodeSnaps`, as snapPoint's
+  `extra`), so an end can be dropped onto the other end and joined.
 - Delete/Backspace deletes the selected node or segment (not the path);
   with neither selected it deletes the path as now.
 - A node card pops up beside the selected node: type (Corner / Smooth
@@ -156,6 +188,6 @@ Moving, duplicating, links and lasso treat a path like any shape
 
 Dimensions for paths, scaling the whole path by its bounds, a symmetric
 (equal-length) handle mode, converting rects/circles to paths. Selecting
-several nodes or segments; joining two open paths (the reverse of
-deleting a segment). Pulling a handle out of a corner that has none on
+several nodes or segments; joining ends by dropping one onto another
+(now: drop it, then Join in the node card). Pulling a handle out of a corner that has none on
 that side other than via the segment (Curve, or a bend).

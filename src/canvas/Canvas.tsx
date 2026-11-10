@@ -29,7 +29,7 @@ import { snapMove, snapPoint } from "./snap";
 import { lassoMode, lassoSelect } from "./lasso";
 import { setHover } from "./hover";
 import { draftAdd, draftCloses, draftFinish, draftPreview, draftShape, draftUndo, type PolyDraft } from "./polyDraft";
-import { nodeAt, nodeHandles, segmentAt, segmentHandles } from "./polyEdit";
+import { nodeAt, nodeHandles, ownNodeSnaps, segmentAt, segmentHandles } from "./polyEdit";
 import { GUIDE_OVERHANG_PX, linkGuides, type LinkGuide } from "../view/linkGuides";
 
 const SNAP_PX = 10;
@@ -404,8 +404,11 @@ export function Canvas() {
       case "node": {
         if (!d.moved && Math.hypot(sp[0] - d.at[0], sp[1] - d.at[1]) < CLICK_PX) return;
         d.moved = true;
-        // Not onto the path's own points: the node being dragged is one of them.
-        const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid, hiddenLayers);
+        // Onto the path's other nodes (an end onto the other end, say), not its
+        // other points: the node being dragged is one of them.
+        const path = store.resolved.shapes[d.id];
+        const own = path ? ownNodeSnaps(path, d.index) : [];
+        const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid, hiddenLayers, own);
         const at: Point = [snapNumber(point[0] - d.offset[0]), snapNumber(point[1] - d.offset[1])];
         const change = movePolyNode(store.state, d.id, d.index, at);
         if (change) {

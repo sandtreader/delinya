@@ -3,7 +3,10 @@
 // as the node actions in model/polyline.ts take. Any shape may be passed;
 // only a path has nodes.
 
-import { cubicPoint, distance, distanceToSegment, type Cubic, type Point, type ResolvedShape, type Segment } from "../model";
+import {
+  cubicPoint, distance, distanceToSegment, isVisible, polyEnd,
+  type Cubic, type EntityId, type Point, type PolyNodeRef, type Resolved, type ResolvedShape, type Segment, type SnapPoint,
+} from "../model";
 
 /** The stored index of the node nearest `point`, within `tolerance` mm; null if none. */
 export function nodeAt(poly: ResolvedShape, point: Point, tolerance: number): number | null {
@@ -57,6 +60,46 @@ export function handleAt(poly: ResolvedShape, index: number, point: Point, toler
     if (d <= tolerance && d < bestD) { best = h.which; bestD = d; }
   }
   return best;
+}
+
+/**
+ * A path's own snap points at its nodes other than `index` (stored), as
+ * resolve gives them: a node being dragged may land on the others (an end
+ * on the other end, to close the path), though not on its own place.
+ */
+export function ownNodeSnaps(poly: ResolvedShape, index: number): SnapPoint[] {
+  if (poly.kind !== "polyline") return [];
+  // A path's snaps start with its nodes', in order.
+  return poly.nodes.flatMap((n, k) => (n.index === index ? [] : [poly.snaps[k]!]));
+}
+
+/** Ends this close (mm, as drawn) are on the same spot, and can be joined. */
+const JOIN_TOLERANCE = 0.005;
+
+const NO_LAYERS: ReadonlySet<EntityId> = new Set();
+
+/**
+ * The end node `ref` can be joined to (joinPolyEnds): another open path end
+ * on the same spot. Its own path's other end comes first (if closing would
+ * leave at least 3 nodes), then other paths' ends in drawing order, leaving
+ * out paths on `hidden` or `locked` layers. Null if `ref` isn't an open
+ * path's end, or there is none.
+ */
+export function joinTarget(
+  r: Resolved, ref: PolyNodeRef, hidden: ReadonlySet<EntityId> = NO_LAYERS, locked: ReadonlySet<EntityId> = NO_LAYERS,
+): PolyNodeRef | null {
+  const end = polyEnd(r, ref);
+  if (!end) return null;
+  const on = (p: Point) => distance(p, end.node.point) <= JOIN_TOLERANCE;
+  const { nodes } = end.shape;
+  const other = end.first ? nodes[nodes.length - 1]! : nodes[0]!;
+  if (nodes.length > 3 && on(other.point)) return { shape: ref.shape, index: other.index };
+  for (const id of r.order) {
+    const s = r.shapes[id]!;
+    if (id === ref.shape || s.kind !== "polyline" || s.closed || !isVisible(r, id, hidden) || locked.has(s.layer)) continue;
+    for (const n of [s.nodes[0]!, s.nodes[s.nodes.length - 1]!]) if (on(n.point)) return { shape: id, index: n.index };
+  }
+  return null;
 }
 
 /**
