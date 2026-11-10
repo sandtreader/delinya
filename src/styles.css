@@ -147,12 +147,20 @@ fieldset .row { width: 100%; }
 .modal .hint { color: var(--muted); margin: 8px 0; }
 .modal .buttons { display: flex; gap: 6px; margin-top: 10px; }
 button.primary { background: var(--accent); border-color: var(--accent); color: white; }
+button.danger-primary { background: #9b1c1c; border-color: #9b1c1c; color: white; }
+button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 
 .output-dialog { width: min(1400px, 100%); height: min(1000px, 100%); }
 .properties-dialog { width: 420px; }
 .properties-body { padding: 14px; overflow: auto; min-height: 0; }
 .properties-body section + section { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
 .properties-body .buttons { justify-content: flex-end; margin-top: 18px; }
+/* Above the other dialogs: a question can come up over one. */
+.ask-backdrop { z-index: 20; }
+.ask-dialog { width: 380px; }
+.ask-body { padding: 14px; }
+.ask-body p { margin: 0; overflow-wrap: anywhere; }
+.ask-body .buttons { justify-content: flex-end; margin-top: 16px; }
 .output-options { width: 320px; flex: none; padding: 14px; overflow: auto; border-right: 1px solid var(--line); }
 .output-options section + section { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
 .output-options .row .label { width: 84px; }

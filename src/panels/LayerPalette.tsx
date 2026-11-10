@@ -9,6 +9,7 @@ import type { Change } from "@sandtreader/collab/protocol";
 import { addLayer, deleteLayer, moveLayer, newId, setLayerName, type EntityId, type ResolvedLayer } from "../model";
 import { store, useDocument } from "../app/store";
 import { currentLayer, useEditor } from "../app/editor";
+import { ask, currentQuestion } from "../app/ask";
 import type { Point } from "../app/floatPosition";
 import { dropIndex } from "../view/reorder";
 import { Grip, useFloating } from "./floating";
@@ -51,7 +52,8 @@ export function LayerPalette() {
   // it stops there, so the selection and tool survive.
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node)) close(); };
+    // Not while a question is up: answering it is a click outside too.
+    const onDown = (e: PointerEvent) => { if (!currentQuestion() && !ref.current?.contains(e.target as Node)) close(); };
     // Keys from inside the palette go through onKeyDown, after any field has had them.
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" && !ref.current?.contains(e.target as Node)) { e.stopPropagation(); close(); }
@@ -188,11 +190,13 @@ function LayerCard({ layer, only, flip, onDeleted }: { layer: ResolvedLayer; onl
   const { editor, dispatch } = useEditor();
   const hidden = editor.layerView.hidden.has(layer.id), locked = editor.layerView.locked.has(layer.id);
   const commit = (c: Change | undefined) => { if (c) store.commit(c); };
-  const remove = () => {
+  const remove = async () => {
     const r = store.resolved;
     const count = r.order.filter((id) => r.shapes[id]!.layer === layer.id).length;
     const what = `layer ${layer.number}${layer.name ? ` "${layer.name}"` : ""}`;
-    if (count > 0 && !window.confirm(`Delete ${what} and the ${count} shape${count === 1 ? "" : "s"} on it?`)) return;
+    const message = `Delete ${what} and the ${count} shape${count === 1 ? "" : "s"} on it?`;
+    if (count > 0 && !(await ask({ title: "Delete layer", message, confirm: "Delete", danger: true }))) return;
+    // A peer may have deleted it meanwhile: deleteLayer then gives no change.
     commit(deleteLayer(store.state, layer.id));
     onDeleted();
   };

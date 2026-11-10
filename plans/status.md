@@ -137,7 +137,9 @@ through `useSyncExternalStore`.
   so Save writes back to the opened file; elsewhere Save downloads and
   Open uses a file input. Extension `.delinya` (JSON; `.json` also
   opens). The toolbar and tab title show the file name and a • when
-  dirty; New/Open confirm before discarding, and closing the tab warns.
+  dirty; New/Open ask before discarding (in-app dialog), and closing the
+  tab warns (the browser's own prompt; that one can't be replaced). Open
+  and save errors show in the in-app dialog too.
   Loading clears selection, returns to select and resets the view.
 - **Print / Export** (`panels/OutputDialog.tsx`, ⌘P): paper (A0–A4,
   Letter, Legal, Tabloid), orientation (auto picks fewer sheets), scale
@@ -146,6 +148,17 @@ through `useSyncExternalStore`.
   page SVGs with an `@page` rule (`app/print.ts`); Download PDF writes the
   same pages. SVG and DXF download at 1:1 mm. Paper, orientation and
   dimensions are remembered in localStorage; scale only for the session.
+- **Questions and notices** (`app/ask.ts`, `panels/AskDialog.tsx`): the
+  app's own confirm/alert, never the browser's. `ask({ title, message,
+  confirm?, cancel?, danger? })` resolves true/false, `tell(title,
+  message)` has only OK; module state (not React) so `file.ts` can use it,
+  and questions queue, one shown at a time. The dialog sits above other
+  dialogs, focuses its confirm button (red when `danger`), keeps Tab
+  inside it, and while open swallows every key from a window capture
+  listener registered at mount (Escape cancels, Enter/Space press the
+  focused button), so no shortcut fires underneath. Clicking the backdrop
+  cancels. Outside-click handlers (the layer card) ignore clicks while a
+  question is up.
 - **Keys**: ⌘Z / ⇧⌘Z (Ctrl+Y) undo/redo, Delete/Backspace, Escape to
   select and clear, ⌘P print/export. File keys work from inside a field:
   they blur it first so its value commits.
@@ -214,9 +227,9 @@ through `useSyncExternalStore`.
   "Layer N" if unnamed). Clicking makes the layer current and opens its
   card (click again, Escape or click outside closes it; Escape only
   closes the card): name field, hide/show, lock/unlock, and delete, which
-  deletes the layer and its shapes as one undo step (confirm if it has
-  shapes; disabled for the only layer). "+" adds a layer in front and
-  makes it current. Dragging a button (after 4 px) reorders, others
+  deletes the layer and its shapes as one undo step (asks first, in the
+  in-app dialog, if it has shapes; disabled for the only layer). "+" adds
+  a layer in front and makes it current. Dragging a button (after 4 px) reorders, others
   making room; the drop index is `view/reorder.ts` `dropIndex`, committed
   with `moveLayer`, and numbers follow the new order.
 - **Selection panels**: with more than one layer, the shape panel and

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useDocument, store } from "../app/store";
 import { useEditor } from "../app/editor";
 import { newDrawing, openDrawing, saveDrawing, saveDrawingAs, useDirty, useFileName } from "../app/file";
+import { tell } from "../app/ask";
 import { DEFAULT_VIEW } from "../view/viewport";
 import { sendPalettesHome } from "./floating";
 
@@ -20,9 +21,9 @@ export function useFileCommands() {
       // Hidden and locked layers are this viewer's choice for the old drawing.
       dispatch({ type: "resetLayers" });
     };
-    const fail = (e: unknown) => window.alert(e instanceof Error ? e.message : String(e));
+    const fail = (e: unknown) => { void tell("Something went wrong", e instanceof Error ? e.message : String(e)); };
     return {
-      newFile: () => reset(newDrawing()),
+      newFile: () => { newDrawing().then(reset, fail); },
       open: () => { openDrawing().then(reset, fail); },
       save: () => { saveDrawing().catch(fail); },
       saveAs: () => { saveDrawingAs().catch(fail); },

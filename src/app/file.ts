@@ -11,6 +11,7 @@
 import { useSyncExternalStore } from "react";
 import { emptyState } from "@sandtreader/collab/protocol";
 import { parseDrawing, serializeDrawing } from "../model";
+import { ask, tell } from "./ask";
 import { downloadBlob } from "./download";
 import { store } from "./store";
 
@@ -67,14 +68,19 @@ export function useDirty(): boolean {
 // editor state (selection, view).
 
 /** True if there is nothing unsaved or the user agrees to lose it. */
-function confirmDiscard(): boolean {
-  return !store.dirty || window.confirm(`Discard unsaved changes to “${current.name}”?`);
+async function confirmDiscard(): Promise<boolean> {
+  return !store.dirty || ask({
+    title: "Unsaved changes",
+    message: `Discard unsaved changes to “${current.name}”?`,
+    confirm: "Discard",
+    danger: true,
+  });
 }
 
 function load(text: string, file: CurrentFile): boolean {
   const result = parseDrawing(text);
   if (!result.ok) {
-    window.alert(`Couldn’t open “${file.name}”: ${result.error}`);
+    void tell("Couldn’t open", `“${file.name}”: ${result.error}.`);
     return false;
   }
   store.replace(result.state, { emit: true });
@@ -83,8 +89,8 @@ function load(text: string, file: CurrentFile): boolean {
   return true;
 }
 
-export function newDrawing(): boolean {
-  if (!confirmDiscard()) return false;
+export async function newDrawing(): Promise<boolean> {
+  if (!(await confirmDiscard())) return false;
   store.replace(emptyState(), { emit: true });
   store.markSaved();
   setCurrent({ name: UNTITLED });
@@ -92,7 +98,9 @@ export function newDrawing(): boolean {
 }
 
 export async function openDrawing(): Promise<boolean> {
-  if (!confirmDiscard()) return false;
+  // Answering is a click or key press, so the picker below still has the
+  // user activation it needs.
+  if (!(await confirmDiscard())) return false;
   const { showOpenFilePicker } = pickers();
   if (showOpenFilePicker) {
     let handle: FileSystemFileHandle | undefined;
@@ -142,7 +150,7 @@ async function writeTo(handle: FileSystemFileHandle, name: string): Promise<bool
     await out.write(serializeDrawing(state));
     await out.close();
   } catch (e) {
-    window.alert(`Couldn’t save “${name}”: ${e instanceof Error ? e.message : String(e)}`);
+    void tell("Couldn’t save", `“${name}”: ${e instanceof Error ? e.message : String(e)}`);
     return false;
   }
   // An edit made while the write was in flight is not in the file.
