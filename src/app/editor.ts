@@ -74,7 +74,8 @@ export type EditorAction =
 export function editorReducer(s: EditorState, a: EditorAction): EditorState {
   switch (a.type) {
     // A link popup belongs to the moment it was opened: any other choice closes it.
-    case "tool": return { ...s, tool: a.tool, linkPopup: null };
+    // Hovering with select shows no position, so arriving at it clears the readout.
+    case "tool": return { ...s, tool: a.tool, linkPopup: null, ...(hoverShowsPosition(a.tool) ? {} : { cursor: null, snap: null, draw: null }) };
     case "select": return { ...s, selection: a.ids, linkPopup: null };
     case "toggleSelect":
       return { ...s, linkPopup: null, selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id] };
@@ -91,11 +92,22 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     // between renders and each must build on the last.
     case "panBy": return { ...s, view: pan(s.view, a.dx, a.dy) };
     case "zoomAt": return { ...s, view: zoomAt(s.view, a.factor, a.at) };
-    case "pointer": return { ...s, cursor: a.cursor, snap: a.snap, draw: a.draw ?? null };
+    case "pointer":
+      // Hovering with select clears it on every move; when already clear, keep the state so nothing re-renders.
+      if (!a.cursor && !a.snap && !a.draw && !s.cursor && !s.snap && !s.draw) return s;
+      return { ...s, cursor: a.cursor, snap: a.snap, draw: a.draw ?? null };
     case "dialog": return { ...s, dialog: a.dialog };
     case "keepLinked": return { ...s, keepLinked: a.on };
     case "linkPopup": return { ...s, linkPopup: a.popup };
   }
+}
+
+/**
+ * Whether just hovering (no drag) shows the pointer position in the status
+ * bar: with a drawing tool yes, with select no. A drag shows it in any tool.
+ */
+export function hoverShowsPosition(tool: Tool): boolean {
+  return tool !== "select";
 }
 
 /**

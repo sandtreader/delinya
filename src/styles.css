@@ -66,16 +66,18 @@ button.danger { color: #9b1c1c; }
 .canvas-area { grid-area: canvas; position: relative; min-width: 0; min-height: 0; }
 .canvas { width: 100%; height: 100%; display: block; background: var(--bg); touch-action: none; user-select: none; -webkit-user-select: none; }
 .canvas text { pointer-events: none; }
-.canvas.tool-select { cursor: grab; }
+/* The select tool's background lassoes: the plain arrow, a crosshair while dragging. */
 .canvas.tool-select .shape { cursor: move; }
 /* A link owns the position: no entry, or only the free direction. */
 .canvas.tool-select .shape.locked { cursor: not-allowed; }
 .canvas.tool-select .shape.locked-x { cursor: ns-resize; }
 .canvas.tool-select .shape.locked-y { cursor: ew-resize; }
-.canvas.panning { cursor: grabbing; }
 .canvas.tool-line, .canvas.tool-rect, .canvas.tool-circle { cursor: crosshair; }
 /* Drawing tool on a hidden or locked current layer: nothing to draw. */
 .canvas.blocked { cursor: not-allowed; }
+/* Space held: a drag pans, in any tool and over anything. */
+.canvas.space, .canvas.space * { cursor: grab !important; }
+.canvas.panning, .canvas.panning * { cursor: grabbing !important; }
 
 .grid-minor { stroke: var(--grid-minor); stroke-width: 1; }
 .grid-major { stroke: var(--grid-major); stroke-width: 1; }
@@ -103,6 +105,10 @@ button.danger { color: #9b1c1c; }
 .link-name.emphasis { opacity: 1; font-weight: 600; }
 .radius-label { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
 .preview { stroke: var(--select); stroke-dasharray: 4 3; fill: none; }
+/* While lassoing nothing under the pointer reacts: no hover highlight, no other cursor. */
+.canvas.lassoing { cursor: crosshair; }
+.canvas.lassoing * { pointer-events: none; }
+.lasso { stroke: var(--select); stroke-width: 1; stroke-dasharray: 4 3; fill: var(--select); fill-opacity: 0.06; pointer-events: none; shape-rendering: crispEdges; }
 
 .handle { fill: white; stroke: var(--select); stroke-width: 1.5; }
 .handle:hover { fill: var(--select); }

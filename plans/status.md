@@ -119,9 +119,15 @@ through `useSyncExternalStore`.
   also adds its dimensions (rect: width and height; circle: diameter;
   line: length) and returns to select unless Shift is held. Shift
   constrains to square / 45°.
-- **Pan/zoom** matches SynFlo: wheel and pinch zoom at the cursor,
-  background drag pans, Space or middle button pans in any tool. Pan and
-  zoom are reducer delta actions so rapid events never read a stale view.
+- **Pan/zoom**: wheel and pinch zoom at the cursor, as in SynFlo. Space
+  or the middle button pans in any tool, and a finger pans the
+  background; a mouse or pen no longer does (it lassoes). Pan and zoom
+  are reducer delta actions so rapid events never read a stale view.
+- **Lasso** (`canvas/lasso.ts`): with the select tool, a mouse/pen drag
+  on the background (past 3 px) selects the shapes wholly inside the
+  rectangle, live, skipping hidden and locked layers. Shift adds to the
+  selection from before the drag; Esc cancels and restores it; a click
+  without movement clears the selection.
 - **Grid**: the spacing is the drawing's (`gridSpacing` on the document
   entity, default 1 mm: saved, synced, undoable). Zoomed out, the drawn
   grid coarsens to multiples of it (×1, ×2, ×5, ×10, ×20, ×50…, no cap) so
@@ -137,7 +143,9 @@ through `useSyncExternalStore`.
   10 px, else to the drawn grid pitch. With grid snap off (`grid` null)
   free points and move deltas round only to 0.01 mm; shapes' snap points
   still apply. Moving snaps the moving shape's own points onto others.
-  The status bar shows the snap type. While a new shape is dragged out
+  The status bar shows the snap type. Hovering with the select tool
+  shows no position (`hoverShowsPosition`); moving, resizing and
+  lassoing do. While a new shape is dragged out
   it shows its start and size instead of the pointer (`drawStatus` in
   `view/format.ts`: from x, y · w × h; centre · ⌀; from · length at angle).
 - **Resize handles** on a single selection: rect corners (anchor opposite
@@ -354,7 +362,6 @@ through `useSyncExternalStore`.
 
 UI to-do (requested 2026-11-10, in the order given):
 
-8. Rectangular lasso selection: selects the shapes wholly inside it.
 9. Filename moves to the right end of the header, followed by the
    drawing's title from Properties in quotes. Clicking it opens
    Properties on the Drawing tab.

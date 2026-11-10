@@ -17,9 +17,10 @@ Full state, decisions and next steps: `plans/status.md`.
 
 Keys: V select, L line, R rectangle, C circle, Shift constrains while
 drawing, Delete removes the selection, ⌘Z / ⇧⌘Z undo and redo, ⌘O open,
-⌘S / ⇧⌘S save and save as, ⌘P print and export. Wheel or pinch zooms;
-dragging the background pans (Space or the middle button pans in any
-tool).
+⌘S / ⇧⌘S save and save as, ⌘P print and export. Wheel or pinch zooms.
+With the select tool, dragging across the background selects the shapes
+wholly inside the rectangle (Shift adds to the selection, Esc cancels);
+with a finger it pans. Space-drag or the middle button pans in any tool.
 
 ## Layout
 

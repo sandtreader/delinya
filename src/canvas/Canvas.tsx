@@ -9,18 +9,25 @@ import {
   type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
-import { currentLayer, useEditor, type Tool } from "../app/editor";
+import { currentLayer, hoverShowsPosition, useEditor, type Tool } from "../app/editor";
 import { gridPitch, toModel, toScreen, type View } from "../view/viewport";
 import { pathToSvg } from "../view/svgPath";
 import { formatMm } from "../view/format";
 import { snapMove, snapPoint } from "./snap";
+import { lassoMode, lassoSelect } from "./lasso";
 import { GUIDE_OVERHANG_PX, linkGuides, type LinkGuide } from "../view/linkGuides";
 
 const SNAP_PX = 10;
 const DIMENSION_OFFSET = 10;
+/** A press that moves less than this (screen px) is a click, not a drag. */
+const CLICK_PX = 3;
 
 type Drag =
   | { kind: "pan"; last: Point; start: Point; clearOnClick: boolean }
+  // `start`/`current` in model mm, so the anchor stays put if the view moves;
+  // `at` is the press in screen px, for telling a click from a drag.
+  // `base`: kept and added to (Shift); `prior`: restored by Escape; `last`: last dispatched.
+  | { kind: "lasso"; at: Point; start: Point; current: Point; moved: boolean; shift: boolean; base: EntityId[]; prior: EntityId[]; last: EntityId[] }
   | { kind: "move"; ids: EntityId[]; primary: EntityId; origin: Point; applied: Point; moved: boolean }
   | { kind: "resize"; id: EntityId; spot: HandleSpot; locks: LinkLocks; moved: boolean }
   | { kind: "draw"; tool: Exclude<Tool, "select">; layer: EntityId; start: Point; current: Point };
@@ -34,6 +41,8 @@ export function Canvas() {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<Drag | null>(null);
   const spaceRef = useRef(false);
+  // Mirrors spaceRef for the grab cursor; the ref is what pointer handlers read.
+  const [spaceHeld, setSpaceHeld] = useState(false);
   const [preview, setPreview] = useState<Drag | null>(null);
   const [size, setSize] = useState<[number, number]>([800, 600]);
 
@@ -47,12 +56,32 @@ export function Canvas() {
   }, []);
 
   useEffect(() => {
-    const down = (e: KeyboardEvent) => { if (e.code === "Space" && !isTyping(e)) { spaceRef.current = true; e.preventDefault(); } };
-    const up = (e: KeyboardEvent) => { if (e.code === "Space") spaceRef.current = false; };
+    const down = (e: KeyboardEvent) => { if (e.code === "Space" && !isTyping(e)) { spaceRef.current = true; setSpaceHeld(true); e.preventDefault(); } };
+    const up = (e: KeyboardEvent) => { if (e.code === "Space") { spaceRef.current = false; setSpaceHeld(false); } };
+    // A keyup while another window has focus never arrives.
+    const blur = () => { spaceRef.current = false; setSpaceHeld(false); };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
-    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); };
+    window.addEventListener("blur", blur);
+    return () => { window.removeEventListener("keydown", down); window.removeEventListener("keyup", up); window.removeEventListener("blur", blur); };
   }, []);
+
+  // Escape during a lasso cancels it and puts the selection back. Capture,
+  // so the app's Escape (back to select, clear selection) doesn't also run.
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => {
+      const d = dragRef.current;
+      if (e.key !== "Escape" || d?.kind !== "lasso") return;
+      e.preventDefault();
+      e.stopPropagation();
+      dragRef.current = null;
+      setPreview(null);
+      dispatch({ type: "select", ids: d.prior });
+      dispatch({ type: "pointer", cursor: null, snap: null });   // hovering with select shows none
+    };
+    window.addEventListener("keydown", esc, true);
+    return () => window.removeEventListener("keydown", esc, true);
+  }, [dispatch]);
 
   const screenPoint = (e: RPointerEvent): Point => {
     const r = svgRef.current!.getBoundingClientRect();
@@ -92,8 +121,14 @@ export function Canvas() {
       if (target) { dispatch({ type: "linkPopup", popup: { target, at: sp } }); return; }
       if (editor.linkPopup) dispatch({ type: "linkPopup", popup: null });
       const hit = (e.target as Element).closest<SVGElement>("[data-id]")?.dataset.id;
-      // Dragging the background pans; a plain click on it clears the selection.
-      if (!hit) { dragRef.current = { kind: "pan", last: sp, start: sp, clearOnClick: !e.shiftKey }; return; }
+      // Dragging the background lassoes with a mouse or pen (Shift adds to the
+      // selection) and pans with a finger; a plain click on it clears the selection.
+      if (!hit) {
+        if (lassoMode(e.pointerType) === "pan") { dragRef.current = { kind: "pan", last: sp, start: sp, clearOnClick: !e.shiftKey }; return; }
+        const base = e.shiftKey ? selection : [];
+        dragRef.current = { kind: "lasso", at: sp, start: mp, current: mp, moved: false, shift: e.shiftKey, base, prior: selection, last: selection };
+        return;
+      }
       if (e.shiftKey) { dispatch({ type: "toggleSelect", id: hit }); return; }
       const ids = selection.includes(hit) ? selection : [hit];
       if (!selection.includes(hit)) dispatch({ type: "select", ids });
@@ -112,8 +147,9 @@ export function Canvas() {
     const mp = toModel(view, sp);
     const d = dragRef.current;
     if (!d) {
-      const exclude = new Set<EntityId>();
-      const { point, snap } = tool === "select" || blocked ? { point: mp, snap: null } : snapPoint(resolved, mp, tolerance, exclude, grid, hiddenLayers);
+      // Hovering with select shows no position; a drag below does.
+      if (!hoverShowsPosition(tool)) { dispatch({ type: "pointer", cursor: null, snap: null }); return; }
+      const { point, snap } = blocked ? { point: mp, snap: null } : snapPoint(resolved, mp, tolerance, new Set(), grid, hiddenLayers);
       dispatch({ type: "pointer", cursor: point, snap });
       return;
     }
@@ -122,6 +158,18 @@ export function Canvas() {
         dispatch({ type: "panBy", dx: sp[0] - d.last[0], dy: sp[1] - d.last[1] });
         d.last = sp;
         return;
+      case "lasso": {
+        dispatch({ type: "pointer", cursor: mp, snap: null });
+        if (!d.moved && Math.hypot(sp[0] - d.at[0], sp[1] - d.at[1]) < CLICK_PX) return;
+        d.moved = true;
+        d.current = mp;
+        // Live: the selection (and so the panel and handles) follows the rectangle.
+        const inside = lassoSelect(store.resolved, d.start, mp, layerView);
+        const ids = [...d.base, ...inside.filter((id) => !d.base.includes(id))];
+        if (!sameIds(ids, d.last)) { d.last = ids; dispatch({ type: "select", ids }); }
+        setPreview({ ...d });
+        return;
+      }
       case "move": {
         const raw: Point = [mp[0] - d.origin[0], mp[1] - d.origin[1]];
         const moving = new Set(d.ids);
@@ -170,15 +218,19 @@ export function Canvas() {
     if (!d) return;
     if (d.kind === "pan" && d.clearOnClick) {
       const sp = screenPoint(e);
-      if (Math.hypot(sp[0] - d.start[0], sp[1] - d.start[1]) < 3) dispatch({ type: "select", ids: [] });
+      if (Math.hypot(sp[0] - d.start[0], sp[1] - d.start[1]) < CLICK_PX) dispatch({ type: "select", ids: [] });
     }
+    // A lasso that never got going was a click; it has already set the selection otherwise.
+    if (d.kind === "lasso" && !d.moved && !d.shift) dispatch({ type: "select", ids: [] });
     if (d.kind === "move" && d.moved) {
       for (const id of d.ids) { const c = moveBy(store.state, id, 0, 0, { end: true }); if (c) store.commit(c); }
       store.endGesture();
     }
     if (d.kind === "resize" && d.moved) store.endGesture();
+    // The drag is over: back to what hovering shows (nothing, with select).
+    if (d.kind !== "draw" && !hoverShowsPosition(tool)) dispatch({ type: "pointer", cursor: null, snap: null });
     if (d.kind === "draw") {
-      // Back to the plain pointer position in the status bar.
+      // Back to the plain pointer position in the status bar (cleared if this returns to select).
       dispatch({ type: "pointer", cursor: d.current, snap: null });
       const id = createShape(d);
       if (id) dispatch({ type: "select", ids: [id] });
@@ -213,7 +265,7 @@ export function Canvas() {
   return (
     <svg
       ref={svgRef}
-      className={`canvas tool-${tool}${blocked ? " blocked" : ""}${dragRef.current?.kind === "pan" ? " panning" : ""}`}
+      className={`canvas tool-${tool}${blocked ? " blocked" : ""}${spaceHeld ? " space" : ""}${dragRef.current?.kind === "pan" ? " panning" : ""}${preview?.kind === "lasso" ? " lassoing" : ""}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -246,6 +298,7 @@ export function Canvas() {
         <Handles shape={resolved.shapes[selection[0]!]!} view={view} />
       )}
       {editor.snap && <SnapMarker snap={editor.snap} view={view} />}
+      {preview?.kind === "lasso" && <LassoView d={preview} view={view} />}
     </svg>
   );
 }
@@ -258,6 +311,10 @@ function linkTargetAt(el: Element): LinkTarget | undefined {
   if (!v?.valueShape || !v.valueProp) return undefined;
   const corner = v.valueCorner === undefined ? undefined : (Number(v.valueCorner) as 0 | 1 | 2 | 3);
   return { kind: "value", shape: v.valueShape, prop: v.valueProp, ...(corner === undefined ? {} : { corner }) };
+}
+
+function sameIds(a: EntityId[], b: EntityId[]): boolean {
+  return a.length === b.length && a.every((id, i) => id === b[i]);
 }
 
 function isTyping(e: KeyboardEvent): boolean {
@@ -439,6 +496,12 @@ function DrawPreview({ d, hair }: { d: Extract<Drag, { kind: "draw" }>; hair: nu
     case "line":
       return <line {...props} x1={x0} y1={y0} x2={x1} y2={y1} />;
   }
+}
+
+/** The lasso rectangle, in screen space so its dashes stay the same at any zoom. */
+function LassoView({ d, view }: { d: Extract<Drag, { kind: "lasso" }>; view: View }) {
+  const [x0, y0] = toScreen(view, d.start), [x1, y1] = toScreen(view, d.current);
+  return <rect className="lasso" x={Math.min(x0, x1)} y={Math.min(y0, y1)} width={Math.abs(x1 - x0)} height={Math.abs(y1 - y0)} />;
 }
 
 /** Resize handles in screen space, so they stay the same size at any zoom. */
