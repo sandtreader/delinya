@@ -4,7 +4,7 @@ import { positionStatus } from "../view/format";
 import { DEFAULT_VIEW } from "../view/viewport";
 import { sendPalettesHome } from "./floating";
 import { canFullscreen, toggleFullscreen, useFullscreen } from "../app/fullscreen";
-import { FullscreenIcon, IconButton, ResetViewIcon } from "./icons";
+import { FitViewIcon, FullscreenIcon, IconButton, ResetViewIcon } from "./icons";
 import { tip } from "./tip";
 
 export function StatusBar() {
@@ -25,6 +25,9 @@ export function StatusBar() {
           onClick={() => { dispatch({ type: "view", view: DEFAULT_VIEW }); sendPalettesHome(); }}
         >
           <ResetViewIcon />
+        </IconButton>
+        <IconButton label="Fit to drawing" tip="Fit to drawing (F)" data-tip-side="above" onClick={() => dispatch({ type: "fit" })}>
+          <FitViewIcon />
         </IconButton>
         {canFullscreen() && (
           <IconButton

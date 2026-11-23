@@ -14,7 +14,7 @@
 // (or Enter, in the app's keys) edits one.
 
 import {
-  useCallback, useEffect, useRef, useState,
+  useCallback, useEffect, useLayoutEffect, useRef, useState,
   type CSSProperties, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent,
 } from "react";
 import {
@@ -26,7 +26,8 @@ import {
 import { store, useDocument } from "../app/store";
 import { currentLayer, hoverShowsPosition, selectedPathNode, selectedPathSegment, useEditor } from "../app/editor";
 import { currentQuestion } from "../app/ask";
-import { gridPitch, toModel, toScreen, wheelZoom, type View } from "../view/viewport";
+import { fitView, gridPitch, toModel, toScreen, wheelZoom, type View } from "../view/viewport";
+import { drawingExtent } from "../view/fit";
 import { pathToSvg } from "../view/svgPath";
 import { formatMm, type DrawTool } from "../view/format";
 import { dimensionText } from "../view/dimensionText";
@@ -106,7 +107,8 @@ export function Canvas() {
   // Mirrors spaceRef for the grab cursor; the ref is what pointer handlers read.
   const [spaceHeld, setSpaceHeld] = useState(false);
   const [preview, setPreview] = useState<Drag | null>(null);
-  const [size, setSize] = useState<[number, number]>([800, 600]);
+  // Unknown until measured, before the first paint.
+  const [size, setSize] = useState<[number, number]>([0, 0]);
   // The path being drawn: the ref is what handlers read, the state what renders.
   const draftRef = useRef<Draft | null>(null);
   const [draft, setDraftState] = useState<Draft | null>(null);
@@ -118,7 +120,7 @@ export function Canvas() {
   const cursorRef = useRef(editor.cursor);
   cursorRef.current = editor.cursor;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const el = svgRef.current;
     if (!el) return;
     const ro = new ResizeObserver(() => setSize([el.clientWidth, el.clientHeight]));
@@ -126,6 +128,16 @@ export function Canvas() {
     setSize([el.clientWidth, el.clientHeight]);
     return () => ro.disconnect();
   }, []);
+
+  // Fit the view to what is shown, once for each request (F, the status
+  // bar, opening a file; editor.fitRequest counts them). One made before
+  // the canvas has a size waits for it.
+  const fitAnswered = useRef(0);
+  useEffect(() => {
+    if (editor.fitRequest === fitAnswered.current || !(size[0] > 0 && size[1] > 0)) return;
+    fitAnswered.current = editor.fitRequest;
+    dispatch({ type: "view", view: fitView(drawingExtent(resolved, hiddenLayers), size) });
+  }, [editor.fitRequest, size, resolved, hiddenLayers, dispatch]);
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => {

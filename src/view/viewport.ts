@@ -2,7 +2,8 @@
 // mm and a pixel offset for the model origin. Scale is view state only and
 // is never part of the document.
 
-import type { Point } from "../model";
+import type { Bounds, Point } from "../model";
+import { FIT_PAD_PX } from "./fit";
 
 export interface View {
   /** Pixels per millimetre. */
@@ -33,6 +34,22 @@ export function zoomAt(v: View, factor: number, at: Point): View {
   const scale = Math.min(MAX_SCALE, Math.max(MIN_SCALE, v.scale * factor));
   const k = scale / v.scale;
   return { scale, ox: at[0] - (at[0] - v.ox) * k, oy: at[1] - (at[1] - v.oy) * k };
+}
+
+/**
+ * The view showing `b` (mm) as large as a canvas of `size` px allows, with
+ * FIT_PAD_PX clear all round, centred, within the zoom limits. A side with
+ * no extent doesn't limit the scale; with neither, it is the default
+ * scale. A canvas under four paddings across keeps half of it for the
+ * drawing. Nothing to show, or no canvas, gives the default view.
+ */
+export function fitView(b: Bounds | null, size: readonly [number, number]): View {
+  const [w, h] = size;
+  if (!b || !(w > 0) || !(h > 0)) return DEFAULT_VIEW;
+  const room = (px: number, mm: number) => (mm > 0 ? (px - 2 * Math.min(FIT_PAD_PX, px / 4)) / mm : Infinity);
+  const fit = Math.min(room(w, b.maxX - b.minX), room(h, b.maxY - b.minY));
+  const scale = Number.isFinite(fit) ? Math.min(MAX_SCALE, Math.max(MIN_SCALE, fit)) : DEFAULT_VIEW.scale;
+  return { scale, ox: w / 2 - ((b.minX + b.maxX) / 2) * scale, oy: h / 2 - ((b.minY + b.maxY) / 2) * scale };
 }
 
 /**

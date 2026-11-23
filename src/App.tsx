@@ -137,6 +137,12 @@ function Shell() {
         dispatch({ type: "select", ids: [] });
         return;
       }
+      // F fits the view to the drawing; not with Shift or Alt.
+      if (e.key.toLowerCase() === "f" && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        dispatch({ type: "fit" });
+        return;
+      }
       const tool = TOOL_KEYS[e.key.toLowerCase()];
       if (tool) dispatch({ type: "tool", tool });
     };

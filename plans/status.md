@@ -4,7 +4,8 @@ Last updated 2026-11-23. Repo `sandtreader/delinya`, branch `main`.
 v0.1.2 (text boxes, typed on the drawing or in the panel, aligned left,
 centre or right, never narrower than their longest word; Adobe Core 14
 metrics in `model/fontMetrics.ts`) is committed, tagged and deployed to
-delinya.net. Vitest tests, `tsc` and the build pass.
+delinya.net. Fit view to drawing (see UI) is committed since, not yet
+pushed or deployed. Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -239,7 +240,8 @@ through `useSyncExternalStore`.
   position, grip drag and clamping are shared with the layer palette in
   `panels/floating.tsx` (`useFloating`, `Grip`); Reset view (in the
   status bar, beside the px/mm scale) resets zoom and pan and sends both
-  palettes home (`sendPalettesHome`). A full screen / window toggle sits
+  palettes home (`sendPalettesHome`); Fit to drawing sits beside it (see
+  Fit view). A full screen / window toggle sits
   at the right end of the status bar (`app/fullscreen.ts`; follows
   `fullscreenchange`, so Esc/F11 keep it right; hidden where the browser
   can't). Header and status bar buttons are
@@ -250,13 +252,26 @@ through `useSyncExternalStore`.
   focus), then at once for the next within 0.5 s, like native tooltips
   (`TipTimer`, `view/tooltip.ts`). Fixed-position, so never clipped by a
   scrolling panel, and above dialogs. `data-tip-side` picks the side
-  (below by default; right in the palettes, above for Reset view);
+  (below by default; right in the palettes, above for the status bar's
+  view buttons);
   `placeTip` flips it and keeps it in the window. A click, key, wheel or
   window blur hides it; nothing shows while a pointer button is held, so
   drags don't pop tips. Disabled buttons still show theirs. The bubble
   is aria-hidden: `tip()` (`panels/tip.ts`) sets the same text as the
   element's `aria-description` all the time, unless it is just its name,
   so screen readers get it on focus without waiting.
+- **Fit view to drawing**: the view showing everything visible (shapes on
+  shown layers, their dimensions' lines and radius labels' points;
+  `drawingExtent`, `view/fit.ts`) as large as the canvas allows, with
+  `FIT_PAD_PX` (40) clear all round, centred, within the zoom limits
+  (`fitView`, `view/viewport.ts`, pure). A line along an axis fits by its
+  length; a point keeps the default scale, centred; a canvas under 160 px
+  across keeps a quarter of it as padding each side; nothing visible gives
+  the default view. Asked for by opening a file (after its layers are
+  reset; New still resets to the default view), the status bar's Fit to
+  drawing button and F: each bumps `EditorState.fitRequest`, and the
+  canvas, which knows its size, answers each new count with a `view`
+  (waiting for a size if it has none yet).
 - **Tools**: select (V), line (L), rect (R), circle (C), path (P), text
   (T). Drawing a shape also adds its dimensions (rect: width and height;
   circle: diameter; line: length; path and text: none) and returns to
@@ -599,7 +614,8 @@ through `useSyncExternalStore`.
   saving first then going on; untitled, Discard / Cancel), and closing the
   tab warns (the browser's own prompt; that one can't be replaced). Open
   and save errors show in the in-app dialog too.
-  Loading clears selection, returns to select and resets the view.
+  Loading clears selection, returns to select and resets hidden and
+  locked layers; Open then fits the view to the drawing, New resets it.
 - **Print / Export** (`panels/OutputDialog.tsx`, ⌘P): paper (A0–A4,
   Letter, Legal, Tabloid), orientation (auto picks fewer sheets), scale
   (2:1 … 1:100, Fit = largest that fits one sheet), dimensions on/off,
@@ -627,7 +643,8 @@ through `useSyncExternalStore`.
   path node or segment, else the selection; while drawing a path, its
   last node), Escape (a selected path node or segment first; while
   drawing a path, finishes it;
-  else back to select and clear), V/L/R/C/P/T tools, ⌘P print/export, ⌘D one copy of the selection in
+  else back to select and clear), V/L/R/C/P/T tools, F fit view to the
+  drawing (not with Shift or Alt), ⌘P print/export, ⌘D one copy of the selection in
   the panel's Duplicate direction and gap (always one, unlinked, whatever
   its count and links; via `duplicateBeside`), selecting it so repeating
   carries on the row. File keys and ⌘D
@@ -863,19 +880,17 @@ through `useSyncExternalStore`.
 2. **Collaboration UI**: connect, session panel, presence cursors. Needs
    the MUI decision. The delinya.net vhost on st1 already proxies
    `/collab` to the relay (port 2901), so connect with `app: "delinya"`.
-3. **Fit view to drawing** (on open, and as a button); opening resets to
-   the default view for now.
-4. Links: resizing one of several gap-spaced items drifts its centre
+3. Links: resizing one of several gap-spaced items drifts its centre
    slightly (the held point is approximated as centre). Spacing a
    selection that includes a containing shape (e.g. the panel with its
    holes) makes the panel an anchor and overflows; it could exclude
    shapes that contain the others.
-5. Print refinements: a date in the title block, dimensions in DXF on
+4. Print refinements: a date in the title block, dimensions in DXF on
    their own layer, a custom scale.
-6. Text box extras: system or embedded fonts beyond the PDF standard
+5. Text box extras: system or embedded fonts beyond the PDF standard
    three, and vertical alignment. Then
    named variables/expressions, woodwork extras (see outline "Later").
-7. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by
+6. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by
    bounds, symmetric (equal-length) handles, converting rects/circles to
    paths; also Shift to constrain a handle's angle, selecting a node or
    segment on the click that selects the path, multi-node/segment

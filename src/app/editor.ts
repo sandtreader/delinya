@@ -1,6 +1,7 @@
 // Editor (non-document) state: tool, selection, current layer, hidden and
-// locked layers, grid show/snap, view, open dialog, duplicate settings, the
-// text box being typed into. Never synced, saved or undoable.
+// locked layers, grid show/snap, view (and requests to fit it to the
+// drawing), open dialog, duplicate settings, the text box being typed into.
+// Never synced, saved or undoable.
 
 import { createContext, useContext, type Dispatch } from "react";
 import {
@@ -63,6 +64,12 @@ export interface EditorState {
    */
   grid: GridView;
   view: View;
+  /**
+   * How many times the view has been asked to fit the drawing (F, the
+   * status bar, opening a file). The canvas, which knows its size, answers
+   * each new one by setting `view`.
+   */
+  fitRequest: number;
   /** Current pointer position in model mm, for the status bar. */
   cursor: [number, number] | null;
   /** Snap point the pointer is currently locked to. */
@@ -103,6 +110,7 @@ export const initialEditor: EditorState = {
   layerView: { hidden: new Set(), locked: new Set() },
   grid: DEFAULT_GRID_VIEW,
   view: DEFAULT_VIEW,
+  fitRequest: 0,
   cursor: null,
   snap: null,
   draw: null,
@@ -127,6 +135,7 @@ export type EditorAction =
   | { type: "resetLayers" }
   | { type: "grid"; grid: Partial<GridView> }
   | { type: "view"; view: View }
+  | { type: "fit" }
   | { type: "panBy"; dx: number; dy: number }
   | { type: "zoomAt"; factor: number; at: [number, number] }
   | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null; draw?: EditorState["draw"]; measure?: EntityId; turn?: number }
@@ -174,6 +183,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "resetLayers": return { ...s, layer: null, layerView: initialEditor.layerView };
     case "grid": return { ...s, grid: { ...s.grid, ...a.grid } };
     case "view": return { ...s, view: a.view };
+    case "fit": return { ...s, fitRequest: s.fitRequest + 1 };
     // Deltas, not absolute views: several pointer or wheel events can arrive
     // between renders and each must build on the last.
     case "panBy": return { ...s, view: pan(s.view, a.dx, a.dy) };

@@ -83,6 +83,14 @@ export const ResetViewIcon = () => (
   </Icon>
 );
 
+/** Frame corners close round a shape: fit the view to the drawing. */
+export const FitViewIcon = () => (
+  <Icon size={BAR}>
+    <path d="M1.5 5V1.5H5M11 1.5h3.5V5M14.5 11v3.5H11M5 14.5H1.5V11" />
+    <path d="M4.5 5h7v6h-7z" />
+  </Icon>
+);
+
 /** Arrows out to the corners: full screen. Pointing in: back to a window. */
 export const FullscreenIcon = ({ exit = false }: { exit?: boolean }) => (
   <Icon size={BAR}>

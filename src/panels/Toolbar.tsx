@@ -11,25 +11,27 @@ import { discardPathDraft } from "../canvas/Canvas";
 
 /**
  * File commands that also reset editor state when a drawing is replaced:
- * the old selection names entities that no longer exist.
+ * the old selection names entities that no longer exist. A new drawing
+ * gets the default view; an opened one is fitted, once the old drawing's
+ * hidden layers are cleared.
  */
 export function useFileCommands() {
   const { dispatch } = useEditor();
   return useMemo(() => {
-    const reset = (replaced: boolean) => {
+    const reset = (fit: boolean) => (replaced: boolean) => {
       if (!replaced) return;
       // A path half drawn on the old drawing goes with it, rather than being finished onto the new one.
       discardPathDraft();
       dispatch({ type: "select", ids: [] });
       dispatch({ type: "tool", tool: "select" });
-      dispatch({ type: "view", view: DEFAULT_VIEW });
       // Hidden and locked layers are this viewer's choice for the old drawing.
       dispatch({ type: "resetLayers" });
+      dispatch(fit ? { type: "fit" } : { type: "view", view: DEFAULT_VIEW });
     };
     const fail = (e: unknown) => { void tell("Something went wrong", e instanceof Error ? e.message : String(e)); };
     return {
-      newFile: () => { newDrawing().then(reset, fail); },
-      open: () => { openDrawing().then(reset, fail); },
+      newFile: () => { newDrawing().then(reset(false), fail); },
+      open: () => { openDrawing().then(reset(true), fail); },
       save: () => { saveDrawing().catch(fail); },
       saveAs: () => { saveDrawingAs().catch(fail); },
     };
