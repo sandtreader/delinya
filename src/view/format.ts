@@ -64,17 +64,20 @@ export interface PositionState {
   node?: { shape: EntityId; index: number } | null;
   /** The selected segment of a path: its start node's stored index. */
   segment?: { shape: EntityId; index: number } | null;
+  /** While the selection is turned by its rotate handle: by how much, degrees clockwise. */
+  turn?: number | null;
 }
 
 /**
  * The status bar's position readout, first that applies: the shape being
- * drawn (a path: its segment to the pointer); the shape being
- * dragged; with the select tool, a path's selected node (its number and
+ * drawn (a path: its segment to the pointer); the turn of the selection
+ * being rotated; the shape being dragged; with the select tool, a path's selected node (its number and
  * drawn position) or segment (its number and length), then the selection (one shape's position and size, or
  * the bounds of several); the pointer.
  */
 export function positionStatus(e: PositionState, r: Resolved): string {
   if (e.draw && e.cursor) return drawStatus(e.draw.tool, e.draw.start, e.cursor);
+  if (e.turn != null) return turnStatus(e.turn);
   const dragged = e.measure ? r.shapes[e.measure] : undefined;
   if (dragged) return shapeStatus(dragged);
   if (e.tool === "select") {
@@ -98,4 +101,11 @@ export function positionStatus(e: PositionState, r: Resolved): string {
     }
   }
   return e.cursor ? `${formatMm(e.cursor[0])}, ${formatMm(e.cursor[1])} mm` : "";
+}
+
+/** The status bar while the selection is turned: how far, and which way. */
+function turnStatus(turn: number): string {
+  if (turn > 0) return `turn ${formatMm(turn)}° clockwise`;
+  if (turn < 0) return `turn ${formatMm(-turn)}° anticlockwise`;
+  return "turn 0°";
 }

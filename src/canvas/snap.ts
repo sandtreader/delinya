@@ -1,11 +1,17 @@
 // Pointer and drag snapping against the resolved geometry, then the grid
 // (or, with grid snap off, just 0.01 mm).
 
-import { isVisible, snapNumber, type EntityId, type Point, type Resolved, type SnapPoint } from "../model";
+import { isVisible, rotatePoint, snapNumber, snapXY, type EntityId, type Point, type Resolved, type SnapPoint } from "../model";
 
 export interface SnapResult {
   point: Point;
   snap: SnapPoint | null;
+}
+
+/** A frame to round to the grid in: axes turned `angle` degrees, from `origin`. */
+export interface SnapFrame {
+  origin: Point;
+  angle: number;
 }
 
 const NO_LAYERS: ReadonlySet<EntityId> = new Set();
@@ -43,19 +49,33 @@ function toGrid(p: Point, grid: number | null): Point {
 }
 
 /**
+ * Round to the grid in `frame`'s axes, from its origin. Quarter turns stay
+ * exact (cosSin). The page point drops only float noise: 12 places, as
+ * coarser rounding would knock the local coords off a 0.01 mm grid.
+ */
+function toFrameGrid(p: Point, grid: number | null, frame: SnapFrame): Point {
+  const { origin, angle } = frame;
+  const local = toGrid(rotatePoint([p[0] - origin[0], p[1] - origin[1]], -angle), grid);
+  const back = rotatePoint(local, angle);
+  return snapXY([origin[0] + back[0], origin[1] + back[1]], 12);
+}
+
+/**
  * Snap a free pointer position: nearest snap point within `tolerance` mm,
  * ignoring `exclude` shapes and those on `hidden` layers, else rounded to
  * `grid` mm. With `grid` null (grid snap off) it is only rounded to 0.01 mm;
  * shapes' snap points still apply. `extra` snap points count as shapes' do
- * (an excluded shape's own, say).
+ * (an excluded shape's own, say). With a `frame` the rounding is in its
+ * turned axes from its origin (a turned rect's corner, sized from its
+ * anchor); snap points still win.
  */
 export function snapPoint(
   resolved: Resolved, p: Point, tolerance: number, exclude: ReadonlySet<EntityId>, grid: number | null,
-  hidden: ReadonlySet<EntityId> = NO_LAYERS, extra: readonly SnapPoint[] = NO_SNAPS,
+  hidden: ReadonlySet<EntityId> = NO_LAYERS, extra: readonly SnapPoint[] = NO_SNAPS, frame?: SnapFrame,
 ): SnapResult {
   const hit = nearestSnap(resolved, p, tolerance, exclude, hidden, extra);
   if (hit) return { point: hit.snap.point, snap: hit.snap };
-  return { point: toGrid(p, grid), snap: null };
+  return { point: frame ? toFrameGrid(p, grid, frame) : toGrid(p, grid), snap: null };
 }
 
 /**

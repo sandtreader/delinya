@@ -71,6 +71,8 @@ export interface EditorState {
   draw: { tool: DrawTool; start: [number, number] } | null;
   /** While a selected shape is dragged (moved or resized): which, for the status bar. */
   measure: EntityId | null;
+  /** While the selection is turned by its rotate handle: by how much (degrees clockwise), for the status bar. */
+  turn: number | null;
   dialog: Dialog | null;
   /** Arrange actions create live links instead of moving shapes once. */
   keepLinked: boolean;
@@ -93,6 +95,7 @@ export const initialEditor: EditorState = {
   snap: null,
   draw: null,
   measure: null,
+  turn: null,
   dialog: null,
   keepLinked: false,
   linkPopup: null,
@@ -112,7 +115,7 @@ export type EditorAction =
   | { type: "view"; view: View }
   | { type: "panBy"; dx: number; dy: number }
   | { type: "zoomAt"; factor: number; at: [number, number] }
-  | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null; draw?: EditorState["draw"]; measure?: EntityId }
+  | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null; draw?: EditorState["draw"]; measure?: EntityId; turn?: number }
   | { type: "dialog"; dialog: Dialog | null }
   | { type: "keepLinked"; on: boolean }
   | { type: "linkPopup"; popup: EditorState["linkPopup"] }
@@ -125,7 +128,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     // Nodes and segments are edited with select only.
     case "tool": return {
       ...s, tool: a.tool, linkPopup: null, node: a.tool === "select" ? s.node : null, segment: a.tool === "select" ? s.segment : null,
-      ...(hoverShowsPosition(a.tool) ? {} : { cursor: null, snap: null, draw: null, measure: null }),
+      ...(hoverShowsPosition(a.tool) ? {} : { cursor: null, snap: null, draw: null, measure: null, turn: null }),
     };
     // A selected node or segment belongs to its path being the whole selection.
     case "select": {
@@ -155,8 +158,8 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "zoomAt": return { ...s, view: zoomAt(s.view, a.factor, a.at) };
     case "pointer":
       // Hovering with select clears it on every move; when already clear, keep the state so nothing re-renders.
-      if (!a.cursor && !a.snap && !a.draw && !a.measure && !s.cursor && !s.snap && !s.draw && !s.measure) return s;
-      return { ...s, cursor: a.cursor, snap: a.snap, draw: a.draw ?? null, measure: a.measure ?? null };
+      if (!a.cursor && !a.snap && !a.draw && !a.measure && a.turn == null && !s.cursor && !s.snap && !s.draw && !s.measure && s.turn === null) return s;
+      return { ...s, cursor: a.cursor, snap: a.snap, draw: a.draw ?? null, measure: a.measure ?? null, turn: a.turn ?? null };
     case "dialog": return { ...s, dialog: a.dialog };
     case "keepLinked": return { ...s, keepLinked: a.on };
     case "linkPopup": return { ...s, linkPopup: a.popup };

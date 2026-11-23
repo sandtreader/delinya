@@ -47,6 +47,35 @@ export function rotateShapes(state: DocState, ids: EntityId[], degrees: number, 
   }));
 }
 
+/** The stored props rotateShapes writes for each kind of shape. */
+const TURNED_PROPS: Record<ResolvedShape["kind"], readonly string[]> = {
+  line: ["x", "y", "angle"],
+  circle: ["cx", "cy"],
+  rect: ["x", "y", "rotation"],
+  polyline: ["nodes"],
+};
+
+/**
+ * The change that puts the shapes among `ids` where `base` has them, turned
+ * by `degrees` about `pivot`: for a live drag, committed over wherever the
+ * last move left them. As rotateShapes, except that no turn writes the
+ * props it would turn back as `base` stores them (an absent one removed),
+ * so a drag can return to where it began. Every prop is absolute. Undefined
+ * with no shapes.
+ */
+export function turnTo(base: DocState, ids: EntityId[], degrees: number, pivot: Point): Change | undefined {
+  if (!Number.isFinite(degrees)) return undefined;
+  if (normaliseAngle(degrees) !== 0) return rotateShapes(base, ids, degrees, pivot);
+  const shapes = shapesAmong(resolve(base), ids);
+  if (shapes.length === 0) return undefined;
+  return one(shapes.map((s) => {
+    const stored = base.entities[s.id]!.props;
+    const props: Record<string, PropValue> = {};
+    for (const k of TURNED_PROPS[s.kind]) props[k] = Object.hasOwn(stored, k) ? structuredClone(stored[k]!) : null;
+    return propsChanged(s.id, props);
+  }));
+}
+
 /** Old corner index -> new, for a rect mirrored on each axis. Each is its own inverse. */
 const MIRRORED_CORNER: Record<Axis, readonly [0 | 1 | 2 | 3, 0 | 1 | 2 | 3, 0 | 1 | 2 | 3, 0 | 1 | 2 | 3]> = {
   // Left and right swap: tl <-> tr, br <-> bl.

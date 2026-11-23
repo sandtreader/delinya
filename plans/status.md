@@ -1,11 +1,11 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-23. Repo `sandtreader/delinya`, branch `main`.
-Everything up to v0.1.0 (deployed to delinya.net) is committed; in the
-working tree, not yet committed: rotation, step 1 (a rect's `rotation`,
-`model/rotate.ts`, the selection panel's Rotate group, dimension text
-that reads along any direction; `tests/rotate.test.ts`). Vitest tests,
-`tsc` and the build pass.
+v0.1.0 is deployed to delinya.net; everything up to rotation, step 1 is
+committed. In the working tree, not yet committed: rotation, step 2 (the
+canvas's rotate handle, `view/rotateHandle.ts`, `turnTo`, resize handles
+on a turned rect in its own frame; `tests/rotateHandle.test.ts`). Vitest
+tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -90,7 +90,7 @@ but has no UI.
   radii by the smallest ratio side ÷ adjacent-pair sum). This settles the
   outline's "clamp or flag" question: clamp, and flag with a
   `radius-clamped` issue shown in the shape panel.
-- **Rotation** (step 1): a rect stores `rotation` (degrees, clockwise on
+- **Rotation** (steps 1 and 2): a rect stores `rotation` (degrees, clockwise on
   screen like a line's angle, about its (x, y) corner; absent is 0, a bad
   value is 0 with a `bad-value` issue). Width, height and r stay its own
   sides and corners. `ResolvedRect.rotation` is in [0, 360); corners,
@@ -105,8 +105,18 @@ but has no UI.
   −r from the mirror of its old top-right (x) or bottom-left (y) corner,
   radii (as stored, refs kept) and radius labels' corners swapped to
   match. `setRotation(state, id, degrees)` spins a rect in place about
-  its centre. Angles are stored in [0, 360), numbers snapped, never -0;
-  one Change per call. Circles and paths have no rotation of their own.
+  its centre. `turnTo(base, ids, degrees, pivot)` is the live drag's
+  version: `base` turned by `degrees`, all props absolute, and at 0 the
+  turned props written back as `base` stores them (absent ones removed),
+  so a drag can return to where it began. Angles are stored in [0, 360),
+  numbers snapped, never -0; one Change per call. Circles and paths have
+  no rotation of their own. A turned rect resizes in its own frame
+  (`resizeTo` takes the pointer into it): corner handles on its turned
+  corners, anchored opposite, sized along its sides, flipping across the
+  anchor; the rotation stays. None while a link places it (its locks are
+  on the page's axes). Grid snapping happens in the rect's own frame,
+  from the anchor corner (`snapPoint`'s `frame`), so its sizes land on
+  the grid; snaps to other shapes' points still win.
 - **Spacing links** derive along-axis positions between the anchors' inner
   faces, by gaps or by centres. Items' stored along-axis position is
   ignored while linked; `unlinkSpacing` writes the derived value back.
@@ -335,10 +345,12 @@ through `useSyncExternalStore`.
   grabbed shape when several move), and with the select tool the
   selection shows it as soon as it is selected (several: their bounds,
   from x, y · w × h). Priority is `positionStatus` in `view/format.ts`:
-  drawing, dragging, selection, pointer.
+  drawing, turning, dragging, selection, pointer.
 - **Resize handles** on a single selection: rect corners (anchor opposite
-  corner, flips across it), circle centre and radius, line ends. None yet
-  for a turned rect (`handlesFor` gives []): they come with step 2.
+  corner, flips across it), circle centre and radius, line ends. A turned
+  rect's sit on its turned corners, cursors along the turned diagonals,
+  snapping to the grid in its own frame from the anchor (sizes on the
+  grid; other shapes' snap points still win); none if a link places it.
 - **No sidebar.** The selection gets one floating panel top right of the
   canvas (`panels/SelectionPanel.tsx`; which one is `panelFor` in
   `app/editor.ts`), scrolling if taller than the canvas, with Delete at
@@ -368,6 +380,15 @@ through `useSyncExternalStore`.
   anticlockwise and clockwise, flip horizontally and vertically
   (`rotateShapes`/`flipShapes` about the selection's centre; one undo
   step). The status bar adds "at N°" for a turned rect.
+- **Rotate handle**: with select, a selection all on visible, unlocked
+  layers gets a circle on a stem `ROTATE_HANDLE_PX` (24) screen px above
+  the top centre of its bounds (`view/rotateHandle.ts`), shown with the
+  resize handles or path nodes. Dragging it turns the selection about the
+  centre of its bounds at the press, by the angle swept (`dragTurn`:
+  whole degrees, Shift 15° steps, the short way round), committing
+  `turnTo` from the document at the press on each change; one undo step,
+  no snapping, a cross at the pivot. The status bar reads "turn N°
+  clockwise/anticlockwise" (editor `turn`).
 - **Duplicate** (both selection panels, above Delete): direction toggles
   (→ ↓ ← ↑), a count (× 1–100, under the button) and a gap in mm (editor
   state `duplicate`, default one copy right, 10 mm, unlinked, not saved). The copy
@@ -622,9 +643,8 @@ through `useSyncExternalStore`.
    shapes that contain the others.
 5. Print refinements: a date in the title block, dimensions in DXF on
    their own layer, a custom scale.
-6. Rotation, step 2: a rotate handle on the canvas, and resize handles
-   for a turned rect in its own frame. Also text, named
-   variables/expressions, woodwork extras (see outline "Later").
+6. Text, named variables/expressions, woodwork extras (see outline
+   "Later").
 7. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by
    bounds, symmetric (equal-length) handles, converting rects/circles to
    paths; also Shift to constrain a handle's angle, selecting a node or

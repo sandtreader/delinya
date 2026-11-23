@@ -152,6 +152,14 @@ button.danger { color: #9b1c1c; }
 .draft-node { fill: white; stroke: var(--select); stroke-width: 1.5; pointer-events: none; }
 .draft-node.closing { fill: var(--select); }
 
+/* The rotate handle above the selection, on a stem; the pivot's cross while it turns. */
+.rotate-stem { stroke: var(--select); stroke-width: 1; pointer-events: none; }
+.rotate-handle { fill: white; stroke: var(--select); stroke-width: 1.5; cursor: grab; }
+.rotate-handle:hover { fill: var(--select); }
+.canvas.rotating, .canvas.rotating * { cursor: grabbing !important; }
+.canvas.rotating .rotate-handle { fill: var(--select); }
+.pivot { stroke: var(--select); stroke-width: 1.5; pointer-events: none; }
+
 .snap { fill: none; stroke: var(--select); stroke-width: 1.5; pointer-events: none; }
 
 fieldset { border: 1px solid var(--line); border-radius: 4px; margin: 10px 0; padding: 6px 8px; display: flex; flex-wrap: wrap; gap: 4px; }

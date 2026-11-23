@@ -15,8 +15,8 @@ import {
 } from "react";
 import {
   KINDS, addCircle, addDimension, addLine, addPolyline, batch, addRect, bendPolySegment, derivedAxes, distance, dragHandle, drawnOffset, entityAs,
-  freeDelta, handlesFor, insertPolyNode, isRef, isVisible, linkLocks, moveBy, movePolyNode, newId, setPolyHandle, snapNumber,
-  type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType, type ResolvedDimension, type ResolvedPolyline,
+  freeDelta, handlesFor, insertPolyNode, isRef, isVisible, linkLocks, moveBy, movePolyNode, newId, setPolyHandle, snapNumber, turnTo, unionBounds,
+  type Bounds, type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType, type ResolvedDimension, type ResolvedPolyline,
   type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
@@ -26,12 +26,14 @@ import { gridPitch, toModel, toScreen, wheelZoom, type View } from "../view/view
 import { pathToSvg } from "../view/svgPath";
 import { formatMm, type DrawTool } from "../view/format";
 import { dimensionText } from "../view/dimensionText";
-import { snapMove, snapPoint } from "./snap";
+import { snapMove, snapPoint, type SnapFrame } from "./snap";
 import { lassoMode, lassoSelect } from "./lasso";
 import { setHover } from "./hover";
 import { draftAdd, draftCloses, draftFinish, draftPreview, draftShape, draftUndo, type PolyDraft } from "./polyDraft";
 import { nodeAt, nodeHandles, ownNodeSnaps, pullHandleSide, segmentAt, segmentHandles } from "./polyEdit";
 import { GUIDE_OVERHANG_PX, linkGuides, type LinkGuide } from "../view/linkGuides";
+import { dragTurn, rotateHandleAt } from "../view/rotateHandle";
+import type { DocState } from "@sandtreader/collab/protocol";
 
 const SNAP_PX = 10;
 const DIMENSION_OFFSET = 10;
@@ -67,7 +69,10 @@ type Drag =
   | { kind: "lasso"; at: Point; start: Point; current: Point; moved: boolean; shift: boolean; base: EntityId[]; prior: EntityId[]; last: EntityId[] }
   // `segment`: the segment pressed on, if the path was already selected alone, so a click selects it.
   | { kind: "move"; ids: EntityId[]; primary: EntityId; origin: Point; applied: Point; moved: boolean; segment: number | null }
-  | { kind: "resize"; id: EntityId; spot: HandleSpot; locks: LinkLocks; moved: boolean }
+  | { kind: "resize"; id: EntityId; spot: HandleSpot; locks: LinkLocks; frame?: SnapFrame; moved: boolean }
+  // The rotate handle: turns `ids` from `base` (the document at the press) about
+  // `pivot` by the angle swept from `from` (model mm); `applied`: the turn committed last.
+  | { kind: "rotate"; ids: EntityId[]; pivot: Point; from: Point; base: DocState; applied: number; moved: boolean }
   | { kind: "draw"; tool: Exclude<DrawTool, "polyline">; layer: EntityId; start: Point; current: Point }
   // A press with the Path tool: a click (no drag) adds a node.
   | { kind: "pathClick"; at: Point }
@@ -175,6 +180,11 @@ export function Canvas() {
   const editHandles = !editPath ? []
     : pathNode ? nodeHandles(editPath, pathNode.node.index).map((h) => ({ node: pathNode.node.index, ...h }))
     : pathSegment ? segmentHandles(editPath, pathSegment.index) : [];
+  // The selection, with the select tool, gets a rotate handle above it, unless
+  // any of it is on a layer this viewer has hidden or locked.
+  const turnable = tool === "select" ? selection.flatMap((id) => (Object.hasOwn(resolved.shapes, id) ? [resolved.shapes[id]!] : [])) : [];
+  const turnBounds = turnable.length > 0 && turnable.every((s) => isVisible(resolved, s.id, hiddenLayers) && !layerView.locked.has(s.layer))
+    ? unionBounds(turnable.map((s) => s.bounds)) : undefined;
 
   // ---- The Path tool's draft ----
 
@@ -271,6 +281,13 @@ export function Canvas() {
 
     const mp = toModel(view, sp);
     if (tool === "select") {
+      // The rotate handle turns the selection about the centre of its bounds.
+      if (turnBounds && (e.target as Element).closest("[data-rotate]")) {
+        const pivot: Point = [(turnBounds.minX + turnBounds.maxX) / 2, (turnBounds.minY + turnBounds.maxY) / 2];
+        dragRef.current = { kind: "rotate", ids: turnable.map((s) => s.id), pivot, from: mp, base: store.state, applied: 0, moved: false };
+        setPreview(dragRef.current);
+        return;
+      }
       // A selected path's nodes, the handles it shows and its selected segment are on top of everything.
       if (editPath) {
         const handle = nearestHandle(editHandles, mp, NODE_HANDLE_PX / view.scale);
@@ -300,8 +317,10 @@ export function Canvas() {
         const locks = shape ? linkLocks(resolved, shape.id) : {};
         const spot = shape && handlesFor(shape, locks)[Number(handleIndex)];
         if (spot) {
+          // A turned rect snaps to the grid in its own frame, from the anchor, so its sizes land on the grid.
+          const frame = shape.kind === "rect" && shape.rotation !== 0 && spot.anchor ? { origin: spot.anchor, angle: shape.rotation } : undefined;
           // A handle that can't move at all starts nothing (and doesn't fall through to a move).
-          if (spot.cursor !== "not-allowed") dragRef.current = { kind: "resize", id: shape.id, spot, locks, moved: false };
+          if (spot.cursor !== "not-allowed") dragRef.current = { kind: "resize", id: shape.id, spot, locks, frame, moved: false };
           return;
         }
       }
@@ -395,13 +414,28 @@ export function Canvas() {
         return;
       }
       case "resize": {
-        const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid, hiddenLayers);
+        const { point, snap } = snapPoint(store.resolved, mp, tolerance, new Set([d.id]), grid, hiddenLayers, undefined, d.frame);
         const change = dragHandle(store.state, d.id, d.spot, point, d.locks);
         if (change) {
           if (!d.moved) { store.beginGesture(); d.moved = true; }
           store.commit(change);
         }
         dispatch({ type: "pointer", cursor: point, snap, measure: d.id });
+        return;
+      }
+      case "rotate": {
+        // Not snapped to geometry: whole degrees, or 15° steps with Shift.
+        // Each move turns the shapes afresh from where they were at the press.
+        const turn = dragTurn(d.pivot, d.from, mp, e.shiftKey);
+        if (turn !== d.applied) {
+          const change = turnTo(d.base, d.ids, turn, d.pivot);
+          if (change) {
+            if (!d.moved) { store.beginGesture(); d.moved = true; }
+            store.commit(change);
+          }
+          d.applied = turn;
+        }
+        dispatch({ type: "pointer", cursor: mp, snap: null, turn });
         return;
       }
       case "draw": {
@@ -483,7 +517,7 @@ export function Canvas() {
       for (const id of d.ids) { const c = moveBy(store.state, id, 0, 0, { end: true }); if (c) store.commit(c); }
       store.endGesture();
     }
-    if (d.kind === "resize" && d.moved) store.endGesture();
+    if ((d.kind === "resize" || d.kind === "rotate") && d.moved) store.endGesture();
     if (d.kind === "nodeHandle" && d.onNode) {
       const c = setPolyHandle(store.state, d.id, d.index, d.which, [0, 0]);
       if (c) {
@@ -555,7 +589,7 @@ export function Canvas() {
   return (
     <svg
       ref={svgRef}
-      className={`canvas tool-${tool}${blocked ? " blocked" : ""}${spaceHeld ? " space" : ""}${dragRef.current?.kind === "pan" ? " panning" : ""}${preview?.kind === "lasso" ? " lassoing" : ""}`}
+      className={`canvas tool-${tool}${blocked ? " blocked" : ""}${spaceHeld ? " space" : ""}${dragRef.current?.kind === "pan" ? " panning" : ""}${preview?.kind === "lasso" ? " lassoing" : ""}${preview?.kind === "rotate" ? " rotating" : ""}`}
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
@@ -591,6 +625,8 @@ export function Canvas() {
       {editPath
         ? <PathNodes path={editPath} view={view} selected={pathNode?.node.index ?? null} handles={editHandles} />
         : single && <Handles shape={single} view={view} />}
+      {turnBounds && <RotateHandle bounds={turnBounds} view={view} />}
+      {preview?.kind === "rotate" && <PivotMarker at={preview.pivot} view={view} />}
       {tool === "polyline" && draft && <DraftNodes draft={draft} view={view} closing={closing} />}
       {editor.snap && <SnapMarker snap={editor.snap} view={view} />}
       {preview?.kind === "lasso" && <LassoView d={preview} view={view} />}
@@ -880,6 +916,29 @@ function Handles({ shape, view }: { shape: ResolvedShape; view: View }) {
           ? <circle key={i} data-handle={i} className="handle" cx={x} cy={y} r={5} style={{ cursor: spot.cursor }} />
           : <rect key={i} data-handle={i} className="handle" x={x - 5} y={y - 5} width={10} height={10} style={{ cursor: spot.cursor }} />;
       })}
+    </g>
+  );
+}
+
+/** The rotate handle in screen space, on a stem up from the top centre of the selection's bounds. */
+function RotateHandle({ bounds, view }: { bounds: Bounds; view: View }) {
+  const [x, y] = toScreen(view, rotateHandleAt(bounds, view.scale));
+  const top = toScreen(view, [(bounds.minX + bounds.maxX) / 2, bounds.minY])[1];
+  return (
+    <g className="rotate">
+      <line className="rotate-stem" x1={x} y1={top} x2={x} y2={y} />
+      <circle data-rotate="" className="rotate-handle" cx={x} cy={y} r={5} />
+    </g>
+  );
+}
+
+/** The point a turn is about, while the rotate handle is dragged: a small cross. */
+function PivotMarker({ at, view }: { at: Point; view: View }) {
+  const [x, y] = toScreen(view, at);
+  return (
+    <g className="pivot" transform={`translate(${x} ${y})`}>
+      <line x1={-5} y1={0} x2={5} y2={0} />
+      <line x1={0} y1={-5} x2={0} y2={5} />
     </g>
   );
 }

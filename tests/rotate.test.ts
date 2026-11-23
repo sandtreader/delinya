@@ -84,8 +84,9 @@ describe("a rotated rect resolves", () => {
     expect(shapeStatus(resolve(st).shapes.b!)).toBe("from 10, 20 mm · 50 × 30 mm");
   });
 
-  it("has no resize handles yet (they come with the canvas rotate handle)", () => {
-    expect(handlesFor(rect(doc(addRect("r", { x: 0, y: 0, width: 10, height: 20, rotation: 30 }))))).toEqual([]);
+  it("has resize handles on its turned corners (see rotateHandle.test.ts)", () => {
+    const turned = rect(doc(addRect("r", { x: 0, y: 0, width: 10, height: 20, rotation: 30 })));
+    expect(handlesFor(turned).map((h) => h.point)).toEqual(turned.corners);
     expect(handlesFor(rect(doc(addRect("r", { x: 0, y: 0, width: 10, height: 20, rotation: 0 }))))).toHaveLength(4);
   });
 });

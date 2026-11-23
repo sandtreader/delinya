@@ -4,7 +4,7 @@
 
 import type { Change, DocState, Props } from "@sandtreader/collab/protocol";
 import { batch, propsChanged, setLength } from "./actions";
-import { snapNumber, type Point } from "./geometry";
+import { normaliseAngle, rotatePoint, snapNumber, snapXY, type Point } from "./geometry";
 import type { LinkLock, LinkLocks, ResolvedShape } from "./resolve";
 import type { EntityId } from "./types";
 
@@ -49,8 +49,16 @@ function cursorFor(both: string, x: boolean, y: boolean): string {
 export function handlesFor(shape: ResolvedShape, locks: LinkLocks = {}): HandleSpot[] {
   switch (shape.kind) {
     case "rect": {
-      // A turned rect's handles would work in its own frame: not yet.
-      if (shape.rotation !== 0) return [];
+      if (shape.rotation !== 0) {
+        // A turned rect a link places isn't resized: its locks are on the page's axes, its sizes along its own.
+        if (locks.x || locks.y) return [];
+        return ([0, 1, 2, 3] as const).map((corner) => {
+          const point = shape.corners[corner], anchor = shape.corners[(corner + 2) % 4 as 0 | 1 | 2 | 3];
+          // Up-left or down-right of its anchor reads as the top-left to bottom-right diagonal.
+          const cursor = (point[0] - anchor[0]) * (point[1] - anchor[1]) > 0 ? "nwse-resize" : "nesw-resize";
+          return { handle: { kind: "rect-corner", corner }, point, anchor, cursor };
+        });
+      }
       const cursors = ["nwse-resize", "nesw-resize", "nwse-resize", "nesw-resize"];
       return ([0, 1, 2, 3] as const).map((corner) => ({
         handle: { kind: "rect-corner", corner },
@@ -92,6 +100,8 @@ export function resizeTo(state: DocState, id: EntityId, handle: Handle, p: Point
   switch (handle.kind) {
     case "rect-corner": {
       if (!anchor) return undefined;
+      const rotation = isFiniteNum(e.props.rotation) ? normaliseAngle(e.props.rotation) : 0;
+      if (rotation !== 0) return turnedRectTo(state, id, rotation, p, anchor);
       const width = snapNumber(Math.abs(p[0] - anchor[0]));
       const height = snapNumber(Math.abs(p[1] - anchor[1]));
       if (width === 0 || height === 0) return undefined;
@@ -125,6 +135,31 @@ export function resizeTo(state: DocState, id: EntityId, handle: Handle, p: Point
       return batch(changes);
     }
   }
+}
+
+/**
+ * A turned rect's corner dragged to `p`, the opposite corner `anchor`
+ * staying put: sized along its own sides (in its frame, turned back by
+ * `rotation`), flipping across the anchor rather than going negative. The
+ * stored (x, y) is its new top-left corner, turned; the rotation stays.
+ */
+function turnedRectTo(state: DocState, id: EntityId, rotation: number, p: Point, anchor: Point): Change | undefined {
+  const [lx, ly] = rotatePoint([p[0] - anchor[0], p[1] - anchor[1]], -rotation);
+  const width = snapNumber(Math.abs(lx));
+  const height = snapNumber(Math.abs(ly));
+  if (width === 0 || height === 0) return undefined;
+  const corner = rotatePoint([Math.min(0, lx), Math.min(0, ly)], rotation);
+  const [x, y] = snapXY([anchor[0] + corner[0], anchor[1] + corner[1]]);
+  const changes: Change[] = [propsChanged(id, { x, y })];
+  const w = setLength(state, id, "width", width);
+  const h = setLength(state, id, "height", height);
+  if (w) changes.push(w);
+  if (h) changes.push(h);
+  return batch(changes);
+}
+
+function isFiniteNum(v: unknown): v is number {
+  return typeof v === "number" && Number.isFinite(v);
 }
 
 /** One axis of a rect corner drag: the new minimum (unlocked only) and size, "still", or undefined if degenerate. */
