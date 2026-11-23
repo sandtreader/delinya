@@ -17,7 +17,7 @@ import {
   KINDS, addCircle, addDimension, addLine, addPolyline, batch, addRect, bendPolySegment, derivedAxes, distance, dragHandle, drawnOffset, entityAs,
   freeDelta, handlesFor, insertPolyNode, isRef, isVisible, linkLocks, moveBy, movePolyNode, newId, setPolyHandle, snapNumber, turnTo, unionBounds,
   type Bounds, type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType, type ResolvedDimension, type ResolvedPolyline,
-  type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
+  type Resolved, type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { currentLayer, hoverShowsPosition, selectedPathNode, selectedPathSegment, useEditor } from "../app/editor";
@@ -32,7 +32,7 @@ import { setHover } from "./hover";
 import { draftAdd, draftCloses, draftFinish, draftPreview, draftShape, draftUndo, type PolyDraft } from "./polyDraft";
 import { nodeAt, nodeHandles, ownNodeSnaps, pullHandleSide, segmentAt, segmentHandles } from "./polyEdit";
 import { GUIDE_OVERHANG_PX, linkGuides, type LinkGuide } from "../view/linkGuides";
-import { dragTurn, rotateHandleAt } from "../view/rotateHandle";
+import { dragTurn, rotateHandleSpot } from "../view/rotateHandle";
 import type { DocState } from "@sandtreader/collab/protocol";
 
 const SNAP_PX = 10;
@@ -625,7 +625,7 @@ export function Canvas() {
       {editPath
         ? <PathNodes path={editPath} view={view} selected={pathNode?.node.index ?? null} handles={editHandles} />
         : single && <Handles shape={single} view={view} />}
-      {turnBounds && <RotateHandle bounds={turnBounds} view={view} />}
+      {turnBounds && <RotateHandle resolved={resolved} ids={turnable.map((s) => s.id)} view={view} />}
       {preview?.kind === "rotate" && <PivotMarker at={preview.pivot} view={view} />}
       {tool === "polyline" && draft && <DraftNodes draft={draft} view={view} closing={closing} />}
       {editor.snap && <SnapMarker snap={editor.snap} view={view} />}
@@ -920,10 +920,14 @@ function Handles({ shape, view }: { shape: ResolvedShape; view: View }) {
   );
 }
 
-/** The rotate handle in screen space, on a stem up from the top centre of the selection's bounds. */
-function RotateHandle({ bounds, view }: { bounds: Bounds; view: View }) {
-  const [x, y] = toScreen(view, rotateHandleAt(bounds, view.scale));
-  const top = toScreen(view, [(bounds.minX + bounds.maxX) / 2, bounds.minY])[1];
+/**
+ * The rotate handle in screen space, on a stem up from the top centre of the
+ * selection's bounds, raised clear of its dimensions there (`rotateHandleSpot`).
+ */
+function RotateHandle({ resolved, ids, view }: { resolved: Resolved; ids: EntityId[]; view: View }) {
+  const spot = rotateHandleSpot(resolved, ids, view.scale);
+  const [x, y] = toScreen(view, spot.at);
+  const top = toScreen(view, spot.stem)[1];
   return (
     <g className="rotate">
       <line className="rotate-stem" x1={x} y1={top} x2={x} y2={y} />

@@ -382,7 +382,10 @@ through `useSyncExternalStore`.
   step). The status bar adds "at N°" for a turned rect.
 - **Rotate handle**: with select, a selection all on visible, unlocked
   layers gets a circle on a stem `ROTATE_HANDLE_PX` (24) screen px above
-  the top centre of its bounds (`view/rotateHandle.ts`), shown with the
+  the top centre of its bounds (`view/rotateHandle.ts`,
+  `rotateHandleSpot`), rising above any of the selection's dimensions
+  crossing its column (within `LABEL_CLEAR_PX`, 16 px, either side) with
+  that much room kept for their text, so it never hides one; shown with the
   resize handles or path nodes. Dragging it turns the selection about the
   centre of its bounds at the press, by the angle swept (`dragTurn`:
   whole degrees, Shift 15° steps, the short way round), committing

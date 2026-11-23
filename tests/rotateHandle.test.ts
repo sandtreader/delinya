@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { applyChange, type Change, type DocState } from "@sandtreader/collab/protocol";
-import { addRect, handlesFor, linkAlign, linkLocks, resizeTo, resolve, rotateShapes, turnTo } from "../src/model";
+import { addDimension, addRect, handlesFor, linkAlign, linkLocks, resizeTo, resolve, rotateShapes, turnTo } from "../src/model";
 import type { ResolvedRect } from "../src/model";
 import { editorReducer, initialEditor } from "../src/app/editor";
 import { positionStatus } from "../src/view/format";
-import { dragTurn, rotateHandleAt, ROTATE_HANDLE_PX } from "../src/view/rotateHandle";
+import { dragTurn, LABEL_CLEAR_PX, rotateHandleAt, rotateHandleSpot, ROTATE_HANDLE_PX } from "../src/view/rotateHandle";
 import { snapPoint } from "../src/canvas/snap";
 import { doc } from "./helpers";
 
@@ -170,5 +170,49 @@ describe("snapping a turned rect's corner", () => {
     expect(onGrid(p.width as number, 10) && onGrid(p.height as number, 10)).toBe(true);
     expect(Number.isInteger(p.width) && Number.isInteger(p.height)).toBe(true);
     expect(p.rotation).toBe(30);
+  });
+});
+
+describe("the rotate handle clears the selection's dimensions", () => {
+  const scale = 2;
+  const lift = (LABEL_CLEAR_PX + ROTATE_HANDLE_PX) / scale;
+
+  it("sits just above the shapes when nothing is in the way", () => {
+    const res = resolve(doc(addRect("r", { x: 0, y: 20, width: 100, height: 30 })));
+    expect(rotateHandleSpot(res, ["r"], scale)).toEqual({ at: [50, 20 - ROTATE_HANDLE_PX / scale], stem: [50, 20] });
+  });
+
+  it("goes above a dimension across its column, with room for the text", () => {
+    const res = resolve(doc(addRect("r", { x: 0, y: 20, width: 100, height: 30 }), addDimension("d", "r", "width", 10)));
+    // The width dimension's line is at y = 10.
+    expect(rotateHandleSpot(res, ["r"], scale)).toEqual({ at: [50, 10 - lift], stem: [50, 10 - LABEL_CLEAR_PX / scale] });
+  });
+
+  it("ignores dimensions off to the side", () => {
+    const res = resolve(doc(addRect("r", { x: 0, y: 20, width: 100, height: 30 }), addDimension("d", "r", "height", 10)));
+    expect(rotateHandleSpot(res, ["r"], scale).at).toEqual([50, 20 - ROTATE_HANDLE_PX / scale]);
+  });
+
+  it("ignores other shapes' dimensions", () => {
+    const res = resolve(doc(
+      addRect("r", { x: 0, y: 20, width: 100, height: 30 }),
+      addRect("o", { x: 0, y: -50, width: 100, height: 10 }), addDimension("d", "o", "width", 10),
+    ));
+    expect(rotateHandleSpot(res, ["r"], scale).at).toEqual([50, 20 - ROTATE_HANDLE_PX / scale]);
+  });
+
+  it("clears a turned rect's slanted dimension where it crosses the column", () => {
+    const res = resolve(doc(addRect("r", { x: 0, y: 0, width: 150, height: 75, rotation: 10 }), addDimension("d", "r", "width", 10)));
+    const r = res.shapes.r!;
+    const { at } = rotateHandleSpot(res, ["r"], scale);
+    const cx = (r.bounds.minX + r.bounds.maxX) / 2;
+    expect(at[0]).toBeCloseTo(cx, 9);
+    // The dimension line where it crosses x = cx (± the clearance band) is no higher than this.
+    const { from, to } = res.dimensions[0]!.line;
+    const yAt = (x: number) => from[1] + ((x - from[0]) * (to[1] - from[1])) / (to[0] - from[0]);
+    const band = LABEL_CLEAR_PX / scale;
+    const highest = Math.min(yAt(cx - band), yAt(cx + band));
+    expect(at[1]).toBeLessThanOrEqual(highest - lift + 1e-9);
+    expect(at[1]).toBeLessThan(r.bounds.minY - ROTATE_HANDLE_PX / scale);
   });
 });
