@@ -121,6 +121,15 @@ button.danger { color: #9b1c1c; }
 /* A text box's lines: in its ink, never selectable or in the way of its hit area; hover tints them as it does strokes. */
 .shape .text-lines text { fill: var(--layer-colour, var(--shape)); stroke: none; pointer-events: none; user-select: none; -webkit-user-select: none; }
 .shape.text-box:hover .text-lines text { fill: var(--select); }
+/* The field a text box is typed into, over the drawing (canvas/TextEditor.tsx):
+   only its text shows, wrapping at spaces as the drawing's does (a longer
+   word runs on). Clipped to the canvas area, which never scrolls for it. */
+.text-editor-clip { position: absolute; inset: 0; overflow: clip; pointer-events: none; }
+.text-editor {
+  position: absolute; margin: 0; padding: 0; border: none; outline: none; background: transparent;
+  resize: none; overflow: hidden; min-width: 0; min-height: 0; pointer-events: auto;
+  white-space: pre-wrap; overflow-wrap: normal; word-break: normal; letter-spacing: normal;
+}
 
 /* Dimensions aren't interactive (yet): clicks go through to links and shapes below. */
 .dimension { stroke: var(--dimension); pointer-events: none; }

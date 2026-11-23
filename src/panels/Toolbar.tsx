@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { useDocument, store } from "../app/store";
 import { useEditor } from "../app/editor";
 import { newDrawing, openDrawing, saveDrawing, saveDrawingAs, useDirty, useFileName } from "../app/file";
@@ -43,6 +43,10 @@ export function Toolbar() {
   const name = useFileName();
   const dirty = useDirty();
   const title = quotedTitle(store.resolved.document.title, name);
+  // Pressing Undo blurs a field first: on the drawing, a box just drawn and
+  // left empty is then taken back (abandonGesture), which is the undoing
+  // wanted, so that click undoes nothing more. A key press has no pointer press.
+  const undoPress = useRef(0);
   return (
     <header className="toolbar">
       <button type="button" className="brand" onClick={() => dispatch({ type: "dialog", dialog: "about" })} {...tip("About Delinya")}>
@@ -63,7 +67,13 @@ export function Toolbar() {
         </IconButton>
       </div>
       <div className="group">
-        <IconButton label="Undo" tip="Undo (⌘Z)" disabled={!store.canUndo} onClick={() => store.undo()}><HistoryIcon /></IconButton>
+        <IconButton
+          label="Undo" tip="Undo (⌘Z)" disabled={!store.canUndo}
+          onPointerDown={() => { undoPress.current = store.abandoned; }}
+          onClick={(e) => { if (e.detail === 0 || store.abandoned === undoPress.current) store.undo(); }}
+        >
+          <HistoryIcon />
+        </IconButton>
         <IconButton label="Redo" tip="Redo (⇧⌘Z)" disabled={!store.canRedo} onClick={() => store.redo()}><HistoryIcon redo /></IconButton>
       </div>
       {/* File name and the drawing's title; opens Properties on its Drawing tab. */}

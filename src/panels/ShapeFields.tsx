@@ -2,14 +2,14 @@
 // linked field edits the shared variable; the panel says so and offers to
 // unlink. A text box's text is typed here too, live on the canvas.
 
-import { useEffect, useRef } from "react";
 import {
   KINDS, derivedAxes, entitiesOfKind, entityAs, isRef, lengthValue, propsChanged,
-  setCornerRadius, setLength, setPolyClosed, setRotation, setText, setTextSize, setTextStyle, unlinkAlign, unlinkLength, unlinkSpacing,
+  setCornerRadius, setLength, setPolyClosed, setRotation, setTextSize, setTextStyle, unlinkAlign, unlinkLength, unlinkSpacing,
   type EntityId, type FontFamily, type Length, type ResolvedRect, type ResolvedText, type TextStyle,
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { useEditor } from "../app/editor";
+import { useLiveText } from "../app/liveText";
 import { ALIGN_LABELS } from "../view/linkButtons";
 import { formatMm } from "../view/format";
 import { Num, Row } from "./fields";
@@ -175,47 +175,20 @@ function TextFields({ id }: { id: EntityId }) {
 /**
  * A text box's text, committed as you type so the canvas follows: the first
  * change opens a gesture and leaving the field closes it, so the whole edit
- * is one undo step. Escape puts back the text it had when you came in. A
- * box just drawn (editor `focusText`) takes the keyboard at once.
+ * is one undo step (useLiveText, shared with the field on the drawing).
+ * Escape puts back the text it had when you came in.
  */
 function TextArea({ id, text }: { id: EntityId; text: string }) {
-  const { editor, dispatch } = useEditor();
-  const ref = useRef<HTMLTextAreaElement>(null);
-  // While focused: the text on arrival, and whether a gesture is open.
-  const edit = useRef<{ original: string; gesture: boolean } | null>(null);
-
-  useEffect(() => {
-    if (editor.focusText !== id) return;
-    ref.current?.focus();
-    ref.current?.select();
-    dispatch({ type: "focusText", id: null });
-  }, [editor.focusText, id, dispatch]);
-
-  const end = () => {
-    if (edit.current?.gesture) store.endGesture();
-    edit.current = null;
-  };
-  // Taken away mid-edit (no blur comes): still one undo step.
-  useEffect(() => end, []);
-
+  const live = useLiveText(id);
   return (
     <textarea
-      ref={ref} className="text" rows={3} value={text} spellCheck={false}
-      onFocus={() => { edit.current = { original: text, gesture: false }; }}
-      onChange={(ev) => {
-        const c = setText(store.state, id, ev.target.value);
-        if (!c) return;
-        const e = (edit.current ??= { original: text, gesture: false });
-        if (!e.gesture) { store.beginGesture(); e.gesture = true; }
-        store.commit(c);
-      }}
-      onBlur={end}
+      className="text" rows={3} value={text} spellCheck={false}
+      onFocus={live.start}
+      onChange={(ev) => live.change(ev.target.value)}
+      onBlur={live.end}
       onKeyDown={(ev) => {
         if (ev.key !== "Escape") return;
-        // Inside the gesture, so the edit and its undoing are one step.
-        const e = edit.current;
-        const c = e && setText(store.state, id, e.original);
-        if (c) store.commit(c);
+        live.revert();
         ev.currentTarget.blur();
       }}
     />

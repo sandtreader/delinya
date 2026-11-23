@@ -8,7 +8,8 @@
 // Undo is local-only and change-based: each history entry holds the forward
 // changes and their inverses, computed against the document at commit time.
 // Changes flagged gestureStart..gestureEnd fold into one entry so a drag
-// undoes in one step.
+// undoes in one step; so does everything between beginGesture() and
+// endGesture(), and abandonGesture() takes such a gesture back unrecorded.
 //
 // Save tracking: markSaved() remembers the current history position (the top
 // undo entry, or the last one dropped off the bottom). The document is dirty
@@ -53,6 +54,7 @@ export class DrawingStore {
   private saved: HistoryEntry | undefined;
   /** A change outside undo history has happened since markSaved(). */
   private unsavedOutsideHistory = false;
+  private _abandoned = 0;
 
   constructor(options: StoreOptions = {}) {
     this.historyLimit = options.historyLimit ?? 200;
@@ -68,6 +70,16 @@ export class DrawingStore {
 
   get canUndo(): boolean { return this.undoStack.length > 0 || this.openGesture !== null; }
   get canRedo(): boolean { return this.redoStack.length > 0; }
+
+  /** Between beginGesture() and endGesture() (or whatever else closes it: undo, another beginGesture). */
+  get gestureOpen(): boolean { return this.explicitGesture && this.openGesture !== null; }
+
+  /**
+   * How many gestures abandonGesture() has taken back. An Undo press that
+   * blurs a new, empty text box abandons it; the click that follows sees
+   * this change and undoes nothing more.
+   */
+  get abandoned(): number { return this._abandoned; }
 
   /** Changed since the last markSaved(). */
   get dirty(): boolean {
@@ -103,6 +115,7 @@ export class DrawingStore {
     this.undoStack = [];
     this.redoStack = [];
     this.openGesture = null;
+    this.explicitGesture = false;
     this.base = undefined;
     this.unsavedOutsideHistory = true;
     this.apply({ type: "state_replaced", state });
@@ -123,6 +136,23 @@ export class DrawingStore {
   endGesture(): void {
     this.explicitGesture = false;
     this.closeGesture();
+  }
+
+  /**
+   * Take back everything since beginGesture() as if it never happened: its
+   * changes are undone (and the undoing sent to peers, who saw them), but
+   * nothing goes on the undo or redo stack, and the document is as dirty as
+   * it was before. For a new text box left empty. Nothing without an open gesture.
+   */
+  abandonGesture(): void {
+    if (!this.gestureOpen) return;
+    const entry = this.openGesture!;
+    this.openGesture = null;
+    this.explicitGesture = false;
+    this._abandoned++;
+    for (const c of entry.inverse) { this.apply(c); for (const emit of this.emitters) emit(c); }
+    // canUndo and dirty may change with no change applied.
+    this.notify();
   }
 
   undo(): boolean {

@@ -5,7 +5,7 @@
 // so a linked height edits its variable.
 
 import type { Change, DocState, Props } from "@sandtreader/collab/protocol";
-import { batch, propsChanged, setLength } from "./actions";
+import { batch, deleteEntity, propsChanged, setLength } from "./actions";
 import { type FontStyle, textHeight, wrapText } from "./font";
 import { snapNumber } from "./geometry";
 import { type ResolvedText, resolve } from "./resolve";
@@ -59,6 +59,18 @@ export function setTextStyle(state: DocState, id: EntityId, style: TextStyle): C
   if (Object.keys(props).length === 0) return undefined;
   const font: FontStyle = { family: style.font ?? s.font.family, bold: style.bold ?? s.font.bold, italic: style.italic ?? s.font.italic };
   return refit(state, s, props, s.text, font, s.size);
+}
+
+/**
+ * Leaving a box after typing into it: a box left with no text (or only
+ * spaces and newlines) goes, with anything attached to it. Undefined if it
+ * has text, or `id` is not a text box.
+ */
+export function endTextEdit(state: DocState, id: EntityId): Change | undefined {
+  const e = state.entities[id];
+  if (e?.kind !== KINDS.text) return undefined;
+  const text = typeof e.props.text === "string" ? e.props.text : "";
+  return text.trim() === "" ? deleteEntity(state, id) : undefined;
 }
 
 /** The text box `id` as resolved, if it is one. */

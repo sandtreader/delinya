@@ -8,10 +8,14 @@
 // tool). With the select tool, one selected path shows its nodes, which
 // drag and select, and a click on it selects the segment there, which then
 // bends when dragged (polyEdit.ts hit-tests them).
+//
+// A text box is typed into on the drawing, in a field laid over it
+// (TextEditor.tsx): a new box goes straight into it, and a double-click
+// (or Enter, in the app's keys) edits one.
 
 import {
   useCallback, useEffect, useRef, useState,
-  type CSSProperties, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent,
+  type CSSProperties, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent,
 } from "react";
 import {
   KINDS, addCircle, addDimension, addLine, addPolyline, addText, batch, addRect, bendPolySegment, derivedAxes, distance, dragHandle, drawnOffset, entityAs,
@@ -27,6 +31,7 @@ import { pathToSvg } from "../view/svgPath";
 import { formatMm, type DrawTool } from "../view/format";
 import { dimensionText } from "../view/dimensionText";
 import { newTextProps, textElementAttrs } from "../view/textSvg";
+import { textBoxAt } from "../view/textEdit";
 import { snapMove, snapPoint, type SnapFrame } from "./snap";
 import { lassoMode, lassoSelect } from "./lasso";
 import { setHover } from "./hover";
@@ -34,6 +39,7 @@ import { draftAdd, draftCloses, draftFinish, draftPreview, draftShape, draftUndo
 import { nodeAt, nodeHandles, ownNodeSnaps, pullHandleSide, segmentAt, segmentHandles } from "./polyEdit";
 import { GUIDE_OVERHANG_PX, linkGuides, type LinkGuide } from "../view/linkGuides";
 import { dragTurn, rotateHandleSpot } from "../view/rotateHandle";
+import { TextEditor, type FieldWheel } from "./TextEditor";
 import type { DocState } from "@sandtreader/collab/protocol";
 
 const SNAP_PX = 10;
@@ -186,6 +192,13 @@ export function Canvas() {
   const turnable = tool === "select" ? selection.flatMap((id) => (Object.hasOwn(resolved.shapes, id) ? [resolved.shapes[id]!] : [])) : [];
   const turnBounds = turnable.length > 0 && turnable.every((s) => isVisible(resolved, s.id, hiddenLayers) && !layerView.locked.has(s.layer))
     ? unionBounds(turnable.map((s) => s.bounds)) : undefined;
+  // The text box being typed into, while it's there to type into: shown and not locked.
+  const editing = editor.editText === null ? undefined : resolved.shapes[editor.editText];
+  const editText = editing?.kind === "text" && isVisible(resolved, editing.id, hiddenLayers) && !layerView.locked.has(editing.layer) ? editing : undefined;
+  // Gone, hidden or locked under the field (undo, a peer): editing it ends.
+  // The field's unmount finishes the edit, closing (or, for a box just
+  // drawn and left empty, taking back) its gesture.
+  useEffect(() => { if (editor.editText !== null && !editText) dispatch({ type: "editText", id: null }); }, [editor.editText, editText, dispatch]);
 
   // ---- The Path tool's draft ----
 
@@ -543,19 +556,35 @@ export function Canvas() {
     if (d.kind === "draw") {
       // Back to the plain pointer position in the status bar (cleared if this returns to select).
       dispatch({ type: "pointer", cursor: d.current, snap: null });
+      // A new text box is added in a gesture its typing joins, so the two
+      // are one undo step, and one left empty goes without trace (TextEditor).
+      if (d.tool === "text") store.beginGesture();
       const id = createShape(d);
       if (id) dispatch({ type: "select", ids: [id] });
-      // A new text box goes straight to typing, in the panel: back to select, Shift or not.
-      if (id && d.tool === "text") dispatch({ type: "focusText", id });
       if (!e.shiftKey || d.tool === "text") dispatch({ type: "tool", tool: "select" });
+      // A new text box goes straight to typing, on the drawing: back to select, Shift or not.
+      // Drawing on a hidden or locked layer is blocked, but should the box
+      // be one it can't type into after all, it is just added.
+      if (d.tool === "text") {
+        const box = id === undefined ? undefined : store.resolved.shapes[id];
+        if (box && isVisible(store.resolved, box.id, hiddenLayers) && !layerView.locked.has(box.layer)) dispatch({ type: "editText", id: box.id, fresh: true });
+        else store.endGesture();
+      }
     }
   };
 
   // Double-click: with the Path tool it finishes the path (its first click
-  // added the last node, its second nothing); on a selected path's segment
-  // it adds a node there and selects it.
+  // added the last node, its second nothing); on a text box it types into
+  // it; on a selected path's segment it adds a node there and selects it.
   const onDoubleClick = (e: RMouseEvent<SVGSVGElement>) => {
     if (tool === "polyline") { if (draftRef.current) finishDraft(false, e.shiftKey); return; }
+    // By position: the press captured the pointer, so the target is the svg.
+    const box = tool === "select" ? textBoxAt(resolved, toModel(view, screenPoint(e)), { hidden: hiddenLayers, locked: layerView.locked }) : null;
+    if (box) {
+      dispatch({ type: "select", ids: [box] });
+      dispatch({ type: "editText", id: box });
+      return;
+    }
     if (!editPath) return;
     const mp = toModel(view, screenPoint(e));
     if (nodeAt(editPath, mp, NODE_PX / view.scale) !== null) return;
@@ -567,7 +596,7 @@ export function Canvas() {
     dispatch({ type: "node", node: { shape: editPath.id, index: hit.segment + 1 } });
   };
 
-  const onWheel = useCallback((e: RWheelEvent<SVGSVGElement>) => {
+  const onWheel = useCallback((e: FieldWheel) => {
     const r = svgRef.current!.getBoundingClientRect();
     const at: Point = [e.clientX - r.left, e.clientY - r.top];
     // Wheel and trackpad pinch both zoom.
@@ -590,50 +619,55 @@ export function Canvas() {
   const shown = (id: EntityId) => isVisible(resolved, id, hiddenLayers);
 
   return (
-    <svg
-      ref={svgRef}
-      className={`canvas tool-${tool}${blocked ? " blocked" : ""}${spaceHeld ? " space" : ""}${dragRef.current?.kind === "pan" ? " panning" : ""}${preview?.kind === "lasso" ? " lassoing" : ""}${preview?.kind === "rotate" ? " rotating" : ""}`}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onDoubleClick={onDoubleClick}
-      onPointerLeave={() => { if (!dragRef.current) { dispatch({ type: "pointer", cursor: null, snap: null }); setHover(null); setClosing(false); } }}
-      onWheel={onWheel}
-      onContextMenu={(e) => e.preventDefault()}
-    >
-      <Grid view={view} size={size} pitch={pitch} show={editor.grid.visible} />
-      <g transform={`translate(${view.ox} ${view.oy}) scale(${view.scale})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
-        {/* Behind the shapes: live links, screen only. */}
-        {guides.map((g) => <LinkGuideView key={g.link} guide={g} fontSize={fontSize} hair={hair} />)}
-        {/* Back layer first; hidden layers not at all; locked ones drawn but not hit-testable. */}
-        {resolved.order.filter(shown).map((id) => {
-          const shape = resolved.shapes[id]!;
-          return (
-            <ShapeView
-              key={id} shape={shape} hair={hair} colour={layerColours.get(shape.layer) ?? null}
-              selected={selection.includes(id)}
-              reference={selection.length > 1 && selection[0] === id}
-              locked={derivedAxes(resolved, id)}
-              inert={layerView.locked.has(shape.layer)}
-            />
-          );
-        })}
-        {/* The selected segment of the path being edited, over its path. */}
-        {editPath && pathSegment && <path className="segment-selected" d={pathToSvg([pathSegment.element])} strokeWidth={hair * 3.5} />}
-        {resolved.dimensions.filter((d) => shown(d.target)).map((d) => <DimensionView key={d.id} dim={d} fontSize={fontSize} hair={hair} link={varName(d.target, d.prop)} />)}
-        {resolved.radiusLabels.filter((l) => shown(l.target)).map((l) => <RadiusLabelView key={l.id} label={l} fontSize={fontSize} link={varName(l.target, "r", l.corner)} />)}
-        {preview?.kind === "draw" && <DrawPreview d={preview} hair={hair} />}
-        {tool === "polyline" && draft && <PathDraftPreview draft={draft} pointer={editor.cursor} curve={shiftHeld} closing={closing} hair={hair} />}
-      </g>
-      {editPath
-        ? <PathNodes path={editPath} view={view} selected={pathNode?.node.index ?? null} handles={editHandles} />
-        : single && <Handles shape={single} view={view} />}
-      {turnBounds && <RotateHandle resolved={resolved} ids={turnable.map((s) => s.id)} view={view} />}
-      {preview?.kind === "rotate" && <PivotMarker at={preview.pivot} view={view} />}
-      {tool === "polyline" && draft && <DraftNodes draft={draft} view={view} closing={closing} />}
-      {editor.snap && <SnapMarker snap={editor.snap} view={view} />}
-      {preview?.kind === "lasso" && <LassoView d={preview} view={view} />}
-    </svg>
+    <>
+      <svg
+        ref={svgRef}
+        className={`canvas tool-${tool}${blocked ? " blocked" : ""}${spaceHeld ? " space" : ""}${dragRef.current?.kind === "pan" ? " panning" : ""}${preview?.kind === "lasso" ? " lassoing" : ""}${preview?.kind === "rotate" ? " rotating" : ""}`}
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={onPointerUp}
+        onDoubleClick={onDoubleClick}
+        onPointerLeave={() => { if (!dragRef.current) { dispatch({ type: "pointer", cursor: null, snap: null }); setHover(null); setClosing(false); } }}
+        onWheel={onWheel}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        <Grid view={view} size={size} pitch={pitch} show={editor.grid.visible} />
+        <g transform={`translate(${view.ox} ${view.oy}) scale(${view.scale})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
+          {/* Behind the shapes: live links, screen only. */}
+          {guides.map((g) => <LinkGuideView key={g.link} guide={g} fontSize={fontSize} hair={hair} />)}
+          {/* Back layer first; hidden layers not at all; locked ones drawn but not hit-testable. */}
+          {resolved.order.filter(shown).map((id) => {
+            const shape = resolved.shapes[id]!;
+            return (
+              <ShapeView
+                key={id} shape={shape} hair={hair} colour={layerColours.get(shape.layer) ?? null}
+                selected={selection.includes(id)}
+                reference={selection.length > 1 && selection[0] === id}
+                locked={derivedAxes(resolved, id)}
+                inert={layerView.locked.has(shape.layer)}
+                editing={editText?.id === id}
+              />
+            );
+          })}
+          {/* The selected segment of the path being edited, over its path. */}
+          {editPath && pathSegment && <path className="segment-selected" d={pathToSvg([pathSegment.element])} strokeWidth={hair * 3.5} />}
+          {resolved.dimensions.filter((d) => shown(d.target)).map((d) => <DimensionView key={d.id} dim={d} fontSize={fontSize} hair={hair} link={varName(d.target, d.prop)} />)}
+          {resolved.radiusLabels.filter((l) => shown(l.target)).map((l) => <RadiusLabelView key={l.id} label={l} fontSize={fontSize} link={varName(l.target, "r", l.corner)} />)}
+          {preview?.kind === "draw" && <DrawPreview d={preview} hair={hair} />}
+          {tool === "polyline" && draft && <PathDraftPreview draft={draft} pointer={editor.cursor} curve={shiftHeld} closing={closing} hair={hair} />}
+        </g>
+        {editPath
+          ? <PathNodes path={editPath} view={view} selected={pathNode?.node.index ?? null} handles={editHandles} />
+          : single && <Handles shape={single} view={view} />}
+        {turnBounds && <RotateHandle resolved={resolved} ids={turnable.map((s) => s.id)} view={view} />}
+        {preview?.kind === "rotate" && <PivotMarker at={preview.pivot} view={view} />}
+        {tool === "polyline" && draft && <DraftNodes draft={draft} view={view} closing={closing} />}
+        {editor.snap && <SnapMarker snap={editor.snap} view={view} />}
+        {preview?.kind === "lasso" && <LassoView d={preview} view={view} />}
+      </svg>
+      {/* Over the drawing, in the canvas area's (and so the SVG's) screen px. */}
+      {editText && <TextEditor key={editText.id} shape={editText} view={view} colour={layerColours.get(editText.layer) ?? null} onWheel={onWheel} />}
+    </>
   );
 }
 
@@ -734,7 +768,10 @@ function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
  * `colour`: its layer's, or null for the default ink. Set as --layer-colour,
  * so selection and hover, which stroke in --select, still win.
  */
-function ShapeView({ shape, selected, reference, locked, inert, hair, colour }: { shape: ResolvedShape; selected: boolean; reference: boolean; locked: ReadonlySet<string>; inert: boolean; hair: number; colour: string | null }) {
+/** `editing`: a text box being typed into, whose field shows its text, so only its outline is drawn. */
+function ShapeView({ shape, selected, reference, locked, inert, editing, hair, colour }: {
+  shape: ResolvedShape; selected: boolean; reference: boolean; locked: ReadonlySet<string>; inert: boolean; editing: boolean; hair: number; colour: string | null;
+}) {
   const d = pathToSvg(shape.path);
   const style = colour ? ({ "--layer-colour": colour } as CSSProperties) : undefined;
   const text = shape.kind === "text";
@@ -749,7 +786,7 @@ function ShapeView({ shape, selected, reference, locked, inert, hair, colour }: 
       {/* A text box is hit anywhere inside, not just on its edge. */}
       <path d={d} className={text ? "hit area" : "hit"} strokeWidth={hair * 12} stroke="transparent" fill={text ? "transparent" : undefined} />
       {text
-        ? <><TextFrame shape={shape} d={d} selected={selected} hair={hair} /><TextLines shape={shape} /></>
+        ? <><TextFrame shape={shape} d={d} selected={selected || editing} hair={hair} />{!editing && <TextLines shape={shape} />}</>
         : <path d={d} className="stroke" strokeWidth={hair * (selected ? 2 : 1.2)} />}
     </g>
   );

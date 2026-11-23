@@ -3,8 +3,9 @@
 Last updated 2026-11-23. Repo `sandtreader/delinya`, branch `main`.
 v0.1.1 (rotation; About links to https://sandtreader.com) is deployed to
 delinya.net. Text boxes (the Text tool, panel, canvas drawing and
-output; Adobe Core 14 metrics in `model/fontMetrics.ts`) are committed
-since, not yet deployed. Vitest tests, `tsc` and the build pass.
+output; Adobe Core 14 metrics in `model/fontMetrics.ts`) and typing
+them on the drawing (see UI, Text boxes) are committed and pushed, not
+yet deployed. Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -140,7 +141,8 @@ but has no UI.
   each keeping (or for setTextSize setting) the font size by rewriting the
   height to snap(lines at that size × 1.2 × size) through `setLength` (a
   linked height edits its variable); undefined for a non-text id or no
-  change. Moving, links, Duplicate, Equal (`EQUAL_PROPS` width/height),
+  change. `endTextEdit(state, id)`: deletes (`deleteEntity`) a box left
+  empty or only whitespace, after typing into it. Moving, links, Duplicate, Equal (`EQUAL_PROPS` width/height),
   rotate, `setRotation` and corner resize handles (in its own frame when
   turned, none while a link places a turned one) all treat it like a rect;
   `flipShapes` mirrors its text (below). UI: the Text tool, canvas drawing
@@ -169,7 +171,10 @@ but has no UI.
   `commit` (local, undo-recorded, emitted), `applyRemote`, `replace`,
   change-based undo/redo via `invert()`, and gesture folding
   (`gestureStart`/`gestureEnd` flags on one entity, or
-  `beginGesture()`/`endGesture()` for multi-entity drags). `markSaved()`
+  `beginGesture()`/`endGesture()` for multi-entity drags; `gestureOpen`
+  says one is open; `abandonGesture()` takes an open one back unrecorded:
+  its inverses applied and emitted, no undo entry, redo untouched, dirty
+  as before it; nothing without one). `markSaved()`
   and `dirty` track unsaved changes by history position, so undoing back
   to the saved point is clean again; remote changes and `replace` dirty
   it until the next `markSaved()`.
@@ -234,9 +239,72 @@ through `useSyncExternalStore`.
   `view/textSvg.ts`: empty, sans, sized as a rect; nothing if no width or
   height) and the status bar reads "from x, y mm · w × h mm · text N mm",
   N the size one line of that height gives (height / 1.2). Releasing adds
-  the box (one undo step, no dimensions), selects it and returns to select;
-  editor `focusText` (action `focusText`, never in the document) has the
-  panel's text field take the keyboard, its content selected, then clears.
+  the box (no dimensions) inside a `beginGesture()` left open, selects it,
+  returns to select and starts typing into it on the drawing (`editText`
+  with `fresh: true`; below), which joins that gesture. (Drawing on a
+  hidden or locked layer is blocked; should the box not be editable after
+  all, the gesture just ends.)
+- **Typing on the drawing**: editor `editText` (action `editText`, never in
+  the document) names the box being typed into; it clears when the
+  selection becomes anything but that box, on a toggle of the selection,
+  and when the tool changes. It starts after drawing a box, on a
+  double-click of a box with the select tool (before the path's
+  double-click, which still adds nodes), and on Enter or F2 with one text
+  box selected (App's keys; back to select; preventDefault, so no newline;
+  a path being drawn keeps its Enter). While the box is shown and not
+  locked, `canvas/TextEditor.tsx` lays a `<textarea>` over it, in the
+  canvas area (a sibling of the SVG, same screen px; `.text-editor-clip`
+  clips it to the area): `textEditorBox(t, view)` (`view/textEdit.ts`,
+  pure) gives left/top (the box's (x, y) on screen), width and height ×
+  scale, `rotate(r deg)` about its top left, the font stack, size × scale,
+  `line-height` LINE_SPACING, bold and italic. Never mirrored, so it reads
+  while typed. Transparent, no border, padding or resize, `overflow:
+  hidden`, `pre-wrap` with `overflow-wrap`/`word-break: normal` (a long
+  word runs on, as the model's wrap). Ink is the shape's (layer colour or
+  `--shape`), caret too. It is shifted up by `translateY` so its first
+  baseline lands at the model's BASELINE × size: the browser's own ascent
+  and descent (canvas `measureText` font box, cached per font) centred in
+  the 1.2 line; on screen it matches the SVG text to within about 1 px
+  (exact at 50 px Helvetica and Times, 1 px at 12 px Courier). It follows
+  zoom and pan (re-rendered from the view); a wheel over it zooms as over
+  the canvas. While editing, the box's SVG text isn't drawn, its dashed
+  outline is. The field takes focus (caret at the end; an empty box all
+  selected) and each input commits `setText` live inside one gesture, as
+  the panel's field (`app/liveText.ts` `useLiveText`, shared by both), so
+  the box grows as you type and the edit is one undo step (its first
+  change joins a gesture already open rather than beginning another; the
+  field on the drawing passes `endOnUnmount: false`, as its `finish` ends
+  the edit itself); the app's keys
+  ignore it as any textarea. Escape (which here keeps the text, unlike the
+  panel's), ⌘/Ctrl+Enter and leaving it (a press elsewhere on the canvas,
+  which then selects or clears as usual; any other control) finish.
+  `endTextEdit(state, id)` (`model/text.ts`: the `deleteEntity` change for
+  a text box whose text is empty or only whitespace, else undefined) says
+  whether the box goes. Undo: a box just drawn (editor `editFresh`, set by
+  `editText` with `fresh`, false whenever `editText` clears) and left
+  empty is taken back with `abandonGesture()` (live `join()` at mount,
+  `abandon()`), so it leaves nothing in the drawing, the history or the
+  unsaved mark; an existing box emptied is deleted inside the edit's
+  gesture (`endWith(change)`, opening one if nothing was typed), so one
+  undo brings it back with its text; drawing a box and typing into it is
+  one step; otherwise the gesture just ends. A deleted box drops from the
+  selection, then `editText` clears. Should undo come mid-edit (the app's
+  keys ignore the field, and pressing the toolbar's button blurs it first),
+  `undo()` closes the gesture into an entry and undoes it, so the box goes
+  and the edit ends with no gesture left open. Pressing the toolbar's Undo
+  on a box just drawn and still empty abandons it on the blur; the button
+  notes `store.abandoned` (a count `abandonGesture()` bumps when it takes
+  one back) at its pointerdown, and if that has changed by the click, the
+  click undoes nothing more (a keyboard click, `detail` 0, undoes as
+  usual). Redo needs no guard: drawing the box emptied the redo stack. The window
+  losing focus is not leaving it. If the editor drops it without a blur
+  (tool or selection change from elsewhere), the field's unmount finishes
+  the same way (checked a microtask later, as StrictMode remounts at
+  once). Its own pointer presses don't reach the canvas. The panel's
+  field still works alongside; both read the document. Caveat: while
+  typing, the field wraps with the viewer's real font, while the finished
+  text wraps (and the box grows) by the Adobe metrics, so a line can
+  break differently until you finish, or the field clip a last line.
   The canvas draws each non-empty line as a `<text>` in model mm with
   `textElementAttrs` (the SVG export's attributes, hyphenated names made
   camelCase for React), filled with the layer colour or `--shape`
@@ -244,7 +312,7 @@ through `useSyncExternalStore`.
   no DOM selection). The `<g data-id>` is as other shapes', its hit path a
   transparent *filled* box (`hit area`, `pointer-events: all`), so a click
   anywhere inside selects it. The outline is drawn thin and dashed only
-  while selected or when the text is empty. On a locked layer it draws
+  while selected, being typed into, or when the text is empty. On a locked layer it draws
   inert like other shapes.
 - **Drawing a path** (`canvas/Canvas.tsx`, pure parts
   `canvas/polyDraft.ts`): clicks, not a drag. Each click (press and
@@ -408,9 +476,10 @@ through `useSyncExternalStore`.
   its node count, a Closed checkbox (`setPolyClosed`; disabled below 3
   nodes) and, with the select tool, a hint on editing nodes and segments; no size
   fields. A text box ("Text"): **text**, a textarea committing `setText`
-  as you type (the first change opens `beginGesture()`, blur closes it,
-  so the canvas follows and the edit is one undo step; an unmount mid-edit
-  closes it too; Escape commits the text it had on focus, inside the
+  as you type (`useLiveText`, shared with the field on the drawing: the
+  first change opens `beginGesture()`, blur closes it, so the canvas
+  follows and the edit is one undo step; an unmount mid-edit closes it
+  too; Escape commits the text it had on focus, inside the
   gesture, then blurs; Enter is a newline; the app's keys ignore it as
   they do any textarea); **font** Sans / Serif / Mono (`.icon-toggle`,
   `setTextStyle`); **size** (mm, 2 decimals, `setTextSize`); **style**
@@ -757,8 +826,7 @@ through `useSyncExternalStore`.
    shapes that contain the others.
 5. Print refinements: a date in the title block, dimensions in DXF on
    their own layer, a custom scale.
-6. Text box extras: typing on the canvas itself (the text is typed in
-   the panel for now), system or embedded fonts beyond the PDF standard
+6. Text box extras: system or embedded fonts beyond the PDF standard
    three, and alignment (left only now; centre/right, vertical). Then
    named variables/expressions, woodwork extras (see outline "Later").
 7. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by

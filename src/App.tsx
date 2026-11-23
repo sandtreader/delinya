@@ -113,6 +113,16 @@ function Shell() {
       const at = { tool: editor.tool, selection: editor.selection };
       const node = selectedPathNode(store.resolved, { ...at, node: editor.node });
       const segment = selectedPathSegment(store.resolved, { ...at, segment: editor.segment });
+      // Enter or F2 types into the one selected text box, on the drawing.
+      // (While a path is being drawn, the canvas has Enter.) Its field takes
+      // the keyboard at once, so this Enter mustn't go on to type a newline.
+      const only = editor.selection.length === 1 ? store.resolved.shapes[editor.selection[0]!] : undefined;
+      if ((e.key === "Enter" || e.key === "F2") && only?.kind === "text") {
+        e.preventDefault();
+        dispatch({ type: "tool", tool: "select" });
+        dispatch({ type: "editText", id: only.id });
+        return;
+      }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
         if (node) deleteNode(node.shape.id, node.node.index, dispatch);

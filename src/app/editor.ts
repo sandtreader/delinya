@@ -1,6 +1,6 @@
 // Editor (non-document) state: tool, selection, current layer, hidden and
-// locked layers, grid show/snap, view, open dialog, duplicate settings.
-// Never synced, saved or undoable.
+// locked layers, grid show/snap, view, open dialog, duplicate settings, the
+// text box being typed into. Never synced, saved or undoable.
 
 import { createContext, useContext, type Dispatch } from "react";
 import {
@@ -81,10 +81,17 @@ export interface EditorState {
   /** Kept while the app is open, not saved. */
   duplicate: DuplicateSettings;
   /**
-   * A text box just drawn: its text field in the shape panel takes the
-   * keyboard as soon as it shows, then clears this.
+   * The text box being typed into on the drawing (a field laid over it).
+   * Ends when the selection becomes anything but that box, on any toggle of
+   * the selection, and when the tool changes.
    */
-  focusText: EntityId | null;
+  editText: EntityId | null;
+  /**
+   * The box being typed into was just drawn: the gesture that added it is
+   * still open, so typing joins it (one undo step) and leaving it empty
+   * takes it back without trace (TextEditor). False whenever editText is null.
+   */
+  editFresh: boolean;
 }
 
 export const initialEditor: EditorState = {
@@ -105,7 +112,8 @@ export const initialEditor: EditorState = {
   keepLinked: false,
   linkPopup: null,
   duplicate: { direction: "right", spacing: 10, count: 1, linkGaps: false, linkSize: false, linkAlign: false },
-  focusText: null,
+  editText: null,
+  editFresh: false,
 };
 
 export type EditorAction =
@@ -126,27 +134,34 @@ export type EditorAction =
   | { type: "keepLinked"; on: boolean }
   | { type: "linkPopup"; popup: EditorState["linkPopup"] }
   | { type: "duplicate"; settings: Partial<DuplicateSettings> }
-  | { type: "focusText"; id: EntityId | null };
+  | { type: "editText"; id: EntityId | null; fresh?: boolean };
 
 export function editorReducer(s: EditorState, a: EditorAction): EditorState {
   switch (a.type) {
     // A link popup belongs to the moment it was opened: any other choice closes it.
     // Hovering with select shows no position, so arriving at it clears the readout.
     // Nodes and segments are edited with select only.
+    // Typing into a text box ends with a change of tool.
     case "tool": return {
       ...s, tool: a.tool, linkPopup: null, node: a.tool === "select" ? s.node : null, segment: a.tool === "select" ? s.segment : null,
+      ...(a.tool === s.tool ? {} : { editText: null, editFresh: false }),
       ...(hoverShowsPosition(a.tool) ? {} : { cursor: null, snap: null, draw: null, measure: null, turn: null }),
     };
-    // A selected node or segment belongs to its path being the whole selection.
+    // A selected node or segment belongs to its path being the whole
+    // selection; so does typing into a text box.
     case "select": {
       const only = a.ids.length === 1 ? a.ids[0] : undefined;
       return {
         ...s, selection: a.ids, linkPopup: null,
         node: only === s.node?.shape ? s.node : null, segment: only === s.segment?.shape ? s.segment : null,
+        ...(only !== undefined && only === s.editText ? {} : { editText: null, editFresh: false }),
       };
     }
     case "toggleSelect":
-      return { ...s, linkPopup: null, node: null, segment: null, selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id] };
+      return {
+        ...s, linkPopup: null, node: null, segment: null, editText: null, editFresh: false,
+        selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id],
+      };
     // A node or a segment, not both.
     case "node": return { ...s, node: a.node, segment: a.node ? null : s.segment };
     case "segment": return { ...s, segment: a.segment, node: a.segment ? null : s.node };
@@ -171,7 +186,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "keepLinked": return { ...s, keepLinked: a.on };
     case "linkPopup": return { ...s, linkPopup: a.popup };
     case "duplicate": return { ...s, duplicate: { ...s.duplicate, ...a.settings } };
-    case "focusText": return { ...s, focusText: a.id };
+    case "editText": return { ...s, editText: a.id, editFresh: a.id !== null && !!a.fresh };
   }
 }
 
