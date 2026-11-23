@@ -1,11 +1,8 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-23. Repo `sandtreader/delinya`, branch `main`.
-v0.1.0 is deployed to delinya.net; everything up to rotation, step 1 is
-committed. In the working tree, not yet committed: rotation, step 2 (the
-canvas's rotate handle, `view/rotateHandle.ts`, `turnTo`, resize handles
-on a turned rect in its own frame; `tests/rotateHandle.test.ts`). Vitest
-tests, `tsc` and the build pass.
+v0.1.1 (rotation; About links to https://sandtreader.com) is committed
+and deployed to delinya.net. Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -675,7 +672,8 @@ through `useSyncExternalStore`.
 
 ## Hosting (st1)
 
-- Live at https://delinya.net (0.1.0 deployed 2026-11-10). DNS at
+- Live at https://delinya.net (0.1.0 deployed 2026-11-10, 0.1.1
+  2026-11-23). DNS at
   Squarespace points delinya.net and www at st1 (109.123.121.122).
 - Apache: `/etc/apache2/sites-available/delinya.net.conf` (http, redirects
   to https) and `delinya.net-le-ssl.conf` (docroot `/var/www/delinya.net`,
