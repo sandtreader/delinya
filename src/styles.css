@@ -295,6 +295,13 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .selection-panel button.icon.linked svg .guide { stroke: var(--link); }
 .selection-panel select { font: inherit; padding: 2px 4px; min-width: 0; flex: 1; }
 .selection-panel .keep-linked { display: flex; align-items: center; gap: 6px; margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+/* Rotate: the button and by how much; under them, quarter turns and flips. */
+.selection-panel .rotate {
+  display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center;
+  margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line);
+}
+.selection-panel .rotate .by { display: flex; align-items: center; gap: 6px; }
+.selection-panel .rotate .icons { grid-column: 1 / -1; }
 /* Duplicate: the button and which way the copies go; under them, how many and the gap; then what links them. */
 .selection-panel .duplicate {
   display: grid; grid-template-columns: auto 1fr; gap: 4px 8px; align-items: center;

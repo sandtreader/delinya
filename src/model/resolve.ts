@@ -16,7 +16,7 @@ import type { DocState } from "@sandtreader/collab/protocol";
 import {
   type Arc, type Bounds, type Path, type Point, type Segment,
   arc, arcMid, boundsMax, boundsMin, boundsOfPoints, boundsSize, cubic, distance, fullCircle, midpoint,
-  pathBounds, polar, segment, snapNumber,
+  normaliseAngle, pathBounds, polar, rotatePoint, segment, snapNumber, snapXY,
 } from "./geometry";
 import {
   type Axis, type DimensionProp, type DimensionProps, type EntityId, type Length,
@@ -79,6 +79,13 @@ export interface ResolvedRect extends ResolvedBase {
   corners: [Point, Point, Point, Point];
   /** Corner arcs, null where the radius is zero. Same order as `r`. */
   arcs: [Arc | null, Arc | null, Arc | null, Arc | null];
+  /**
+   * Degrees in [0, 360), clockwise on screen, about (x, y); 0 when absent
+   * or bad. Corners, arcs, path, snaps and bounds are turned; x, y, width,
+   * height and r stay the rect's own, so its sides and corners keep their
+   * names.
+   */
+  rotation: number;
 }
 
 export interface ResolvedCircle extends ResolvedBase {
@@ -385,7 +392,10 @@ function resolveRect(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, 
   const r = rawR.map((v, i) => Math.max(0, resolveLength(ctx, id, `r[${i}]`, v))) as [number, number, number, number];
   const clamped = clampRadii(r, width, height);
   if (clamped !== r) ctx.issues.push({ entity: id, code: "radius-clamped", message: "corner radii exceed the sides and were scaled down" });
-  return buildRect(id, layer, x, y, width, height, clamped);
+  let rotation = 0;
+  if (isFiniteNum(p.rotation)) rotation = normaliseAngle(p.rotation);
+  else if (p.rotation != null) ctx.issues.push({ entity: id, code: "bad-value", message: "rotation is not a number" });
+  return buildRect(id, layer, x, y, width, height, clamped, rotation);
 }
 
 /**
@@ -406,7 +416,9 @@ export function clampRadii(r: [number, number, number, number], width: number, h
   return r.map((v) => snapNumber(v * Math.max(0, f))) as [number, number, number, number];
 }
 
-function buildRect(id: EntityId, layer: EntityId, x: number, y: number, width: number, height: number, r: [number, number, number, number]): ResolvedRect {
+function buildRect(
+  id: EntityId, layer: EntityId, x: number, y: number, width: number, height: number, r: [number, number, number, number], rotation: number,
+): ResolvedRect {
   const [tl, tr, br, bl] = r;
   const corners: [Point, Point, Point, Point] = [[x, y], [x + width, y], [x + width, y + height], [x, y + height]];
 
@@ -452,9 +464,41 @@ function buildRect(id: EntityId, layer: EntityId, x: number, y: number, width: n
     { point: [x + width / 2, y + height / 2], type: "centre" },
   );
 
-  return {
-    id, kind: "rect", layer, x, y, width, height, r, corners, arcs, path, snaps,
+  const upright: ResolvedRect = {
+    id, kind: "rect", layer, x, y, width, height, r, corners, arcs, path, snaps, rotation: 0,
     bounds: { minX: x, minY: y, maxX: x + width, maxY: y + height },
+  };
+  return rotation === 0 ? upright : turnRect(upright, rotation);
+}
+
+/**
+ * Decimal places a turned rect's points are snapped to: enough to clear
+ * float noise (quarter turns come out exact), not so few that its edges and
+ * the arcs between them stop meeting.
+ */
+const TURN_PLACES = 9;
+
+/** An upright rect turned by `rotation` about its (x, y) corner, arcs' angles with it, bounds from the turned path. */
+function turnRect(s: ResolvedRect, rotation: number): ResolvedRect {
+  const turn = (p: Point): Point => snapXY(rotatePoint(p, rotation, [s.x, s.y]), TURN_PLACES);
+  const turnArc = (a: Arc): Arc => {
+    const start = (((a.start + rotation) % 360) + 360) % 360;
+    return arc(turn(a.centre), a.radius, start, start + (a.end - a.start));
+  };
+  const arcs = s.arcs.map((a) => (a ? turnArc(a) : null)) as ResolvedRect["arcs"];
+  const corners = s.corners.map(turn) as ResolvedRect["corners"];
+  const path: Path = s.path.map((e) => {
+    switch (e.kind) {
+      case "segment": return segment(turn(e.from), turn(e.to));
+      // The corner arcs are the only arcs, so keep them the same objects as `arcs`.
+      case "arc": return arcs[s.arcs.indexOf(e)] ?? turnArc(e);
+      case "cubic": return cubic(turn(e.from), turn(e.c1), turn(e.c2), turn(e.to));
+    }
+  });
+  return {
+    ...s, rotation, corners, arcs, path,
+    snaps: s.snaps.map((sp) => ({ point: turn(sp.point), type: sp.type })),
+    bounds: path.length > 0 ? pathBounds(path) : boundsOfPoints(corners),
   };
 }
 
@@ -584,7 +628,7 @@ export function translateShape(s: ResolvedShape, dx: number, dy: number): Resolv
   if (dx === 0 && dy === 0) return s;
   switch (s.kind) {
     case "line": return buildLine(s.id, s.layer, [s.from[0] + dx, s.from[1] + dy], s.length, s.angle);
-    case "rect": return buildRect(s.id, s.layer, s.x + dx, s.y + dy, s.width, s.height, s.r);
+    case "rect": return buildRect(s.id, s.layer, s.x + dx, s.y + dy, s.width, s.height, s.r, s.rotation);
     case "circle": return buildCircle(s.id, s.layer, [s.centre[0] + dx, s.centre[1] + dy], s.diameter);
     // Handles are offsets, so they move with their nodes.
     case "polyline": return buildPolyline(s.id, s.layer, s.nodes.map((n) => ({ ...n, point: [n.point[0] + dx, n.point[1] + dy] })), s.closed);
@@ -887,9 +931,10 @@ function resolveDimension(ctx: Ctx, id: EntityId, d: DimensionProps, shapes: Rec
 /** What a dimension of `prop` measures on a shape, and which way it stands off. */
 function measure(s: ResolvedShape, prop: DimensionProp): { value: number; anchors: [Point, Point]; normal: Point } | undefined {
   switch (s.kind) {
+    // Along the turned sides, standing off the way the sides face.
     case "rect":
-      if (prop === "width") return { value: s.width, anchors: [s.corners[0], s.corners[1]], normal: [0, -1] };
-      if (prop === "height") return { value: s.height, anchors: [s.corners[0], s.corners[3]], normal: [-1, 0] };
+      if (prop === "width") return { value: s.width, anchors: [s.corners[0], s.corners[1]], normal: snapXY(rotatePoint([0, -1], s.rotation), TURN_PLACES) };
+      if (prop === "height") return { value: s.height, anchors: [s.corners[0], s.corners[3]], normal: snapXY(rotatePoint([-1, 0], s.rotation), TURN_PLACES) };
       return undefined;
     case "circle":
       if (prop === "diameter") {

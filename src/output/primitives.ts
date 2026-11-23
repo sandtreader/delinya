@@ -9,6 +9,7 @@ import {
   type Bounds, type EntityId, type Path, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type Resolved,
   boundsOfPoints, isVisible, midpoint, pathBounds, pointsNear, polar, segment, unionBounds,
 } from "../model";
+import { dimensionText } from "../view/dimensionText";
 import { formatMm } from "../view/format";
 import { textWidth } from "./text";
 import type { Primitive, TextPrim } from "./types";
@@ -59,12 +60,12 @@ function dimensionPrims(d: ResolvedDimension, { textSize: size, tick }: Primitiv
   // Ticks run across the line; polar keeps them defined for a zero-length one.
   for (const p of [a, b]) path.push(segment(polar(p, tick, angle - 90), polar(p, tick, angle + 90)));
 
-  const vertical = Math.abs(b[0] - a[0]) < Math.abs(b[1] - a[1]);
-  const textAngle = vertical ? angle + 180 : angle;   // read bottom-to-top on the left side
+  const placed = dimensionText(d);
   const text: TextPrim = {
-    kind: "text", role: "dimension", text: formatMm(d.value), size, anchor: "middle", angle: textAngle,
-    // Just clear of the line, on the reader's "up" side.
-    at: offset(midpoint(a, b), [0, -0.3 * size], textAngle),
+    kind: "text", role: "dimension", text: formatMm(d.value), size, anchor: "middle", angle: placed.angle,
+    // Just clear of the line, away from the shape: the baseline above it, or
+    // a line's height below so the digits hang the same distance clear.
+    at: offset(midpoint(a, b), [0, placed.above ? -0.3 * size : size], placed.angle),
   };
   return [{ kind: "path", role: "dimension", path }, text];
 }

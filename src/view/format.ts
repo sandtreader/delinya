@@ -43,7 +43,7 @@ export function quotedTitle(title: string, fileName: string): string | null {
 export function shapeStatus(s: ResolvedShape): string {
   const at = (p: readonly [number, number]) => `${formatMm(p[0])}, ${formatMm(p[1])} mm`;
   switch (s.kind) {
-    case "rect": return `from ${at([s.x, s.y])} · ${formatMm(s.width)} × ${formatMm(s.height)} mm`;
+    case "rect": return `from ${at([s.x, s.y])} · ${formatMm(s.width)} × ${formatMm(s.height)} mm${s.rotation ? ` at ${formatMm(s.rotation)}°` : ""}`;
     case "circle": return `centre ${at(s.centre)} · ⌀ ${formatMm(s.diameter)} mm`;
     case "line": return `from ${at(s.from)} · ${formatMm(s.length)} mm at ${formatMm(s.angle)}°`;
     case "polyline": {

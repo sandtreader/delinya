@@ -25,6 +25,7 @@ import { currentQuestion } from "../app/ask";
 import { gridPitch, toModel, toScreen, wheelZoom, type View } from "../view/viewport";
 import { pathToSvg } from "../view/svgPath";
 import { formatMm, type DrawTool } from "../view/format";
+import { dimensionText } from "../view/dimensionText";
 import { snapMove, snapPoint } from "./snap";
 import { lassoMode, lassoSelect } from "./lasso";
 import { setHover } from "./hover";
@@ -760,9 +761,8 @@ function DimensionView({ dim, fontSize, hair, link }: { dim: ResolvedDimension; 
   const { line, anchors } = dim;
   const [ax, ay] = line.from, [bx, by] = line.to;
   const mid: Point = [(ax + bx) / 2, (ay + by) / 2];
-  const vertical = Math.abs(bx - ax) < Math.abs(by - ay);
   const angle = (Math.atan2(by - ay, bx - ax) * 180) / Math.PI;
-  const textAngle = vertical ? angle + 180 : angle;   // read bottom-to-top on the left side
+  const text = dimensionText(dim);   // as output places it
   const tick = hair * 4;
   return (
     <g className="dimension" strokeWidth={hair * 0.8}>
@@ -775,8 +775,8 @@ function DimensionView({ dim, fontSize, hair, link }: { dim: ResolvedDimension; 
         x={mid[0]} y={mid[1]}
         fontSize={fontSize}
         textAnchor="middle"
-        dy={-fontSize * 0.3}
-        transform={`rotate(${textAngle} ${mid[0]} ${mid[1]})`}
+        dy={text.above ? -fontSize * 0.3 : fontSize}
+        transform={`rotate(${text.angle} ${mid[0]} ${mid[1]})`}
       >
         {formatMm(dim.value)}<LinkNameSpan link={link} />
       </text>

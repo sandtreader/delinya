@@ -73,6 +73,35 @@ export function polar(origin: Point, length: number, angleDeg: number): Point {
   return [origin[0] + length * Math.cos(angleDeg * DEG), origin[1] + length * Math.sin(angleDeg * DEG)];
 }
 
+/** cos and sin of an angle in degrees, exact at quarter turns so turned shapes stay clean. */
+export function cosSin(angleDeg: number): [number, number] {
+  switch (((angleDeg % 360) + 360) % 360) {
+    case 0: return [1, 0];
+    case 90: return [0, 1];
+    case 180: return [-1, 0];
+    case 270: return [0, -1];
+    default: return [Math.cos(angleDeg * DEG), Math.sin(angleDeg * DEG)];
+  }
+}
+
+/** `p` turned by `angleDeg` (clockwise on a y-down screen) about `about`. */
+export function rotatePoint(p: Point, angleDeg: number, about: Point = [0, 0]): Point {
+  const [c, s] = cosSin(angleDeg);
+  const dx = p[0] - about[0], dy = p[1] - about[1];
+  return [about[0] + dx * c - dy * s, about[1] + dx * s + dy * c];
+}
+
+/** An angle in degrees, snapped, in [0, 360); never -0. */
+export function normaliseAngle(deg: number): number {
+  const a = snapNumber(deg) % 360;
+  return a < 0 ? snapNumber(a + 360) % 360 : a + 0;
+}
+
+/** A point snapped (see snapNumber), never with a -0. */
+export function snapXY(p: Point, places = 6): Point {
+  return [snapNumber(p[0], places) + 0, snapNumber(p[1], places) + 0];
+}
+
 export function pointOnArc(a: Arc, angleDeg: number): Point {
   return polar(a.centre, a.radius, angleDeg);
 }

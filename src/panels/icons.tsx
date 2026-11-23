@@ -99,3 +99,24 @@ const ARROW_TURN = { right: 0, down: 90, left: 180, up: 270 } as const;
 export const ArrowIcon = ({ direction }: { direction: keyof typeof ARROW_TURN }) => (
   <Icon><path d="M2.5 8h11M9.5 4l4 4-4 4" transform={`rotate(${ARROW_TURN[direction]} 8 8)`} /></Icon>
 );
+
+/** A round arrow, a turn clockwise (over the top to the right) or, mirrored, anticlockwise. */
+export const RotateIcon = ({ clockwise = false }: { clockwise?: boolean }) => (
+  <Icon>
+    <g transform={clockwise ? undefined : "matrix(-1 0 0 1 16 0)"}>
+      <path d="M10.5 12.8A5 5 0 1 1 8 3.5" />
+      <path d="M5.5 1 8 3.5 5.5 6" />
+    </g>
+  </Icon>
+);
+
+/** Two triangles mirrored across a dashed line: flip left to right (x) or, turned, top to bottom (y). */
+export const FlipIcon = ({ axis }: { axis: "x" | "y" }) => (
+  <Icon>
+    <g transform={axis === "y" ? "rotate(90 8 8)" : undefined}>
+      <path d="M8 1.5v13" strokeDasharray="1.5 2" />
+      <path d="M5.5 4 1.5 12h4z" />
+      <path d="M10.5 4l4 8h-4z" />
+    </g>
+  </Icon>
+);

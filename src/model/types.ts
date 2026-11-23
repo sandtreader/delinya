@@ -54,13 +54,19 @@ export interface LineProps {
   layer?: EntityId;
 }
 
-/** Axis-aligned rectangle; r is one corner radius per corner [tl, tr, br, bl]. */
+/**
+ * A rectangle from its (x, y) corner, turned `rotation` degrees about that
+ * corner (clockwise on screen, like a line's angle; absent is 0). Width,
+ * height and r (one corner radius per corner, [tl, tr, br, bl]) are its own
+ * sides and corners, as if it were upright.
+ */
 export interface RectProps {
   x: number;
   y: number;
   width: Length;
   height: Length;
   r?: [Length, Length, Length, Length];
+  rotation?: number;
   layer?: EntityId;
 }
 

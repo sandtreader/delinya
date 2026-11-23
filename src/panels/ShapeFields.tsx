@@ -4,7 +4,7 @@
 
 import {
   KINDS, derivedAxes, entitiesOfKind, entityAs, isRef, lengthValue, propsChanged,
-  setCornerRadius, setLength, setPolyClosed, unlinkAlign, unlinkLength, unlinkSpacing,
+  setCornerRadius, setLength, setPolyClosed, setRotation, unlinkAlign, unlinkLength, unlinkSpacing,
   type EntityId, type Length, type ResolvedRect,
 } from "../model";
 import { store, useDocument } from "../app/store";
@@ -43,6 +43,12 @@ export function ShapeFields({ id }: { id: EntityId }) {
           <Row label="y"><Num value={at("y")} onCommit={(v) => commit({ y: v })} disabled={derived.has("y")} /></Row>
           <LengthRow id={id} prop="width" label="width" />
           <LengthRow id={id} prop="height" label="height" />
+          <Row label="rotation">
+            <Num
+              value={(store.resolved.shapes[id] as ResolvedRect | undefined)?.rotation ?? 0} unit="°"
+              onCommit={(v) => { const c = setRotation(store.state, id, v); if (c) store.commit(c); }}
+            />
+          </Row>
           <Corners id={id} />
         </>
       )}

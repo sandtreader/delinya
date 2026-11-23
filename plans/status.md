@@ -1,11 +1,11 @@
 # Delinya — Status and Handoff
 
-Last updated 2026-11-10. Repo `sandtreader/delinya`, branch `main`. The
-path (Bézier) tool, its node/segment editing, breaking/joining, taking
-off / pulling out handles and Duplicate's count are committed; in the
-working tree, not yet committed: linking Duplicate's copies (gaps, size
-and align; `duplicateBeside` `linkGaps`/`linkSize`/`linkAlign`;
-`tests/duplicate.test.ts`). Vitest tests, `tsc` and the build pass.
+Last updated 2026-11-23. Repo `sandtreader/delinya`, branch `main`.
+Everything up to v0.1.0 (deployed to delinya.net) is committed; in the
+working tree, not yet committed: rotation, step 1 (a rect's `rotation`,
+`model/rotate.ts`, the selection panel's Rotate group, dimension text
+that reads along any direction; `tests/rotate.test.ts`). Vitest tests,
+`tsc` and the build pass.
 
 ## Where we are
 
@@ -90,6 +90,23 @@ but has no UI.
   radii by the smallest ratio side ÷ adjacent-pair sum). This settles the
   outline's "clamp or flag" question: clamp, and flag with a
   `radius-clamped` issue shown in the shape panel.
+- **Rotation** (step 1): a rect stores `rotation` (degrees, clockwise on
+  screen like a line's angle, about its (x, y) corner; absent is 0, a bad
+  value is 0 with a `bad-value` issue). Width, height and r stay its own
+  sides and corners. `ResolvedRect.rotation` is in [0, 360); corners,
+  arcs, path, snaps, dimension anchors and normals are turned (points
+  snapped to 9 places, so quarter turns are exact and edges still meet
+  their arcs), bounds come from the turned path, links move it whole.
+  `model/rotate.ts`: `rotateShapes(state, ids, degrees, pivot?)` and
+  `flipShapes(state, ids, axis, pivot?)` (pivot by default the centre of
+  the shapes' bounds together) turn or mirror each shape as drawn and
+  store a line's start and angle, a circle's centre, a path's nodes and
+  handles, a rect's corner and rotation; a mirrored rect is a rect turned
+  −r from the mirror of its old top-right (x) or bottom-left (y) corner,
+  radii (as stored, refs kept) and radius labels' corners swapped to
+  match. `setRotation(state, id, degrees)` spins a rect in place about
+  its centre. Angles are stored in [0, 360), numbers snapped, never -0;
+  one Change per call. Circles and paths have no rotation of their own.
 - **Spacing links** derive along-axis positions between the anchors' inner
   faces, by gaps or by centres. Items' stored along-axis position is
   ignored while linked; `unlinkSpacing` writes the derived value back.
@@ -320,7 +337,8 @@ through `useSyncExternalStore`.
   from x, y · w × h). Priority is `positionStatus` in `view/format.ts`:
   drawing, dragging, selection, pointer.
 - **Resize handles** on a single selection: rect corners (anchor opposite
-  corner, flips across it), circle centre and radius, line ends.
+  corner, flips across it), circle centre and radius, line ends. None yet
+  for a turned rect (`handlesFor` gives []): they come with step 2.
 - **No sidebar.** The selection gets one floating panel top right of the
   canvas (`panels/SelectionPanel.tsx`; which one is `panelFor` in
   `app/editor.ts`), scrolling if taller than the canvas, with Delete at
@@ -330,7 +348,8 @@ through `useSyncExternalStore`.
   its node count, a Closed checkbox (`setPolyClosed`; disabled below 3
   nodes) and, with the select tool, a hint on editing nodes and segments; no size
   fields. Other shapes: x/y, each length with
-  a linked badge and unlink, corner radii with a clamped indicator,
+  a linked badge and unlink, a rect's rotation (°, `setRotation`, so it
+  spins about its centre), corner radii with a clamped indicator,
   spacing and alignment membership with remove. Position fields a link
   controls are locked and show the derived position.
 - **Arrange panel**: two or more shapes selected, select tool only. The
@@ -344,6 +363,11 @@ through `useSyncExternalStore`.
   conflicting link. "Keep linked" (editor state, off by default)
   switches every action from a one-off move/resize to a live link; equal
   values then go through a named variable.
+- **Rotate** (both selection panels, above Duplicate): "Rotate" by a
+  typed angle (default 15°, panel state, not saved), and icons for 90°
+  anticlockwise and clockwise, flip horizontally and vertically
+  (`rotateShapes`/`flipShapes` about the selection's centre; one undo
+  step). The status bar adds "at N°" for a turned rect.
 - **Duplicate** (both selection panels, above Delete): direction toggles
   (→ ↓ ← ↑), a count (× 1–100, under the button) and a gap in mm (editor
   state `duplicate`, default one copy right, 10 mm, unlinked, not saved). The copy
@@ -440,6 +464,10 @@ through `useSyncExternalStore`.
   standard Helvetica, no dependencies), `exportSvg` (1:1 mm) and
   `exportDxf` (R12, mm, y flipped, shapes only; rects become closed
   polylines with bulges so CAM gets whole contours).
+- Dimension text (output and canvas, both via `view/dimensionText.ts`)
+  runs along its line turned to read left to right (vertical reads bottom
+  to top), on the side away from the shape, so a turned rect's or any
+  line's dimension reads the right way up.
 
 ### Layers
 
@@ -594,8 +622,9 @@ through `useSyncExternalStore`.
    shapes that contain the others.
 5. Print refinements: a date in the title block, dimensions in DXF on
    their own layer, a custom scale.
-6. Rotation of rects, text, named variables/expressions, woodwork extras
-   (see outline "Later").
+6. Rotation, step 2: a rotate handle on the canvas, and resize handles
+   for a turned rect in its own frame. Also text, named
+   variables/expressions, woodwork extras (see outline "Later").
 7. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by
    bounds, symmetric (equal-length) handles, converting rects/circles to
    paths; also Shift to constrain a handle's angle, selecting a node or

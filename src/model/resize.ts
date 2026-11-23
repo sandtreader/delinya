@@ -49,6 +49,8 @@ function cursorFor(both: string, x: boolean, y: boolean): string {
 export function handlesFor(shape: ResolvedShape, locks: LinkLocks = {}): HandleSpot[] {
   switch (shape.kind) {
     case "rect": {
+      // A turned rect's handles would work in its own frame: not yet.
+      if (shape.rotation !== 0) return [];
       const cursors = ["nwse-resize", "nesw-resize", "nwse-resize", "nesw-resize"];
       return ([0, 1, 2, 3] as const).map((corner) => ({
         handle: { kind: "rect-corner", corner },

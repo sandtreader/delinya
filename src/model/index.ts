@@ -9,3 +9,4 @@ export * from "./ids";
 export * from "./resize";
 export * from "./file";
 export * from "./duplicate";
+export * from "./rotate";

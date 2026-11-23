@@ -3,13 +3,14 @@
 // (select tool): align, centre, space and equalise. The first-selected
 // shape is the reference the others move to. "Keep linked" makes each
 // action a live link instead of a one-off move, so the result follows
-// later edits to the reference. Either way, Duplicate copies the selection
-// beside itself.
+// later edits to the reference. Either way, Rotate turns or mirrors the
+// selection about its centre and Duplicate copies it beside itself.
 
+import { useState } from "react";
 import { applyChange, type Change } from "@sandtreader/collab/protocol";
 import {
   DUPLICATE_DIRECTIONS, EQUAL_PROPS, alignLinksAmong, alignOnce, batch, deleteEntity, derivedAxes, duplicateBeside, equaliseOnce,
-  linkAlign, linkLengths, linkSpacing, newId, outerAnchors, setAlignMode, spaceOnce,
+  flipShapes, linkAlign, linkLengths, linkSpacing, newId, outerAnchors, rotateShapes, setAlignMode, spaceOnce,
   type AlignMode, type Axis, type DuplicateDirection, type EntityId, type SpacingMode,
 } from "../model";
 import { store, useDocument } from "../app/store";
@@ -18,7 +19,7 @@ import { formatMm } from "../view/format";
 import { ShapeFields } from "./ShapeFields";
 import { LayerSelect, hasLayerChoice } from "./LayerSelect";
 import { Num } from "./fields";
-import { ArrowIcon, IconButton } from "./icons";
+import { ArrowIcon, FlipIcon, IconButton, RotateIcon } from "./icons";
 import { tip } from "./tip";
 
 const SHAPE_LABEL: Record<string, string> = { rect: "Rectangle", circle: "Circle", line: "Line", polyline: "Path" };
@@ -48,6 +49,7 @@ export function SelectionPanel() {
       aria-label={panel === "shape" ? "Selected shape" : "Arrange selection"}
     >
       {panel === "shape" ? <ShapeFields id={ids[0]!} /> : <Arrange shapes={ids} />}
+      <Rotate shapes={ids} />
       <Duplicate shapes={ids} />
       <div className="actions">
         <button className="danger" onClick={remove} {...tip("Delete (Del)")}>Delete</button>
@@ -77,6 +79,34 @@ export function duplicateSelection(ids: EntityId[], settings: DuplicateSettings)
   const out = duplicateBeside(store.state, ids, settings, newId);
   if (out) store.commit(out.change);
   return out?.ids;
+}
+
+/**
+ * Rotate: turn the selection by a typed angle, or a quarter turn or a flip
+ * at a click, each about the centre of the selection's bounds, as one undo
+ * step. The angle is the panel's own, not saved.
+ */
+function Rotate({ shapes }: { shapes: EntityId[] }) {
+  const [by, setBy] = useState(15);
+  const commit = (c: Change | undefined) => { if (c) store.commit(c); };
+  const turn = (degrees: number) => commit(rotateShapes(store.state, shapes, degrees));
+  const flip = (axis: Axis) => commit(flipShapes(store.state, shapes, axis));
+  const way = by < 0 ? `${formatMm(-by)}° anticlockwise` : `${formatMm(by)}° clockwise`;
+  return (
+    <div className="rotate">
+      <button onClick={() => turn(by)} {...tip(`Rotate ${way} about the centre`)}>Rotate</button>
+      <label className="by" {...tip("Angle to rotate by: clockwise, or anticlockwise if negative")}>
+        <span className="hint">by</span>
+        <Num value={by} unit="°" onCommit={setBy} />
+      </label>
+      <div className="icons" role="group" aria-label="Quarter turns and flips">
+        <IconButton label="Rotate 90° anticlockwise" onClick={() => turn(-90)}><RotateIcon /></IconButton>
+        <IconButton label="Rotate 90° clockwise" onClick={() => turn(90)}><RotateIcon clockwise /></IconButton>
+        <IconButton label="Flip horizontally" tip="Flip horizontally: mirror left to right" onClick={() => flip("x")}><FlipIcon axis="x" /></IconButton>
+        <IconButton label="Flip vertically" tip="Flip vertically: mirror top to bottom" onClick={() => flip("y")}><FlipIcon axis="y" /></IconButton>
+      </div>
+    </div>
+  );
 }
 
 /** Where each direction puts the copy, for tooltips. */
