@@ -97,7 +97,7 @@ button.danger { color: #9b1c1c; }
 .canvas.tool-select .shape.locked { cursor: not-allowed; }
 .canvas.tool-select .shape.locked-x { cursor: ns-resize; }
 .canvas.tool-select .shape.locked-y { cursor: ew-resize; }
-.canvas.tool-line, .canvas.tool-rect, .canvas.tool-circle, .canvas.tool-polyline { cursor: crosshair; }
+.canvas.tool-line, .canvas.tool-rect, .canvas.tool-circle, .canvas.tool-polyline, .canvas.tool-text { cursor: crosshair; }
 /* Drawing tool on a hidden or locked current layer: nothing to draw. */
 .canvas.blocked { cursor: not-allowed; }
 /* Space held: a drag pans, in any tool and over anything. */
@@ -111,11 +111,16 @@ button.danger { color: #9b1c1c; }
 /* --layer-colour: the shape's layer colour, set on it when it has one. */
 .shape .stroke { stroke: var(--layer-colour, var(--shape)); }
 .shape .hit { pointer-events: stroke; }
+/* A text box's hit area is the whole box. */
+.shape .hit.area { pointer-events: all; }
 .shape.selected .stroke { stroke: var(--select); }
 .shape .ref-halo { stroke: var(--select); opacity: 0.25; pointer-events: none; }
 .shape:hover .stroke { stroke: var(--select); }
 /* On a locked layer: drawn, snapped to, but clicks go through. */
 .shape.inert { stroke: var(--layer-colour, var(--shape)); pointer-events: none; }
+/* A text box's lines: in its ink, never selectable or in the way of its hit area; hover tints them as it does strokes. */
+.shape .text-lines text { fill: var(--layer-colour, var(--shape)); stroke: none; pointer-events: none; user-select: none; -webkit-user-select: none; }
+.shape.text-box:hover .text-lines text { fill: var(--select); }
 
 /* Dimensions aren't interactive (yet): clicks go through to links and shapes below. */
 .dimension { stroke: var(--dimension); pointer-events: none; }

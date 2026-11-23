@@ -1,7 +1,10 @@
 // DXF export: shapes only, for CNC and laser cutting.
 //
 // AutoCAD R12 (AC1009) ASCII, which every CAM tool reads. Units are
-// millimetres. No dimensions or text: a cutter would cut them.
+// millimetres. No dimensions or labels: a cutter would cut them. A text box
+// is its lines, one TEXT entity each (STANDARD style, left baseline, height
+// the font's cap height at the box's size; a mirrored box's are backward),
+// never its outline.
 //
 // DXF is y-up, so y is negated on the way out. Our arcs run with increasing
 // angle, clockwise on a y-down screen; the flip keeps them clockwise as
@@ -21,8 +24,8 @@
 // for the default; the nearest entry for a colour outside the palette).
 
 import {
-  type Arc, type Path, type PathElement, type Point, type ResolvedLayer,
-  elementEnd, elementLength, elementStart, flattenCubic, isVisible, layerColourEntry, pointsNear, unionBounds,
+  type Arc, type Path, type PathElement, type Point, type ResolvedLayer, type ResolvedText,
+  elementEnd, elementLength, elementStart, flattenCubic, fontMetrics, isVisible, layerColourEntry, pointsNear, unionBounds,
 } from "../model";
 import type { EntityId, Resolved } from "../model";
 
@@ -66,7 +69,10 @@ export function exportDxf(resolved: Resolved, hidden: ReadonlySet<EntityId> = ne
   out.endsec();
 
   out.section("ENTITIES");
-  for (const s of shapes) writePath(out, s.path, names.get(s.layer)!);
+  for (const s of shapes) {
+    if (s.kind === "text") writeText(out, s, names.get(s.layer)!);
+    else writePath(out, s.path, names.get(s.layer)!);
+  }
   out.endsec();
 
   out.pair(0, "EOF");
@@ -157,6 +163,39 @@ function writePolyline(out: Writer, run: PathElement[], layer: string): void {
   }
   if (!closed) out.entity("VERTEX", layer).point(endOf(run[run.length - 1]!));
   out.entity("SEQEND", layer);
+}
+
+/**
+ * A TEXT per line with something on it, from where its baseline starts.
+ * Angles turn the way arcs' do (y is flipped), and a mirrored box's lines
+ * are backward (flag 2), so they run back from the right-hand side.
+ */
+function writeText(out: Writer, s: ResolvedText, layer: string): void {
+  if (!(s.size > 0)) return;
+  const height = (fontMetrics(s.font).capHeight / 1000) * s.size;
+  for (const line of s.lines) {
+    if (!line.text) continue;
+    out.entity("TEXT", layer).point(line.at).pair(40, height).pair(1, dxfText(line.text)).pair(50, angle(-s.rotation));
+    if (s.mirror) out.pair(71, 2);
+  }
+}
+
+/**
+ * Text as a TEXT value, all ASCII: "%" as "%%%" (AutoCAD reads "%%" as a
+ * control code), ° and ± as its %%d and %%p, anything else beyond ASCII as
+ * \U+XXXX, and control characters dropped.
+ */
+function dxfText(text: string): string {
+  let out = "";
+  for (const ch of text) {
+    const c = ch.codePointAt(0)!;
+    if (ch === "%") out += "%%%";
+    else if (ch === "°") out += "%%d";
+    else if (ch === "±") out += "%%p";
+    else if (c >= 32 && c <= 126) out += ch;
+    else if (c >= 0xa0) out += `\\U+${c.toString(16).toUpperCase().padStart(4, "0")}`;
+  }
+  return out;
 }
 
 function isFullCircle(e: PathElement): e is Arc {

@@ -77,6 +77,7 @@ export function moveBy(state: DocState, id: EntityId, dx: number, dy: number, ge
   switch (e.kind) {
     case KINDS.line:
     case KINDS.rect:
+    case KINDS.text:
       props = { x: (p.x as number) + dx, y: (p.y as number) + dy };
       break;
     case KINDS.circle:
@@ -93,13 +94,13 @@ export function moveBy(state: DocState, id: EntityId, dx: number, dy: number, ge
 }
 
 /**
- * Set a shape's position outright: x,y for lines and rects, centre for
- * circles, the first node for paths (the rest move with it).
+ * Set a shape's position outright: x,y for lines, rects and text boxes,
+ * centre for circles, the first node for paths (the rest move with it).
  */
 export function moveTo(state: DocState, id: EntityId, x: number, y: number, gesture: Gesture = {}): Change | undefined {
   const kind = kindOf(state, id);
   if (kind === KINDS.circle) return propsChanged(id, { cx: x, cy: y }, gesture);
-  if (kind === KINDS.line || kind === KINDS.rect) return propsChanged(id, { x, y }, gesture);
+  if (kind === KINDS.line || kind === KINDS.rect || kind === KINDS.text) return propsChanged(id, { x, y }, gesture);
   if (kind === KINDS.polyline) {
     const nodes = state.entities[id]!.props.nodes;
     const first = Array.isArray(nodes) ? nodes.find(hasPosition) : undefined;
@@ -189,6 +190,7 @@ export function linkLengths(state: DocState, members: LengthRef[], variableId: E
  */
 export const EQUAL_PROPS: Readonly<Record<string, ReadonlyArray<{ prop: string; label: string }>>> = {
   [KINDS.rect]: [{ prop: "width", label: "Width" }, { prop: "height", label: "Height" }],
+  [KINDS.text]: [{ prop: "width", label: "Width" }, { prop: "height", label: "Height" }],
   [KINDS.circle]: [{ prop: "diameter", label: "Diameter" }],
   [KINDS.line]: [{ prop: "length", label: "Length" }],
 };
@@ -445,7 +447,8 @@ function storedAlong(state: DocState, s: ResolvedShape, axis: Axis): Props {
   const at = axis === "x" ? 0 : 1;
   switch (s.kind) {
     case "line": return { [axis]: s.from[at] };
-    case "rect": return { [axis]: axis === "x" ? s.x : s.y };
+    case "rect":
+    case "text": return { [axis]: axis === "x" ? s.x : s.y };
     case "circle": return { [axis === "x" ? "cx" : "cy"]: s.centre[at] };
     case "polyline": {
       const [dx, dy] = drawnOffset(state, s);
@@ -499,7 +502,8 @@ function placeOnce(state: DocState, r: Resolved, axis: Axis, targets: Array<[Ent
 /** A shape's resolved size by prop name, or undefined if its kind has none. */
 function sizeOf(s: ResolvedShape, prop: string): number | undefined {
   switch (s.kind) {
-    case "rect": return prop === "width" ? s.width : prop === "height" ? s.height : undefined;
+    case "rect":
+    case "text": return prop === "width" ? s.width : prop === "height" ? s.height : undefined;
     case "circle": return prop === "diameter" ? s.diameter : undefined;
     case "line": return prop === "length" ? s.length : undefined;
     case "polyline": return undefined;

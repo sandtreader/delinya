@@ -15,14 +15,15 @@
 import type { DocState } from "@sandtreader/collab/protocol";
 import {
   type Arc, type Bounds, type Path, type Point, type Segment,
-  arc, arcMid, boundsMax, boundsMin, boundsOfPoints, boundsSize, cubic, distance, fullCircle, midpoint,
+  arc, arcMid, boundsMax, boundsMin, boundsOfPoints, boundsSize, cosSin, cubic, distance, fullCircle, midpoint,
   normaliseAngle, pathBounds, polar, rotatePoint, segment, snapNumber, snapXY,
 } from "./geometry";
 import {
   type Axis, type DimensionProp, type DimensionProps, type EntityId, type Length,
   type AlignMode, type PolyNodeType, type RadiusLabelProps, type SpacingMode, type SpacingProps,
-  BASE_LAYER_ID, DEFAULT_GRID_SPACING, DOCUMENT_FIELDS, DOCUMENT_ID, KINDS, entitiesOfKind, isRef,
+  BASE_LAYER_ID, DEFAULT_GRID_SPACING, DOCUMENT_FIELDS, DOCUMENT_ID, FONT_FAMILIES, KINDS, entitiesOfKind, isRef,
 } from "./types";
+import { type FontStyle, BASELINE, LINE_SPACING, fitTextSize, textAdvance, wrapText } from "./font";
 
 // ---- Output types ----
 
@@ -126,7 +127,44 @@ export interface ResolvedPolyline extends ResolvedBase {
   closed: boolean;
 }
 
-export type ResolvedShape = ResolvedLine | ResolvedRect | ResolvedCircle | ResolvedPolyline;
+/** One line of a text box as laid out. */
+export interface TextLine {
+  text: string;
+  /** Its advance at the box's size, from the font's metrics. */
+  width: number;
+  /**
+   * Where its baseline starts, in the drawing: the box's left side (its
+   * right side when mirrored, the glyphs running back towards the left),
+   * (BASELINE + i × LINE_SPACING) × size below the top, turned with the box.
+   */
+  at: Point;
+}
+
+/**
+ * A text box: laid out like a rect (corners, path, snaps and bounds are the
+ * box's, turned), with its text wrapped to the width at the largest size
+ * that fits the height. `path` is the box's outline, for hit-testing and
+ * bounds; output draws only the text.
+ */
+export interface ResolvedText extends ResolvedBase {
+  kind: "text";
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  /** Degrees in [0, 360), clockwise on screen, about (x, y); 0 when absent or bad. */
+  rotation: number;
+  mirror: boolean;
+  font: FontStyle;
+  text: string;
+  /** Font size, mm: derived, never stored. 0 for a box with no width or height. */
+  size: number;
+  lines: TextLine[];
+  /** Box corners [tl, tr, br, bl] in its own frame, turned. */
+  corners: [Point, Point, Point, Point];
+}
+
+export type ResolvedShape = ResolvedLine | ResolvedRect | ResolvedCircle | ResolvedPolyline | ResolvedText;
 
 export interface ResolvedDimension {
   id: EntityId;
@@ -357,6 +395,7 @@ function resolveShape(ctx: Ctx, id: EntityId, kind: string, p: Record<string, un
     case KINDS.rect: return resolveRect(ctx, id, layer, p);
     case KINDS.circle: return resolveCircle(ctx, id, layer, p);
     case KINDS.polyline: return resolvePolyline(ctx, id, layer, p);
+    case KINDS.text: return resolveText(ctx, id, layer, p);
     default: return undefined;
   }
 }
@@ -502,6 +541,54 @@ function turnRect(s: ResolvedRect, rotation: number): ResolvedRect {
   };
 }
 
+// Text props arrive unchecked: anything unusable takes its default, with an
+// issue, so a half-arrived or foreign box still draws.
+function resolveText(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, unknown>): ResolvedText {
+  const bad = (message: string) => ctx.issues.push({ entity: id, code: "bad-value", message });
+  const x = num(ctx, id, "x", p.x), y = num(ctx, id, "y", p.y);
+  const width = resolveLength(ctx, id, "width", p.width);
+  const height = resolveLength(ctx, id, "height", p.height);
+  const flag = (k: string): boolean => {
+    const v = p[k];
+    if (v != null && typeof v !== "boolean") bad(`${k} is not true or false`);
+    return v === true;
+  };
+  const text = typeof p.text === "string" ? p.text : "";
+  if (p.text != null && typeof p.text !== "string") bad("text is not text");
+  const family = FONT_FAMILIES.find((f) => f === p.font) ?? "sans";
+  if (p.font != null && family !== p.font) bad("font is not sans, serif or mono");
+  const font: FontStyle = { family, bold: flag("bold"), italic: flag("italic") };
+  let rotation = 0;
+  if (isFiniteNum(p.rotation)) rotation = normaliseAngle(p.rotation);
+  else if (p.rotation != null) bad("rotation is not a number");
+  return buildText(id, layer, { x, y, width, height, rotation, mirror: flag("mirror"), font, text });
+}
+
+type TextBox = Pick<ResolvedText, "x" | "y" | "width" | "height" | "rotation" | "mirror" | "font" | "text">;
+
+/** A text box laid out: `layout` (its size and lines' text and widths) when already known, as when only moving it. */
+function buildText(id: EntityId, layer: EntityId, box: TextBox, layout?: Pick<ResolvedText, "size" | "lines">): ResolvedText {
+  const { x, y, width, height, rotation, mirror, font, text } = box;
+  const size = layout?.size ?? fitTextSize(text, font, width, height);
+  const widths = layout?.lines.map((l) => [l.text, l.width] as const)
+    ?? wrapText(text, font, size, width).map((t) => [t, textAdvance(t, font, size)] as const);
+  // A point in the box's own frame, in the drawing; snapped as a turned rect's are.
+  const [c, s] = cosSin(rotation);
+  const at = (u: number, v: number): Point => snapXY([x + u * c - v * s, y + u * s + v * c], TURN_PLACES);
+  const corners: ResolvedText["corners"] = [at(0, 0), at(width, 0), at(width, height), at(0, height)];
+  const lines = widths.map(([t, w], i) => ({ text: t, width: w, at: at(mirror ? width : 0, (BASELINE + i * LINE_SPACING) * size) }));
+  return {
+    id, kind: "text", layer, x, y, width, height, rotation, mirror, font, text, size, lines, corners,
+    path: corners.map((p, i) => segment(p, corners[(i + 1) % 4]!)),
+    bounds: boundsOfPoints(corners),
+    snaps: [
+      ...corners.map((point) => ({ point, type: "corner" as const })),
+      ...[at(width / 2, 0), at(width, height / 2), at(width / 2, height), at(0, height / 2)].map((point) => ({ point, type: "midpoint" as const })),
+      { point: at(width / 2, height / 2), type: "centre" },
+    ],
+  };
+}
+
 function resolveCircle(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, unknown>): ResolvedCircle {
   const cx = num(ctx, id, "cx", p.cx), cy = num(ctx, id, "cy", p.cy);
   const diameter = resolveLength(ctx, id, "diameter", p.diameter);
@@ -632,6 +719,8 @@ export function translateShape(s: ResolvedShape, dx: number, dy: number): Resolv
     case "circle": return buildCircle(s.id, s.layer, [s.centre[0] + dx, s.centre[1] + dy], s.diameter);
     // Handles are offsets, so they move with their nodes.
     case "polyline": return buildPolyline(s.id, s.layer, s.nodes.map((n) => ({ ...n, point: [n.point[0] + dx, n.point[1] + dy] })), s.closed);
+    // Same box and text, so the same size and lines.
+    case "text": return buildText(s.id, s.layer, { ...s, x: s.x + dx, y: s.y + dy }, s);
   }
 }
 
@@ -948,7 +1037,9 @@ function measure(s: ResolvedShape, prop: DimensionProp): { value: number; anchor
         return { value: s.length, anchors: [s.from, s.to], normal: [snapNumber(n[0]), snapNumber(n[1])] };
       }
       return undefined;
+    // No dimensions on paths or text boxes (yet).
     case "polyline":
+    case "text":
       return undefined;
   }
 }

@@ -31,6 +31,11 @@ const TOOLS: Array<{ tool: Tool; label: string; key: string; hint?: string; icon
       </>
     ),
   },
+  {
+    tool: "text", label: "Text", key: "T",
+    hint: "Text (T): drag out a box, then type; its height sets the font size",
+    icon: <path d="M4 5V3.5h10V5M9 3.5v11M6.5 14.5h5" />,
+  },
 ];
 
 export function ToolPalette() {

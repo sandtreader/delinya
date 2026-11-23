@@ -1,8 +1,10 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-23. Repo `sandtreader/delinya`, branch `main`.
-v0.1.1 (rotation; About links to https://sandtreader.com) is committed
-and deployed to delinya.net. Vitest tests, `tsc` and the build pass.
+v0.1.1 (rotation; About links to https://sandtreader.com) is deployed to
+delinya.net. Text boxes (the Text tool, panel, canvas drawing and
+output; Adobe Core 14 metrics in `model/fontMetrics.ts`) are committed
+since, not yet deployed. Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -20,8 +22,9 @@ but has no UI.
 ### Model (`src/model/`, all pure, fully tested)
 
 - **Document** is `@sandtreader/collab`'s `DocState` (flat `{kind, props}`
-  map). Kinds: `line`, `rect`, `circle`, `variable`, `link.spacing`,
-  `dimension`, `radius-label`, and the singleton `document` (id
+  map). Kinds: `line`, `rect`, `circle`, `polyline`, `text` (see Text
+  boxes), `variable`, `link.spacing`, `link.align`,
+  `dimension`, `radius-label`, `layer`, and the singleton `document` (id
   `DOCUMENT_ID`) holding title, author, revision and notes for the title
   block, and `gridSpacing` (mm). Typed props in `types.ts`;
   `setDocumentProps` edits the text (`DOCUMENT_FIELDS`, which the title
@@ -114,6 +117,35 @@ but has no UI.
   on the page's axes). Grid snapping happens in the rect's own frame,
   from the anchor corner (`snapPoint`'s `frame`), so its sizes land on
   the grid; snaps to other shapes' points still win.
+- **Text boxes** (stage 1: model and output; see the decision below):
+  `text` kind, `TextProps { x, y, width, height, text, font?, bold?,
+  italic?, rotation?, mirror?, layer? }`, sized and turned like a rect
+  (width and height may be refs). `model/font.ts`: `FontStyle { family,
+  bold, italic }`, `textAdvance(text, font, size)`, `wrapText(text, font,
+  size, width)` (newlines first, an empty paragraph an empty line, then
+  greedily at spaces, runs of spaces and tabs as one; a word wider than the
+  width on a line of its own; "" is `[""]`), `LINE_SPACING` 1.2,
+  `BASELINE` 0.9, `fitTextSize(text, font, width, height)`,
+  `standardFont`, `fontMetrics`, `winAnsiCode(ch)` (the PDF byte; defined
+  for exactly the characters with widths: every WinAnsiEncoding
+  character). `ResolvedText`: the box's `x, y, width,
+  height, rotation, mirror`, `font` (bad values default to sans/false
+  with a `bad-value` issue), `text`, `size`, `lines` (`{ text, width, at
+  }`: `at` the world point line i's baseline starts, local (0, (0.9 + 1.2i)
+  × size), or (width, …) mirrored, turned with the box and snapped to 9
+  places like a turned rect's), `corners`, `path` (the outline, for hit-
+  testing and bounds only), `bounds`, snaps (corners, edge midpoints,
+  centre). No dimensions. `model/text.ts`: `addText`, and `setText`,
+  `setTextSize`, `setTextStyle(state, id, { font?, bold?, italic? })`,
+  each keeping (or for setTextSize setting) the font size by rewriting the
+  height to snap(lines at that size × 1.2 × size) through `setLength` (a
+  linked height edits its variable); undefined for a non-text id or no
+  change. Moving, links, Duplicate, Equal (`EQUAL_PROPS` width/height),
+  rotate, `setRotation` and corner resize handles (in its own frame when
+  turned, none while a link places a turned one) all treat it like a rect;
+  `flipShapes` mirrors its text (below). UI: the Text tool, canvas drawing
+  and the panel's fields (see UI, Text boxes); the status bar reads "from
+  x, y mm · w × h mm · text N mm [at r°]".
 - **Spacing links** derive along-axis positions between the anchors' inner
   faces, by gaps or by centres. Items' stored along-axis position is
   ignored while linked; `unlinkSpacing` writes the derived value back.
@@ -165,7 +197,7 @@ grid show/snap) lives in a reducer and is never part of the document; the docume
 through `useSyncExternalStore`.
 
 - **Tool palette** (`panels/ToolPalette.tsx`): select, line, rectangle,
-  circle and path as icons in a palette floating over the canvas, top left by
+  circle, path and text as icons in a palette floating over the canvas, top left by
   default, dragged by its grip. Its position is per browser in
   localStorage (`delinya.toolPalette`, via `app/floatPosition.ts`), never
   in the document, and is kept on screen when the window shrinks. The
@@ -190,11 +222,30 @@ through `useSyncExternalStore`.
   is aria-hidden: `tip()` (`panels/tip.ts`) sets the same text as the
   element's `aria-description` all the time, unless it is just its name,
   so screen readers get it on focus without waiting.
-- **Tools**: select (V), line (L), rect (R), circle (C), path (P). Drawing a
-  shape also adds its dimensions (rect: width and height; circle: diameter;
-  line: length; path: none) and returns to select unless Shift is held.
-  Shift constrains to square / 45° (for the path tool it makes a curve
-  node instead). The path tool's tooltip says how it works.
+- **Tools**: select (V), line (L), rect (R), circle (C), path (P), text
+  (T). Drawing a shape also adds its dimensions (rect: width and height;
+  circle: diameter; line: length; path and text: none) and returns to
+  select unless Shift is held. Shift constrains to square / 45° (for the
+  path tool it makes a curve node instead; for text it does nothing, and
+  text always returns to select). The path and text tools' tooltips say
+  how they work.
+- **Text boxes** (UI): the Text tool drags out a box like the rectangle
+  tool (dashed preview; `newTextProps(start, current, layer)` in
+  `view/textSvg.ts`: empty, sans, sized as a rect; nothing if no width or
+  height) and the status bar reads "from x, y mm · w × h mm · text N mm",
+  N the size one line of that height gives (height / 1.2). Releasing adds
+  the box (one undo step, no dimensions), selects it and returns to select;
+  editor `focusText` (action `focusText`, never in the document) has the
+  panel's text field take the keyboard, its content selected, then clears.
+  The canvas draws each non-empty line as a `<text>` in model mm with
+  `textElementAttrs` (the SVG export's attributes, hyphenated names made
+  camelCase for React), filled with the layer colour or `--shape`
+  (`.text-lines`; hover tints it `--select` as strokes; no pointer events,
+  no DOM selection). The `<g data-id>` is as other shapes', its hit path a
+  transparent *filled* box (`hit area`, `pointer-events: all`), so a click
+  anywhere inside selects it. The outline is drawn thin and dashed only
+  while selected or when the text is empty. On a locked layer it draws
+  inert like other shapes.
 - **Drawing a path** (`canvas/Canvas.tsx`, pure parts
   `canvas/polyDraft.ts`): clicks, not a drag. Each click (press and
   release within 3 px) adds a node at the snapped point (shapes' snap
@@ -356,7 +407,16 @@ through `useSyncExternalStore`.
   tool, so a just-drawn shape can be sized at once. A path ("Path") shows
   its node count, a Closed checkbox (`setPolyClosed`; disabled below 3
   nodes) and, with the select tool, a hint on editing nodes and segments; no size
-  fields. Other shapes: x/y, each length with
+  fields. A text box ("Text"): **text**, a textarea committing `setText`
+  as you type (the first change opens `beginGesture()`, blur closes it,
+  so the canvas follows and the edit is one undo step; an unmount mid-edit
+  closes it too; Escape commits the text it had on focus, inside the
+  gesture, then blurs; Enter is a newline; the app's keys ignore it as
+  they do any textarea); **font** Sans / Serif / Mono (`.icon-toggle`,
+  `setTextStyle`); **size** (mm, 2 decimals, `setTextSize`); **style**
+  Bold / Italic toggles (`setTextStyle`); x, y, width, height and
+  rotation as a rect's; **mirrored**, a checkbox committing `{ mirror }`
+  in place. Other shapes: x/y, each length with
   a linked badge and unlink, a rect's rotation (°, `setRotation`, so it
   spins about its centre), corner radii with a clamped indicator,
   spacing and alignment membership with remove. Position fields a link
@@ -459,7 +519,7 @@ through `useSyncExternalStore`.
   path node or segment, else the selection; while drawing a path, its
   last node), Escape (a selected path node or segment first; while
   drawing a path, finishes it;
-  else back to select and clear), V/L/R/C/P tools, ⌘P print/export, ⌘D one copy of the selection in
+  else back to select and clear), V/L/R/C/P/T tools, ⌘P print/export, ⌘D one copy of the selection in
   the panel's Duplicate direction and gap (always one, unlinked, whatever
   its count and links; via `duplicateBeside`), selecting it so repeating
   carries on the row. File keys and ⌘D
@@ -469,7 +529,8 @@ through `useSyncExternalStore`.
 
 - `drawingPrimitives(resolved)` turns the drawing into paths and text with
   roles (shape, dimension, furniture, guide) once; every format renders
-  those. Text is measured with Helvetica metrics (`text.ts`) everywhere.
+  those. Labels are measured with Helvetica metrics (`text.ts`, from
+  `model/fontMetrics.ts`) everywhere; text boxes with their own font's.
   Ink is per role in `STYLE.colour`: dimensions mid blue (`#3070c0`),
   everything else black, unless a primitive carries its own `colour`
   (shapes on a coloured layer; see Layers). The canvas takes its
@@ -485,6 +546,30 @@ through `useSyncExternalStore`.
   standard Helvetica, no dependencies), `exportSvg` (1:1 mm) and
   `exportDxf` (R12, mm, y flipped, shapes only; rects become closed
   polylines with bulges so CAM gets whole contours).
+- **Text boxes in output**: `drawingPrimitives` gives a box one `TextPrim`
+  per non-empty line (role shape, the layer's colour if any, `at`,
+  `angle` = rotation, anchor start, the box's size, plus `font`, `mirror`
+  and `width`, the line's metric advance) and no outline path;
+  `primitivesBounds` uses `width` and the font's ascender/descender, back
+  from `at` when mirrored; compose scales `width` with the rest. PDF: a
+  font resource per standard font used (`/F1` Helvetica always, for the
+  labels; others `/F<n>` by their place in `STANDARD_FONTS`, each a
+  `/Type1` WinAnsi dict, objects after the pages), the line's font
+  selected per text, mirrored by negating the text matrix's x column.
+  SVG: each line's `<text>` takes its attributes from
+  `view/textSvg.ts` `textElementAttrs` (shared with the canvas):
+  `font-family` a portable stack (`fontStack`: Helvetica, Arial,
+  Liberation Sans, Nimbus Sans; Times New Roman, Times, Liberation Serif,
+  Nimbus Roman; Courier New, Courier, Liberation Mono, Nimbus Mono PS),
+  `font-weight`/`font-style` when set, `textLength` + `lengthAdjust=
+  "spacing"` so a substitute font fills the metric width, and `transform=
+  "translate(x y) rotate(a) scale(-1 1)"` (rotate and scale only when
+  needed); labels unchanged. DXF: a `TEXT` per line on the shape's layer
+  (STANDARD style, left baseline at `at`, y flipped; height the font's cap
+  height × size; angle negated like the rest; 71 = 2, backward, when
+  mirrored; "%" as "%%%", ° and ± as %%d/%%p, other non-ASCII as
+  `\U+XXXX`), never the outline. `output/text.ts` labels now measure
+  with the same Helvetica table (unchanged widths).
 - Dimension text (output and canvas, both via `view/dimensionText.ts`)
   runs along its line turned to read left to right (vertical reads bottom
   to top), on the side away from the shape, so a turned rect's or any
@@ -544,8 +629,8 @@ through `useSyncExternalStore`.
   selection or layer view changes, which covers hiding/locking, moving
   shapes to such a layer, undo and peers.
 - **Layer palette** (`panels/LayerPalette.tsx`): floating, below the tool
-  palette by default (`delinya.layerPalette`, home y 211 now the tool
-  palette has five tools; a stored position is kept). A numbered button per
+  palette by default (`delinya.layerPalette`, home y 245 now the tool
+  palette has six tools; a stored position is kept). A numbered button per
   layer, 1 at the top; the current layer is highlighted like the active
   tool; hidden layers' numbers are dimmed with an eye-off mark, locked
   ones get a lock mark; a coloured layer has a thin bar in its colour
@@ -626,6 +711,35 @@ through `useSyncExternalStore`.
   unlink.
 - No MUI yet. The collab package's React entry needs MUI, so the session
   panel forces that decision.
+- **Text boxes**: the font size is never stored. It is derived: the
+  largest size at which the text, wrapped to the width, fits the height
+  (lines × 1.2 × size ≤ height). Lines never fall as the size grows, so
+  `fitTextSize` halves (0, height / 1.2] a fixed 64 times (the same on
+  every client), and when the height is what limits it returns exactly
+  height / (1.2 × lines), so a full box's lines land exactly. No width or
+  height gives 0, never NaN. Edits that should keep the size (text, font,
+  style) or set it rewrite the height instead. Fonts are the PDF standard
+  families, sans = Helvetica, serif = Times, mono = Courier, bold and
+  italic for the whole box (Helvetica/Courier Oblique, Times Italic),
+  measured with Adobe's Core 14 AFM widths generated once into the
+  checked-in `model/fontMetrics.ts` by `scripts/afm-widths.mjs <afm-dir>`
+  (by hand only; nothing reads AFM files at build or run time; every
+  WinAnsiEncoding character: codes 32–126, then `EXTRA_CHARS` in code
+  order with their bytes in `EXTRA_CODES` (0x80–0x9F's Windows set, then
+  Latin-1, no-break space and soft hyphen as space and hyphen), which the
+  PDF encodes through `winAnsiCode` too; anything else the font's "n"
+  width and "?" in a PDF; cap height, ascender and descender per font;
+  the AFMs' copyright notices kept in its header). So every client and output
+  wraps the same; SVG pins each line's width for substitute fonts.
+  `mirror` draws the glyphs reflected within the box, each line starting
+  at its right-hand side: a flip mirrors text rather than keeping it
+  readable. Flipping left to right is exactly a rect's x-flip (corner the
+  mirror of the old top-right, rotation −r) with `mirror` toggled;
+  flipping top to bottom is the x-flip then a half turn about the same
+  pivot (a reflection across a horizontal line is the one across the
+  vertical followed by a half turn about their crossing): rotation 180 −
+  r, the corner the old top-right mirrored across the horizontal,
+  `mirror` toggled. `mirror` is always written explicitly.
 
 ## Not built yet (in rough priority order)
 
@@ -643,8 +757,10 @@ through `useSyncExternalStore`.
    shapes that contain the others.
 5. Print refinements: a date in the title block, dimensions in DXF on
    their own layer, a custom scale.
-6. Text, named variables/expressions, woodwork extras (see outline
-   "Later").
+6. Text box extras: typing on the canvas itself (the text is typed in
+   the panel for now), system or embedded fonts beyond the PDF standard
+   three, and alignment (left only now; centre/right, vertical). Then
+   named variables/expressions, woodwork extras (see outline "Later").
 7. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by
    bounds, symmetric (equal-length) handles, converting rects/circles to
    paths; also Shift to constrain a handle's angle, selecting a node or

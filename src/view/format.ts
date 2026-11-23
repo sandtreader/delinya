@@ -1,26 +1,28 @@
 // Number formatting shared by the canvas, panels and output, so a length
 // reads the same on screen, in a printout and in an export.
 
-import { type EntityId, type Resolved, type ResolvedShape, elementLength, unionBounds } from "../model";
+import { LINE_SPACING, type EntityId, type Resolved, type ResolvedShape, elementLength, unionBounds } from "../model";
 
 /** A length in mm for display: at most two decimals, no trailing zeros. */
 export function formatMm(v: number): string {
   return (Math.round(v * 100) / 100).toString();
 }
 
-export type DrawTool = "line" | "rect" | "circle" | "polyline";
+export type DrawTool = "line" | "rect" | "circle" | "polyline" | "text";
 
 /**
  * The status bar while a new shape is dragged out from `start` to
  * `current`: where it started and how big it is. Angles as the shape
  * panel shows them, degrees from +x towards +y. A path being drawn reads
- * as a line: its segment from the last node to the pointer.
+ * as a line: its segment from the last node to the pointer. A text box
+ * reads as a rect, with the font size one line of its height gives.
  */
 export function drawStatus(tool: DrawTool, start: readonly [number, number], current: readonly [number, number]): string {
   const [x0, y0] = start, dx = current[0] - x0, dy = current[1] - y0;
   const at = `${formatMm(x0)}, ${formatMm(y0)} mm`;
   switch (tool) {
     case "rect": return `from ${at} · ${formatMm(Math.abs(dx))} × ${formatMm(Math.abs(dy))} mm`;
+    case "text": return `from ${at} · ${formatMm(Math.abs(dx))} × ${formatMm(Math.abs(dy))} mm · text ${formatMm(Math.abs(dy) / LINE_SPACING)} mm`;
     case "circle": return `centre ${at} · ⌀ ${formatMm(2 * Math.hypot(dx, dy))} mm`;
     case "line":
     case "polyline": return `from ${at} · ${formatMm(Math.hypot(dx, dy))} mm at ${formatMm((Math.atan2(dy, dx) * 180) / Math.PI)}°`;
@@ -44,6 +46,8 @@ export function shapeStatus(s: ResolvedShape): string {
   const at = (p: readonly [number, number]) => `${formatMm(p[0])}, ${formatMm(p[1])} mm`;
   switch (s.kind) {
     case "rect": return `from ${at([s.x, s.y])} · ${formatMm(s.width)} × ${formatMm(s.height)} mm${s.rotation ? ` at ${formatMm(s.rotation)}°` : ""}`;
+    // As a rect, with the font size the box gives.
+    case "text": return `from ${at([s.x, s.y])} · ${formatMm(s.width)} × ${formatMm(s.height)} mm · text ${formatMm(s.size)} mm${s.rotation ? ` at ${formatMm(s.rotation)}°` : ""}`;
     case "circle": return `centre ${at(s.centre)} · ⌀ ${formatMm(s.diameter)} mm`;
     case "line": return `from ${at(s.from)} · ${formatMm(s.length)} mm at ${formatMm(s.angle)}°`;
     case "polyline": {

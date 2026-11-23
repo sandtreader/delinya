@@ -6,8 +6,8 @@
 // scale pass sizes divided by it and get fixed sizes on paper.
 
 import {
-  type Bounds, type EntityId, type Path, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type Resolved,
-  boundsOfPoints, isVisible, midpoint, pathBounds, pointsNear, polar, segment, unionBounds,
+  type Bounds, type EntityId, type Path, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type Resolved, type ResolvedText,
+  boundsOfPoints, fontMetrics, isVisible, midpoint, pathBounds, pointsNear, polar, segment, textAdvance, unionBounds,
 } from "../model";
 import { dimensionText } from "../view/dimensionText";
 import { formatMm } from "../view/format";
@@ -28,7 +28,8 @@ const NO_LAYERS: ReadonlySet<EntityId> = new Set();
 
 /**
  * The visible shapes, in their layer's colour if it has one, and with
- * `dimensions` their dimensions and labels; hidden layers are left out.
+ * `dimensions` their dimensions and labels; hidden layers are left out. A
+ * text box is its lines of text, not its outline.
  */
 export function drawingPrimitives(resolved: Resolved, o: PrimitiveOptions): Primitive[] {
   const hidden = o.hidden ?? NO_LAYERS;
@@ -40,12 +41,23 @@ export function drawingPrimitives(resolved: Resolved, o: PrimitiveOptions): Prim
     if (!shown(id)) continue;
     const shape = resolved.shapes[id]!;
     const colour = colours.get(shape.layer);
-    out.push({ kind: "path", role: "shape", path: shape.path, ...(colour ? { colour } : {}) });
+    const ink = colour ? { colour } : {};
+    if (shape.kind === "text") out.push(...textBoxPrims(shape, ink));
+    else out.push({ kind: "path", role: "shape", path: shape.path, ...ink });
   }
   if (!o.dimensions) return out;
   for (const d of resolved.dimensions) if (shown(d.target)) out.push(...dimensionPrims(d, o));
   for (const l of resolved.radiusLabels) if (shown(l.target)) out.push(radiusLabelPrim(l, o.textSize));
   return out;
+}
+
+/** One text primitive per line with something on it, set as the box says. */
+function textBoxPrims(s: ResolvedText, ink: { colour?: string }): TextPrim[] {
+  if (!(s.size > 0)) return [];
+  return s.lines.filter((l) => l.text).map((l) => ({
+    kind: "text", role: "shape", at: l.at, text: l.text, angle: s.rotation, size: s.size, anchor: "start",
+    font: s.font, ...(s.mirror ? { mirror: true } : {}), width: l.width, ...ink,
+  }));
 }
 
 function dimensionPrims(d: ResolvedDimension, { textSize: size, tick }: PrimitiveOptions): Primitive[] {
@@ -93,11 +105,17 @@ export function primitivesBounds(prims: Primitive[]): Bounds | null {
   return parts.length ? unionBounds(parts) : null;
 }
 
-/** Helvetica box: ascent 0.75 em above the baseline, descent 0.25 em below. */
+/**
+ * The box a line of text covers: along the baseline its advance (`width`,
+ * or measured), back from `at` when mirrored; across it, a text box's font's
+ * ascender and descender, or for a label (Helvetica) 0.75 em up and 0.25 em down.
+ */
 function textBounds(t: TextPrim): Bounds {
-  const w = textWidth(t.text, t.size);
-  const x0 = t.anchor === "start" ? 0 : t.anchor === "middle" ? -w / 2 : -w;
-  const up = -0.75 * t.size, down = 0.25 * t.size;
-  const corners: Point[] = [[x0, up], [x0 + w, up], [x0 + w, down], [x0, down]];
+  const w = t.width ?? (t.font ? textAdvance(t.text, t.font, t.size) : textWidth(t.text, t.size));
+  const start = t.anchor === "start" ? 0 : t.anchor === "middle" ? -w / 2 : -w;
+  const [x0, x1] = t.mirror ? [-start - w, -start] : [start, start + w];
+  const m = t.font && fontMetrics(t.font);
+  const up = (m ? -m.ascender / 1000 : -0.75) * t.size, down = (m ? -m.descender / 1000 : 0.25) * t.size;
+  const corners: Point[] = [[x0, up], [x1, up], [x1, down], [x0, down]];
   return boundsOfPoints(corners.map((c) => offset(t.at, c, t.angle)));
 }

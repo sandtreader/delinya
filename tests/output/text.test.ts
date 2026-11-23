@@ -17,6 +17,11 @@ describe("toWinAnsi", () => {
     expect(toWinAnsi("a…b–")).toEqual([97, 0x85, 98, 0x96]);
   });
 
+  it("maps every character WinAnsi has, as the metrics measure them", () => {
+    expect(toWinAnsi("ƒŠŒŽšœžŸ˜ˆ‰†‡‹›")).toEqual([0x83, 0x8a, 0x8c, 0x8e, 0x9a, 0x9c, 0x9e, 0x9f, 0x98, 0x88, 0x89, 0x86, 0x87, 0x8b, 0x9b]);
+    expect(toWinAnsi("\u00a0\u00adÿ")).toEqual([0xa0, 0xad, 0xff]);
+  });
+
   it("replaces what the encoding can't hold", () => {
     expect(toWinAnsi("✓\t")).toEqual([0x3f, 0x3f]);
   });

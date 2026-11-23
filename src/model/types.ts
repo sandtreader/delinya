@@ -30,6 +30,7 @@ export const KINDS = {
   rect: "rect",
   circle: "circle",
   polyline: "polyline",
+  text: "text",
   variable: "variable",
   spacing: "link.spacing",
   align: "link.align",
@@ -40,8 +41,8 @@ export const KINDS = {
 } as const;
 
 export type Kind = (typeof KINDS)[keyof typeof KINDS];
-export type ShapeKind = "line" | "rect" | "circle" | "polyline";
-export const SHAPE_KINDS: ReadonlySet<string> = new Set<ShapeKind>(["line", "rect", "circle", "polyline"]);
+export type ShapeKind = "line" | "rect" | "circle" | "polyline" | "text";
+export const SHAPE_KINDS: ReadonlySet<string> = new Set<ShapeKind>(["line", "rect", "circle", "polyline", "text"]);
 
 // ---- Shapes ----
 
@@ -108,6 +109,34 @@ export type PolyNode = {
 export interface PolyProps {
   nodes: PolyNode[];
   closed?: boolean;
+  layer?: EntityId;
+}
+
+/** The standard font families a text box can be set in: Helvetica, Times and Courier. */
+export type FontFamily = "sans" | "serif" | "mono";
+export const FONT_FAMILIES: readonly FontFamily[] = ["sans", "serif", "mono"];
+
+/**
+ * A text box, drawn and sized like a rect: its (x, y) corner, `width` (where
+ * lines wrap) and `height`, turned `rotation` degrees about that corner
+ * (absent is 0). The font size is not stored: it is the largest at which
+ * `text`, wrapped to the width, fits the height (see font.ts). `font`
+ * (absent is sans), `bold` and `italic` apply to the whole box. `mirror`
+ * draws the glyphs reflected left to right within the box, each line
+ * starting from the right-hand side: a flipped box mirrors its text rather
+ * than keeping it readable.
+ */
+export interface TextProps {
+  x: number;
+  y: number;
+  width: Length;
+  height: Length;
+  text: string;
+  font?: FontFamily;
+  bold?: boolean;
+  italic?: boolean;
+  rotation?: number;
+  mirror?: boolean;
   layer?: EntityId;
 }
 
@@ -210,6 +239,7 @@ export interface PropsByKind {
   rect: RectProps;
   circle: CircleProps;
   polyline: PolyProps;
+  text: TextProps;
   variable: VariableProps;
   "link.spacing": SpacingProps;
   "link.align": AlignProps;

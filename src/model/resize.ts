@@ -48,7 +48,9 @@ function cursorFor(both: string, x: boolean, y: boolean): string {
  */
 export function handlesFor(shape: ResolvedShape, locks: LinkLocks = {}): HandleSpot[] {
   switch (shape.kind) {
-    case "rect": {
+    // A text box sizes like a rect; its font size refits.
+    case "rect":
+    case "text": {
       if (shape.rotation !== 0) {
         // A turned rect a link places isn't resized: its locks are on the page's axes, its sizes along its own.
         if (locks.x || locks.y) return [];

@@ -1,11 +1,12 @@
 // Exact values for one selected shape, in the floating panel. Typing into a
 // linked field edits the shared variable; the panel says so and offers to
-// unlink.
+// unlink. A text box's text is typed here too, live on the canvas.
 
+import { useEffect, useRef } from "react";
 import {
   KINDS, derivedAxes, entitiesOfKind, entityAs, isRef, lengthValue, propsChanged,
-  setCornerRadius, setLength, setPolyClosed, setRotation, unlinkAlign, unlinkLength, unlinkSpacing,
-  type EntityId, type Length, type ResolvedRect,
+  setCornerRadius, setLength, setPolyClosed, setRotation, setText, setTextSize, setTextStyle, unlinkAlign, unlinkLength, unlinkSpacing,
+  type EntityId, type FontFamily, type Length, type ResolvedRect, type ResolvedText, type TextStyle,
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { useEditor } from "../app/editor";
@@ -27,7 +28,7 @@ export function ShapeFields({ id }: { id: EntityId }) {
     const i = k.endsWith("x") ? 0 : 1;
     const s = store.resolved.shapes[id];
     if (!s || !derived.has(i === 0 ? "x" : "y")) return num(k);
-    if (s.kind === "rect") return i === 0 ? s.x : s.y;
+    if (s.kind === "rect" || s.kind === "text") return i === 0 ? s.x : s.y;
     if (s.kind === "circle") return s.centre[i];
     if (s.kind === "line") return s.from[i];
     return num(k);
@@ -68,6 +69,28 @@ export function ShapeFields({ id }: { id: EntityId }) {
         </>
       )}
       {e.kind === KINDS.polyline && <PathFields id={id} />}
+      {e.kind === KINDS.text && (
+        <>
+          <TextFields id={id} />
+          <Row label="x"><Num value={at("x")} onCommit={(v) => commit({ x: v })} disabled={derived.has("x")} /></Row>
+          <Row label="y"><Num value={at("y")} onCommit={(v) => commit({ y: v })} disabled={derived.has("y")} /></Row>
+          <LengthRow id={id} prop="width" label="width" />
+          <LengthRow id={id} prop="height" label="height" />
+          <Row label="rotation">
+            <Num
+              value={(store.resolved.shapes[id] as ResolvedText | undefined)?.rotation ?? 0} unit="°"
+              onCommit={(v) => { const c = setRotation(store.state, id, v); if (c) store.commit(c); }}
+            />
+          </Row>
+          <label className="row check" {...tip("Reads backwards: as flipping it horizontally does, but in place")}>
+            <span className="label">mirrored</span>
+            <input
+              type="checkbox" checked={(store.resolved.shapes[id] as ResolvedText | undefined)?.mirror ?? false}
+              onChange={(ev) => store.commit(propsChanged(id, { mirror: ev.target.checked }))}
+            />
+          </label>
+        </>
+      )}
       {derived.size > 0 && <p className="hint">Position along {[...derived].sort().join(" and ")} is set by a link.</p>}
       <SpacingMembership id={id} />
       <AlignMembership id={id} />
@@ -94,6 +117,108 @@ function PathFields({ id }: { id: EntityId }) {
       </label>
       {editor.tool === "select" && <p className="hint">Drag a node to move it (Alt-drag a corner to pull out a handle); click a node or a segment to edit it; double-click the path to add a node.</p>}
     </>
+  );
+}
+
+const FAMILIES: Array<{ family: FontFamily; label: string; hint: string }> = [
+  { family: "sans", label: "Sans", hint: "Sans serif: Helvetica, or Arial" },
+  { family: "serif", label: "Serif", hint: "Serif: Times" },
+  { family: "mono", label: "Mono", hint: "Monospaced: Courier" },
+];
+
+/**
+ * A text box's text, font, size, bold and italic. Its size is what fits the
+ * box, so setting it, or changing the text or style, sets the height.
+ */
+function TextFields({ id }: { id: EntityId }) {
+  useDocument();
+  const s = store.resolved.shapes[id];
+  if (s?.kind !== "text") return null;
+  const style = (st: TextStyle) => { const c = setTextStyle(store.state, id, st); if (c) store.commit(c); };
+  return (
+    <>
+      <label className="row stacked">
+        <span className="label">text</span>
+        <TextArea key={id} id={id} text={s.text} />
+      </label>
+      <div className="row" role="group" aria-label="Font">
+        <span className="label" aria-hidden="true">font</span>
+        <span className="icon-toggle">
+          {FAMILIES.map((f) => (
+            <button key={f.family} className={s.font.family === f.family ? "on" : ""} aria-pressed={s.font.family === f.family} onClick={() => style({ font: f.family })} {...tip(f.hint, f.label)}>
+              {f.label}
+            </button>
+          ))}
+        </span>
+      </div>
+      <Row label="size">
+        <Num
+          value={Math.round(s.size * 100) / 100} valid={(v) => v > 0}
+          onCommit={(v) => { const c = setTextSize(store.state, id, v); if (c) store.commit(c); }}
+        />
+      </Row>
+      <div className="row" role="group" aria-label="Style">
+        <span className="label" aria-hidden="true">style</span>
+        <span className="icon-toggle text-style">
+          <button className={s.font.bold ? "on" : ""} aria-pressed={s.font.bold} onClick={() => style({ bold: !s.font.bold })} {...tip("Bold", "Bold")} aria-label="Bold">
+            <b>B</b>
+          </button>
+          <button className={s.font.italic ? "on" : ""} aria-pressed={s.font.italic} onClick={() => style({ italic: !s.font.italic })} {...tip("Italic", "Italic")} aria-label="Italic">
+            <i>I</i>
+          </button>
+        </span>
+      </div>
+    </>
+  );
+}
+
+/**
+ * A text box's text, committed as you type so the canvas follows: the first
+ * change opens a gesture and leaving the field closes it, so the whole edit
+ * is one undo step. Escape puts back the text it had when you came in. A
+ * box just drawn (editor `focusText`) takes the keyboard at once.
+ */
+function TextArea({ id, text }: { id: EntityId; text: string }) {
+  const { editor, dispatch } = useEditor();
+  const ref = useRef<HTMLTextAreaElement>(null);
+  // While focused: the text on arrival, and whether a gesture is open.
+  const edit = useRef<{ original: string; gesture: boolean } | null>(null);
+
+  useEffect(() => {
+    if (editor.focusText !== id) return;
+    ref.current?.focus();
+    ref.current?.select();
+    dispatch({ type: "focusText", id: null });
+  }, [editor.focusText, id, dispatch]);
+
+  const end = () => {
+    if (edit.current?.gesture) store.endGesture();
+    edit.current = null;
+  };
+  // Taken away mid-edit (no blur comes): still one undo step.
+  useEffect(() => end, []);
+
+  return (
+    <textarea
+      ref={ref} className="text" rows={3} value={text} spellCheck={false}
+      onFocus={() => { edit.current = { original: text, gesture: false }; }}
+      onChange={(ev) => {
+        const c = setText(store.state, id, ev.target.value);
+        if (!c) return;
+        const e = (edit.current ??= { original: text, gesture: false });
+        if (!e.gesture) { store.beginGesture(); e.gesture = true; }
+        store.commit(c);
+      }}
+      onBlur={end}
+      onKeyDown={(ev) => {
+        if (ev.key !== "Escape") return;
+        // Inside the gesture, so the edit and its undoing are one step.
+        const e = edit.current;
+        const c = e && setText(store.state, id, e.original);
+        if (c) store.commit(c);
+        ev.currentTarget.blur();
+      }}
+    />
   );
 }
 
@@ -176,5 +301,5 @@ function AlignMembership({ id }: { id: EntityId }) {
 }
 
 export function kindLabel(kind: string): string {
-  return { rect: "Rectangle", circle: "Circle", line: "Line", polyline: "Path" }[kind] ?? kind;
+  return { rect: "Rectangle", circle: "Circle", line: "Line", polyline: "Path", text: "Text" }[kind] ?? kind;
 }

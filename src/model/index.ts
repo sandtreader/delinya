@@ -10,3 +10,5 @@ export * from "./resize";
 export * from "./file";
 export * from "./duplicate";
 export * from "./rotate";
+export * from "./font";
+export * from "./text";

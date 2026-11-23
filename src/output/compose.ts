@@ -47,7 +47,7 @@ const pad = (b: Bounds, d: number): Bounds => ({ minX: b.minX - d, minY: b.minY 
 /** Model -> paper: the window's corner lands on the area's, scaled. Uniform, so arcs keep their angles. */
 function toPaper(p: Primitive, window: Bounds, area: Rect, scale: number): Primitive {
   const pt = ([x, y]: Point): Point => [area.x + (x - window.minX) * scale, area.y + (y - window.minY) * scale];
-  if (p.kind === "text") return { ...p, at: pt(p.at), size: p.size * scale };
+  if (p.kind === "text") return { ...p, at: pt(p.at), size: p.size * scale, ...(p.width !== undefined ? { width: p.width * scale } : {}) };
   const map = (e: PathElement): PathElement => {
     switch (e.kind) {
       case "segment": return segment(pt(e.from), pt(e.to));

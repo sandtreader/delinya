@@ -1,10 +1,11 @@
 // Turning and mirroring shapes: the selection panel's Rotate group and a
 // rect's rotation field. Each shape is turned as drawn (a link may place it
 // away from its stored position) and written back as stored props: a line's
-// start and angle, a circle's centre, a path's nodes and handles, a rect's
-// (x, y) corner and rotation. Sizes are never touched, so linked lengths stay
-// linked. Numbers are snapped, so quarter turns come out exact, and angles
-// are stored in [0, 360). One Change per call, so it undoes in one step.
+// start and angle, a circle's centre, a path's nodes and handles, a rect's or
+// text box's (x, y) corner and rotation (and a text box's mirror flag when
+// flipped). Sizes are never touched, so linked lengths stay linked. Numbers
+// are snapped, so quarter turns come out exact, and angles are stored in
+// [0, 360). One Change per call, so it undoes in one step.
 
 import type { Change, DocState, PropValue } from "@sandtreader/collab/protocol";
 import { type Point, midpoint, normaliseAngle, rotatePoint, snapXY, unionBounds } from "./geometry";
@@ -37,7 +38,8 @@ export function rotateShapes(state: DocState, ids: EntityId[], degrees: number, 
         const [cx, cy] = point(s.centre);
         return propsChanged(s.id, { cx, cy });
       }
-      case "rect": {
+      case "rect":
+      case "text": {
         const [x, y] = point([s.x, s.y]);
         return propsChanged(s.id, { x, y, rotation: normaliseAngle(s.rotation + turn) });
       }
@@ -53,6 +55,7 @@ const TURNED_PROPS: Record<ResolvedShape["kind"], readonly string[]> = {
   circle: ["cx", "cy"],
   rect: ["x", "y", "rotation"],
   polyline: ["nodes"],
+  text: ["x", "y", "rotation"],
 };
 
 /**
@@ -90,7 +93,8 @@ const MIRRORED_CORNER: Record<Axis, readonly [0 | 1 | 2 | 3, 0 | 1 | 2 | 3, 0 | 
  * across the vertical line through it, "y" top to bottom across the
  * horizontal one. A rect stays a rect, turned the other way, so its (x, y)
  * corner and its corner radii change places; radius labels follow their
- * corner. Undefined with no shapes.
+ * corner. A text box mirrors its text: see the "text" case. Undefined with no
+ * shapes.
  */
 export function flipShapes(state: DocState, ids: EntityId[], axis: Axis, pivot?: Point): Change | undefined {
   const r = resolve(state);
@@ -134,20 +138,33 @@ export function flipShapes(state: DocState, ids: EntityId[], axis: Axis, pivot?:
         }
         break;
       }
+      case "text": {
+        // Its frame flips the way a rect's does across the vertical, from the
+        // mirror of its old top-right corner turned −r, and its text reads
+        // backwards in it. A flip top to bottom is that flip followed by a
+        // half turn about the pivot (two reflections across perpendicular
+        // lines make one), which puts the corner at the old top-right's
+        // mirror across the horizontal and turns it a further 180°.
+        const [x, y] = point(s.corners[1]);
+        const rotation = normaliseAngle((axis === "x" ? 0 : 180) - s.rotation);
+        changes.push(propsChanged(s.id, { x, y, rotation, mirror: !s.mirror }));
+        break;
+      }
     }
   }
   return one(changes);
 }
 
 /**
- * Turn a rect to `degrees` (clockwise on screen) about its own centre, so
- * it spins in place. Undefined if `id` is not a rect or it is already at
- * that angle.
+ * Turn a rect or text box to `degrees` (clockwise on screen) about its own
+ * centre, so it spins in place. Undefined if `id` is neither or it is
+ * already at that angle.
  */
 export function setRotation(state: DocState, id: EntityId, degrees: number): Change | undefined {
-  if (state.entities[id]?.kind !== KINDS.rect || !Number.isFinite(degrees)) return undefined;
+  const kind = state.entities[id]?.kind;
+  if ((kind !== KINDS.rect && kind !== KINDS.text) || !Number.isFinite(degrees)) return undefined;
   const s = resolve(state).shapes[id];
-  if (s?.kind !== "rect") return undefined;
+  if (s?.kind !== "rect" && s?.kind !== "text") return undefined;
   const rotation = normaliseAngle(degrees);
   if (rotation === s.rotation) return undefined;
   const [x, y] = snapXY(rotatePoint([s.x, s.y], rotation - s.rotation, midpoint(s.corners[0], s.corners[2])));

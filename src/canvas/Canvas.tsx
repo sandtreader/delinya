@@ -14,10 +14,10 @@ import {
   type CSSProperties, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent, type WheelEvent as RWheelEvent,
 } from "react";
 import {
-  KINDS, addCircle, addDimension, addLine, addPolyline, batch, addRect, bendPolySegment, derivedAxes, distance, dragHandle, drawnOffset, entityAs,
+  KINDS, addCircle, addDimension, addLine, addPolyline, addText, batch, addRect, bendPolySegment, derivedAxes, distance, dragHandle, drawnOffset, entityAs,
   freeDelta, handlesFor, insertPolyNode, isRef, isVisible, linkLocks, moveBy, movePolyNode, newId, setPolyHandle, snapNumber, turnTo, unionBounds,
   type Bounds, type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType, type ResolvedDimension, type ResolvedPolyline,
-  type Resolved, type ResolvedRadiusLabel, type ResolvedShape, type SnapPoint,
+  type Resolved, type ResolvedRadiusLabel, type ResolvedShape, type ResolvedText, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { currentLayer, hoverShowsPosition, selectedPathNode, selectedPathSegment, useEditor } from "../app/editor";
@@ -26,6 +26,7 @@ import { gridPitch, toModel, toScreen, wheelZoom, type View } from "../view/view
 import { pathToSvg } from "../view/svgPath";
 import { formatMm, type DrawTool } from "../view/format";
 import { dimensionText } from "../view/dimensionText";
+import { newTextProps, textElementAttrs } from "../view/textSvg";
 import { snapMove, snapPoint, type SnapFrame } from "./snap";
 import { lassoMode, lassoSelect } from "./lasso";
 import { setHover } from "./hover";
@@ -317,8 +318,8 @@ export function Canvas() {
         const locks = shape ? linkLocks(resolved, shape.id) : {};
         const spot = shape && handlesFor(shape, locks)[Number(handleIndex)];
         if (spot) {
-          // A turned rect snaps to the grid in its own frame, from the anchor, so its sizes land on the grid.
-          const frame = shape.kind === "rect" && shape.rotation !== 0 && spot.anchor ? { origin: spot.anchor, angle: shape.rotation } : undefined;
+          // A turned rect (or text box) snaps to the grid in its own frame, from the anchor, so its sizes land on the grid.
+          const frame = (shape.kind === "rect" || shape.kind === "text") && shape.rotation !== 0 && spot.anchor ? { origin: spot.anchor, angle: shape.rotation } : undefined;
           // A handle that can't move at all starts nothing (and doesn't fall through to a move).
           if (spot.cursor !== "not-allowed") dragRef.current = { kind: "resize", id: shape.id, spot, locks, frame, moved: false };
           return;
@@ -544,7 +545,9 @@ export function Canvas() {
       dispatch({ type: "pointer", cursor: d.current, snap: null });
       const id = createShape(d);
       if (id) dispatch({ type: "select", ids: [id] });
-      if (!e.shiftKey) dispatch({ type: "tool", tool: "select" });
+      // A new text box goes straight to typing, in the panel: back to select, Shift or not.
+      if (id && d.tool === "text") dispatch({ type: "focusText", id });
+      if (!e.shiftKey || d.tool === "text") dispatch({ type: "tool", tool: "select" });
     }
   };
 
@@ -663,7 +666,7 @@ function isTyping(e: KeyboardEvent): boolean {
   return !!t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable);
 }
 
-/** Shift constrains: squares/circles stay as they are; lines snap to 45°. */
+/** Shift constrains: squares/circles stay as they are; lines snap to 45°; text boxes take any shape. */
 function constrain(d: Extract<Drag, { kind: "draw" }>, p: Point, shift: boolean): Point {
   if (!shift) return p;
   const dx = p[0] - d.start[0], dy = p[1] - d.start[1];
@@ -679,7 +682,7 @@ function constrain(d: Extract<Drag, { kind: "draw" }>, p: Point, shift: boolean)
   return p;
 }
 
-/** Commit the drawn shape, on its layer, with its standard dimension. Returns the new ID. */
+/** Commit the drawn shape, on its layer, with its standard dimension (a text box has none). Returns the new ID. */
 function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
   const [x0, y0] = d.start, [x1, y1] = d.current, { layer } = d;
   const id = newId(d.tool);
@@ -713,6 +716,12 @@ function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
       ]));
       return id;
     }
+    case "text": {
+      const props = newTextProps(d.start, d.current, layer);
+      if (!props) return undefined;
+      store.commit(addText(id, props));
+      return id;
+    }
   }
 }
 
@@ -728,15 +737,49 @@ function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
 function ShapeView({ shape, selected, reference, locked, inert, hair, colour }: { shape: ResolvedShape; selected: boolean; reference: boolean; locked: ReadonlySet<string>; inert: boolean; hair: number; colour: string | null }) {
   const d = pathToSvg(shape.path);
   const style = colour ? ({ "--layer-colour": colour } as CSSProperties) : undefined;
-  if (inert) return <path d={d} className="shape inert" strokeWidth={hair * 1.2} style={style} />;
+  const text = shape.kind === "text";
+  if (inert) {
+    if (!text) return <path d={d} className="shape inert" strokeWidth={hair * 1.2} style={style} />;
+    return <g className="shape inert" style={style}><TextFrame shape={shape} d={d} selected={false} hair={hair} /><TextLines shape={shape} /></g>;
+  }
   const lock = locked.size === 2 ? " locked" : locked.has("x") ? " locked-x" : locked.has("y") ? " locked-y" : "";
   return (
-    <g data-id={shape.id} className={`shape${selected ? " selected" : ""}${lock}`} style={style}>
+    <g data-id={shape.id} className={`shape${text ? " text-box" : ""}${selected ? " selected" : ""}${lock}`} style={style}>
       {reference && <path d={d} className="ref-halo" strokeWidth={hair * 7} />}
-      <path d={d} className="hit" strokeWidth={hair * 12} stroke="transparent" />
-      <path d={d} className="stroke" strokeWidth={hair * (selected ? 2 : 1.2)} />
+      {/* A text box is hit anywhere inside, not just on its edge. */}
+      <path d={d} className={text ? "hit area" : "hit"} strokeWidth={hair * 12} stroke="transparent" fill={text ? "transparent" : undefined} />
+      {text
+        ? <><TextFrame shape={shape} d={d} selected={selected} hair={hair} /><TextLines shape={shape} /></>
+        : <path d={d} className="stroke" strokeWidth={hair * (selected ? 2 : 1.2)} />}
     </g>
   );
+}
+
+/**
+ * A text box's outline: thin and dashed, and only while it is selected or
+ * has no text (so an empty box can still be seen and picked up).
+ */
+function TextFrame({ shape, d, selected, hair }: { shape: ResolvedText; d: string; selected: boolean; hair: number }) {
+  if (!selected && shape.text !== "") return null;
+  return <path d={d} className="stroke text-frame" strokeWidth={hair} strokeDasharray={`${4 * hair} ${3 * hair}`} />;
+}
+
+/** A text box's lines, each a <text> in model mm with the SVG export's attributes, in the shape's ink. */
+function TextLines({ shape }: { shape: ResolvedText }) {
+  return (
+    <g className="text-lines">
+      {shape.lines.map((l, i) => l.text === "" ? null : (
+        <text key={i} {...reactAttrs(textElementAttrs({ at: l.at, angle: shape.rotation, size: shape.size, font: shape.font, mirror: shape.mirror, width: l.width }))}>
+          {l.text}
+        </text>
+      ))}
+    </g>
+  );
+}
+
+/** SVG attributes as React props: "font-family" as fontFamily, and so on. */
+function reactAttrs(a: Record<string, string>): Record<string, string> {
+  return Object.fromEntries(Object.entries(a).map(([k, v]) => [k.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase()), v]));
 }
 
 interface LinkName { name: string; emphasis: boolean; shape: EntityId; prop: string; corner?: number }
@@ -833,6 +876,7 @@ function DrawPreview({ d, hair }: { d: Extract<Drag, { kind: "draw" }>; hair: nu
   const props = { className: "preview", strokeWidth: hair * 1.2 };
   switch (d.tool) {
     case "rect":
+    case "text":
       return <rect {...props} x={Math.min(x0, x1)} y={Math.min(y0, y1)} width={Math.abs(x1 - x0)} height={Math.abs(y1 - y0)} />;
     case "circle":
       return <circle {...props} cx={x0} cy={y0} r={Math.hypot(x1 - x0, y1 - y0)} />;

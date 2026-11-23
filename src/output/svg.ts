@@ -3,6 +3,7 @@
 
 import type { EntityId, Resolved } from "../model";
 import { pathToSvg } from "../view/svgPath";
+import { svgNumber as num, textElementAttrs } from "../view/textSvg";
 import { drawingPrimitives, primitivesBounds } from "./primitives";
 import { STYLE, SVG_PADDING } from "./style";
 import type { PageDrawing, Primitive } from "./types";
@@ -44,7 +45,9 @@ export function pageToSvg(page: PageDrawing): string {
 
 /**
  * Paths in one stroked group, text in one filled group, both black; a role
- * or layer inked in another colour says so on the element itself.
+ * or layer inked in another colour says so on the element itself. Labels
+ * take the group's Helvetica; a text box's line names its own font, pins its
+ * width and is placed by transform (see textElementAttrs).
  */
 function layer(prims: Primitive[]): string {
   const paths: string[] = [], texts: string[] = [];
@@ -53,6 +56,10 @@ function layer(prims: Primitive[]): string {
       if (!p.path.length) continue;
       const dash = p.role === "guide" ? ` stroke-dasharray="${STYLE.guideDash.join(" ")}"` : "";
       paths.push(`<path d="${pathToSvg(p.path)}" stroke-width="${STYLE.stroke[p.role]}"${dash}${ink("stroke", p.colour ?? STYLE.colour[p.role])}/>`);
+    } else if (p.text && p.font) {
+      const attrs = Object.entries(textElementAttrs({ ...p, font: p.font })).map(([k, v]) => ` ${k}="${escapeXml(v)}"`).join("");
+      const anchor = p.anchor !== "start" ? ` text-anchor="${p.anchor}"` : "";
+      texts.push(`<text${attrs}${anchor}${ink("fill", p.colour ?? STYLE.colour[p.role])}>${escapeXml(p.text)}</text>`);
     } else if (p.text) {
       const [x, y] = [num(p.at[0]), num(p.at[1])];
       const rotate = num(p.angle) !== "0" ? ` transform="rotate(${num(p.angle)} ${x} ${y})"` : "";
@@ -68,12 +75,6 @@ function layer(prims: Primitive[]): string {
 /** A colour as a stroke or fill attribute; nothing for black, which the group sets. */
 function ink(attr: "stroke" | "fill", colour: string): string {
   return /^#(000|000000)$/i.test(colour) ? "" : ` ${attr}="${escapeXml(colour)}"`;
-}
-
-/** At most 4 decimals, no trailing zeros, never "-0". */
-function num(v: number): string {
-  const r = Math.round(v * 1e4) / 1e4;
-  return (r === 0 ? 0 : r).toString();
 }
 
 /** Text content and attribute safe; drops control characters XML forbids. */

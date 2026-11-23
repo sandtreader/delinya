@@ -3,10 +3,12 @@
 // One Page per PageDrawing, sized in points from the paper mm. Each content
 // stream starts by mapping paper mm with y down onto PDF's points with y up,
 // so primitives are written in the same coordinates as the page model. Text
-// uses the standard Helvetica font (not embedded) in WinAnsiEncoding; the
-// whole file is ASCII and uncompressed, and the output is deterministic.
+// uses the standard fonts (not embedded) in WinAnsiEncoding: labels
+// Helvetica, always /F1; a text box's lines the Helvetica, Times or Courier
+// its style names, each font used getting a resource of its own. The whole
+// file is ASCII and uncompressed, and the output is deterministic.
 
-import type { Arc, Path, Point } from "../model";
+import { type Arc, type Path, type Point, type StandardFont, DEFAULT_FONT, STANDARD_FONTS, standardFont, textAdvance } from "../model";
 import { STYLE } from "./style";
 import { textWidth, toWinAnsi } from "./text";
 import type { PageDrawing, PathPrim, Primitive, Role, TextPrim } from "./types";
@@ -25,10 +27,17 @@ export function exportPdf(pages: PageDrawing[], meta: { title: string; author: s
   const pageId = (i: number) => 5 + 2 * i;
   const contentId = (i: number) => 6 + 2 * i;
 
+  // Helvetica, the labels' font, is always there; other fonts follow the pages.
+  const used = new Set<StandardFont>(["Helvetica"]);
+  for (const page of list) for (const p of [...page.content, ...page.furniture]) if (p.kind === "text") used.add(textFont(p));
+  const fonts = STANDARD_FONTS.filter((f) => used.has(f));
+  const fontId = (k: number) => (k === 0 ? FONT : 5 + 2 * list.length + k - 1);
+  const fontResources = fonts.map((f, k) => `/${fontName(f)} ${fontId(k)} 0 R`).join(" ");
+
   const bodies: string[] = [];
   bodies[CATALOG] = `<< /Type /Catalog /Pages ${PAGES} 0 R >>`;
   bodies[PAGES] = `<< /Type /Pages /Kids [${list.map((_, i) => `${pageId(i)} 0 R`).join(" ")}] /Count ${list.length} >>`;
-  bodies[FONT] = "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>";
+  fonts.forEach((f, k) => { bodies[fontId(k)] = `<< /Type /Font /Subtype /Type1 /BaseFont /${f} /Encoding /WinAnsiEncoding >>`; });
   const info = [`/Title ${pdfText(meta.title)}`];
   if (meta.author) info.push(`/Author ${pdfText(meta.author)}`);
   info.push(`/Producer ${pdfText("Delinya")}`);
@@ -39,7 +48,7 @@ export function exportPdf(pages: PageDrawing[], meta: { title: string; author: s
     const h = f(page.height * PT);
     bodies[pageId(i)] =
       `<< /Type /Page /Parent ${PAGES} 0 R /MediaBox [0 0 ${w} ${h}]` +
-      ` /Resources << /Font << /F1 ${FONT} 0 R >> /ProcSet [/PDF /Text] >>` +
+      ` /Resources << /Font << ${fontResources} >> /ProcSet [/PDF /Text] >>` +
       ` /Contents ${contentId(i)} 0 R >>`;
     const stream = pageContent(page, h);
     bodies[contentId(i)] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
@@ -61,6 +70,16 @@ export function exportPdf(pages: PageDrawing[], meta: { title: string; author: s
   const bytes = new Uint8Array(out.length);
   for (let i = 0; i < out.length; i++) bytes[i] = out.charCodeAt(i);
   return bytes;
+}
+
+/** The standard font a text primitive is set in: its own, or Helvetica for a label. */
+function textFont(t: TextPrim): StandardFont {
+  return standardFont(t.font ?? DEFAULT_FONT);
+}
+
+/** A standard font's resource name: /F1 for Helvetica, the same name for a font in every file. */
+function fontName(f: StandardFont): string {
+  return `F${STANDARD_FONTS.indexOf(f) + 1}`;
 }
 
 function blankPage(width: number, height: number): PageDrawing {
@@ -202,14 +221,17 @@ function textOps(t: TextPrim, ops: string[], state: GState): void {
   }
   const cos = Math.cos(t.angle * DEG);
   const sin = Math.sin(t.angle * DEG);
-  const w = textWidth(t.text, t.size);
+  // The way the glyphs advance: along the angle, or back along it mirrored.
+  const dir = t.mirror ? -1 : 1;
+  const w = t.width ?? (t.font ? textAdvance(t.text, t.font, t.size) : textWidth(t.text, t.size));
   const back = t.anchor === "middle" ? w / 2 : t.anchor === "end" ? w : 0;
-  const x = t.at[0] - back * cos;
-  const y = t.at[1] - back * sin;
+  const x = t.at[0] - back * dir * cos;
+  const y = t.at[1] - back * dir * sin;
   // Baseline along the angle; glyph "up" a quarter turn anticlockwise from
   // it on the y-down page, which un-mirrors the flipped page transform.
-  const m = [cos, sin, sin, -cos].map((v) => f(v, 6)).join(" ");
-  ops.push("BT", `/F1 ${f(t.size)} Tf`, `${m} ${f(x)} ${f(y)} Tm`, `${pdfString(toWinAnsi(t.text))} Tj`, "ET");
+  // Mirrored text negates the x column, so glyphs run back, reflected.
+  const m = [dir * cos, dir * sin, sin, -cos].map((v) => f(v, 6)).join(" ");
+  ops.push("BT", `/${fontName(textFont(t))} ${f(t.size)} Tf`, `${m} ${f(x)} ${f(y)} Tm`, `${pdfString(toWinAnsi(t.text))} Tj`, "ET");
 }
 
 // --- Formatting -------------------------------------------------------

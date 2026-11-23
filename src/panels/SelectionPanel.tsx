@@ -22,7 +22,7 @@ import { Num } from "./fields";
 import { ArrowIcon, FlipIcon, IconButton, RotateIcon } from "./icons";
 import { tip } from "./tip";
 
-const SHAPE_LABEL: Record<string, string> = { rect: "Rectangle", circle: "Circle", line: "Line", polyline: "Path" };
+const SHAPE_LABEL: Record<string, string> = { rect: "Rectangle", circle: "Circle", line: "Line", polyline: "Path", text: "Text" };
 
 const ALIGNS: Array<{ axis: Axis; mode: AlignMode; title: string }> = [
   { axis: "x", mode: "start", title: "Align left edges" },

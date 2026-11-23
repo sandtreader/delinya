@@ -29,7 +29,7 @@ import "./styles.css";
 const APP_COLOURS = { "--dimension": STYLE.colour.dimension } as CSSProperties;
 const RULER_SIZE = { "--ruler": `${RULER_PX}px` } as CSSProperties;
 
-const TOOL_KEYS: Record<string, Tool> = { v: "select", l: "line", r: "rect", c: "circle", p: "polyline" };
+const TOOL_KEYS: Record<string, Tool> = { v: "select", l: "line", r: "rect", c: "circle", p: "polyline", t: "text" };
 
 export function App() {
   // Showing and snapping to the grid are this browser's choice, kept between visits.

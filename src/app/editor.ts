@@ -11,7 +11,7 @@ import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
 import type { DrawTool } from "../view/format";
 import { DEFAULT_GRID_VIEW, type GridView } from "./gridView";
 
-export type Tool = "select" | "line" | "rect" | "circle" | "polyline";
+export type Tool = "select" | "line" | "rect" | "circle" | "polyline" | "text";
 export type Dialog = "output" | "properties" | "about";
 
 /**
@@ -80,6 +80,11 @@ export interface EditorState {
   linkPopup: { target: LinkTarget; at: [number, number] } | null;
   /** Kept while the app is open, not saved. */
   duplicate: DuplicateSettings;
+  /**
+   * A text box just drawn: its text field in the shape panel takes the
+   * keyboard as soon as it shows, then clears this.
+   */
+  focusText: EntityId | null;
 }
 
 export const initialEditor: EditorState = {
@@ -100,6 +105,7 @@ export const initialEditor: EditorState = {
   keepLinked: false,
   linkPopup: null,
   duplicate: { direction: "right", spacing: 10, count: 1, linkGaps: false, linkSize: false, linkAlign: false },
+  focusText: null,
 };
 
 export type EditorAction =
@@ -119,7 +125,8 @@ export type EditorAction =
   | { type: "dialog"; dialog: Dialog | null }
   | { type: "keepLinked"; on: boolean }
   | { type: "linkPopup"; popup: EditorState["linkPopup"] }
-  | { type: "duplicate"; settings: Partial<DuplicateSettings> };
+  | { type: "duplicate"; settings: Partial<DuplicateSettings> }
+  | { type: "focusText"; id: EntityId | null };
 
 export function editorReducer(s: EditorState, a: EditorAction): EditorState {
   switch (a.type) {
@@ -164,6 +171,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "keepLinked": return { ...s, keepLinked: a.on };
     case "linkPopup": return { ...s, linkPopup: a.popup };
     case "duplicate": return { ...s, duplicate: { ...s.duplicate, ...a.settings } };
+    case "focusText": return { ...s, focusText: a.id };
   }
 }
 

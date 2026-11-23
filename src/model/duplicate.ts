@@ -55,7 +55,8 @@ export function duplicateShapes(
 function movedPosition(state: DocState, s: ResolvedShape, [dx, dy]: readonly [number, number]): Props {
   const at = (v: number, d: number) => snapNumber(v + d);
   switch (s.kind) {
-    case "rect": return { x: at(s.x, dx), y: at(s.y, dy) };
+    case "rect":
+    case "text": return { x: at(s.x, dx), y: at(s.y, dy) };
     case "circle": return { cx: at(s.centre[0], dx), cy: at(s.centre[1], dy) };
     case "line": return { x: at(s.from[0], dx), y: at(s.from[1], dy) };
     case "polyline": {
