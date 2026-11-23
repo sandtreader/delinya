@@ -36,6 +36,11 @@ const TOOLS: Array<{ tool: Tool; label: string; key: string; hint?: string; icon
     hint: "Text (T): drag out a box, then type; its height sets the font size",
     icon: <path d="M4 5V3.5h10V5M9 3.5v11M6.5 14.5h5" />,
   },
+  {
+    tool: "dimension", label: "Dimension", key: "D",
+    hint: "Dimension (D): click a shape's edge, outline or line, then click where the dimension goes; click a rounded corner to label its radius",
+    icon: <path d="M3 3.5v11M15 3.5v11M3 9h12M5.5 7 3 9l2.5 2M12.5 7 15 9l-2.5 2" />,
+  },
 ];
 
 export function ToolPalette() {

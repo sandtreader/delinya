@@ -22,8 +22,8 @@ import { Icon } from "./icons";
 import { tip } from "./tip";
 
 const STORAGE_KEY = "delinya.layerPalette";
-// Just below the tool palette at its home (10, 10), which is 225 px tall.
-const HOME: Point = { x: 10, y: 245 };
+// Just below the tool palette at its home (10, 10), which is 259 px tall.
+const HOME: Point = { x: 10, y: 279 };
 /** Movement before a press on a layer button becomes a drag rather than a click. */
 const DRAG_PX = 4;
 /** Room the card needs to the right of the palette before it flips to the left. */

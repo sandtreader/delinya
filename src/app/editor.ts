@@ -1,18 +1,20 @@
-// Editor (non-document) state: tool, selection, current layer, hidden and
-// locked layers, grid show/snap, view (and requests to fit it to the
-// drawing), open dialog, duplicate settings, the text box being typed into.
-// Never synced, saved or undoable.
+// Editor (non-document) state: tool, selection, the selected dimension or
+// radius label, current layer, hidden and locked layers, grid show/snap,
+// dimension settings, view (and requests to fit it to the drawing), open
+// dialog, duplicate settings, the text box being typed into. Never synced,
+// saved or undoable.
 
 import { createContext, useContext, type Dispatch } from "react";
 import {
-  isSelectable, type DuplicateDirection, type EntityId, type LayerView, type LinkTarget, type Resolved, type ResolvedPolyNode,
+  isSelectable, type DimensionTarget, type DuplicateDirection, type EntityId, type LayerView, type LinkTarget, type Resolved, type ResolvedPolyNode,
   type PathElement, type ResolvedPolyline, type SnapPoint,
 } from "../model";
 import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
 import type { DrawTool } from "../view/format";
 import { DEFAULT_GRID_VIEW, type GridView } from "./gridView";
+import { DEFAULT_LABEL_VIEW, type LabelView } from "./labelView";
 
-export type Tool = "select" | "line" | "rect" | "circle" | "polyline" | "text";
+export type Tool = "select" | "line" | "rect" | "circle" | "polyline" | "text" | "dimension";
 export type Dialog = "output" | "properties" | "about";
 
 /**
@@ -51,6 +53,12 @@ export interface EditorState {
    * never with a selected node. Kept and cleared as `node` is.
    */
   segment: NodeRef | null;
+  /**
+   * The selected dimension or radius label, picked with the select tool:
+   * one at a time, and never with a shape selection. Cleared by selecting
+   * shapes, a change of tool and hiding dimensions.
+   */
+  label: EntityId | null;
   /** The layer new shapes go on; null or gone means the first (see currentLayer). */
   layer: EntityId | null;
   /**
@@ -63,6 +71,11 @@ export interface EditorState {
    * in their browser and for a new or opened drawing. The spacing is the drawing's.
    */
   grid: GridView;
+  /**
+   * Whether drawing a shape adds its dimensions, and whether dimensions and
+   * radius labels show on screen: this viewer's own choice, kept in their browser.
+   */
+  labels: LabelView;
   view: View;
   /**
    * How many times the view has been asked to fit the drawing (F, the
@@ -80,6 +93,11 @@ export interface EditorState {
   measure: EntityId | null;
   /** While the selection is turned by its rotate handle: by how much (degrees clockwise), for the status bar. */
   turn: number | null;
+  /**
+   * With the Dimension tool, or while a dimension is dragged: what is (or
+   * would be) measured, and the offset a dimension being placed has, for the status bar.
+   */
+  dimension: DimensionStatus | null;
   dialog: Dialog | null;
   /** Arrange actions create live links instead of moving shapes once. */
   keepLinked: boolean;
@@ -101,14 +119,22 @@ export interface EditorState {
   editFresh: boolean;
 }
 
+/** See EditorState.dimension. */
+export interface DimensionStatus {
+  what: DimensionTarget;
+  offset?: number;
+}
+
 export const initialEditor: EditorState = {
   tool: "select",
   selection: [],
   node: null,
   segment: null,
+  label: null,
   layer: null,
   layerView: { hidden: new Set(), locked: new Set() },
   grid: DEFAULT_GRID_VIEW,
+  labels: DEFAULT_LABEL_VIEW,
   view: DEFAULT_VIEW,
   fitRequest: 0,
   cursor: null,
@@ -116,6 +142,7 @@ export const initialEditor: EditorState = {
   draw: null,
   measure: null,
   turn: null,
+  dimension: null,
   dialog: null,
   keepLinked: false,
   linkPopup: null,
@@ -128,17 +155,22 @@ export type EditorAction =
   | { type: "tool"; tool: Tool }
   | { type: "select"; ids: EntityId[] }
   | { type: "toggleSelect"; id: EntityId }
+  | { type: "selectLabel"; id: EntityId | null }
   | { type: "node"; node: NodeRef | null }
   | { type: "segment"; segment: NodeRef | null }
   | { type: "layer"; id: EntityId }
   | { type: "toggleLayer"; id: EntityId; flag: "hidden" | "locked" }
   | { type: "resetLayers" }
   | { type: "grid"; grid: Partial<GridView> }
+  | { type: "labels"; labels: Partial<LabelView> }
   | { type: "view"; view: View }
   | { type: "fit" }
   | { type: "panBy"; dx: number; dy: number }
   | { type: "zoomAt"; factor: number; at: [number, number] }
-  | { type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null; draw?: EditorState["draw"]; measure?: EntityId; turn?: number }
+  | {
+    type: "pointer"; cursor: [number, number] | null; snap: SnapPoint | null;
+    draw?: EditorState["draw"]; measure?: EntityId; turn?: number; dimension?: DimensionStatus;
+  }
   | { type: "dialog"; dialog: Dialog | null }
   | { type: "keepLinked"; on: boolean }
   | { type: "linkPopup"; popup: EditorState["linkPopup"] }
@@ -150,27 +182,32 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     // A link popup belongs to the moment it was opened: any other choice closes it.
     // Hovering with select shows no position, so arriving at it clears the readout.
     // Nodes and segments are edited with select only.
-    // Typing into a text box ends with a change of tool.
+    // Typing into a text box, and a selected label, end with a change of tool.
+    // The Dimension tool shows dimensions, or it would place them unseen.
     case "tool": return {
       ...s, tool: a.tool, linkPopup: null, node: a.tool === "select" ? s.node : null, segment: a.tool === "select" ? s.segment : null,
-      ...(a.tool === s.tool ? {} : { editText: null, editFresh: false }),
-      ...(hoverShowsPosition(a.tool) ? {} : { cursor: null, snap: null, draw: null, measure: null, turn: null }),
+      ...(a.tool === s.tool ? {} : { editText: null, editFresh: false, label: null, dimension: null }),
+      ...(a.tool === "dimension" && !s.labels.show ? { labels: { ...s.labels, show: true } } : {}),
+      ...(hoverShowsPosition(a.tool) ? {} : { cursor: null, snap: null, draw: null, measure: null, turn: null, dimension: null }),
     };
     // A selected node or segment belongs to its path being the whole
     // selection; so does typing into a text box.
     case "select": {
       const only = a.ids.length === 1 ? a.ids[0] : undefined;
       return {
-        ...s, selection: a.ids, linkPopup: null,
+        ...s, selection: a.ids, linkPopup: null, label: null,
         node: only === s.node?.shape ? s.node : null, segment: only === s.segment?.shape ? s.segment : null,
         ...(only !== undefined && only === s.editText ? {} : { editText: null, editFresh: false }),
       };
     }
     case "toggleSelect":
       return {
-        ...s, linkPopup: null, node: null, segment: null, editText: null, editFresh: false,
+        ...s, linkPopup: null, node: null, segment: null, editText: null, editFresh: false, label: null,
         selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id],
       };
+    // A label instead of any shapes.
+    case "selectLabel":
+      return { ...s, label: a.id, selection: [], linkPopup: null, node: null, segment: null, editText: null, editFresh: false };
     // A node or a segment, not both.
     case "node": return { ...s, node: a.node, segment: a.node ? null : s.segment };
     case "segment": return { ...s, segment: a.segment, node: a.segment ? null : s.node };
@@ -182,6 +219,11 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     }
     case "resetLayers": return { ...s, layer: null, layerView: initialEditor.layerView };
     case "grid": return { ...s, grid: { ...s.grid, ...a.grid } };
+    // Hidden labels can't stay selected.
+    case "labels": {
+      const labels = { ...s.labels, ...a.labels };
+      return { ...s, labels, label: labels.show ? s.label : null };
+    }
     case "view": return { ...s, view: a.view };
     case "fit": return { ...s, fitRequest: s.fitRequest + 1 };
     // Deltas, not absolute views: several pointer or wheel events can arrive
@@ -190,8 +232,13 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "zoomAt": return { ...s, view: zoomAt(s.view, a.factor, a.at) };
     case "pointer":
       // Hovering with select clears it on every move; when already clear, keep the state so nothing re-renders.
-      if (!a.cursor && !a.snap && !a.draw && !a.measure && a.turn == null && !s.cursor && !s.snap && !s.draw && !s.measure && s.turn === null) return s;
-      return { ...s, cursor: a.cursor, snap: a.snap, draw: a.draw ?? null, measure: a.measure ?? null, turn: a.turn ?? null };
+      if (
+        !a.cursor && !a.snap && !a.draw && !a.measure && a.turn == null && !a.dimension
+        && !s.cursor && !s.snap && !s.draw && !s.measure && s.turn === null && !s.dimension
+      ) return s;
+      return {
+        ...s, cursor: a.cursor, snap: a.snap, draw: a.draw ?? null, measure: a.measure ?? null, turn: a.turn ?? null, dimension: a.dimension ?? null,
+      };
     case "dialog": return { ...s, dialog: a.dialog };
     case "keepLinked": return { ...s, keepLinked: a.on };
     case "linkPopup": return { ...s, linkPopup: a.popup };

@@ -39,7 +39,10 @@ export function addPolyline(id: EntityId, props: PolyProps): Change {
   return { type: "entity_added", id, kind: KINDS.polyline, props: toProps(props) };
 }
 
-export function addDimension(id: EntityId, target: EntityId, prop: DimensionProp, offset = 10): Change {
+/** How far (mm) a new dimension stands off its shape by default: drawn shapes' automatic ones, and the panel's. */
+export const DIMENSION_OFFSET = 10;
+
+export function addDimension(id: EntityId, target: EntityId, prop: DimensionProp, offset = DIMENSION_OFFSET): Change {
   return { type: "entity_added", id, kind: KINDS.dimension, props: { target, prop, offset } };
 }
 
@@ -58,7 +61,7 @@ export function addSpacing(id: EntityId, props: SpacingProps): Change {
 }
 
 /** A shape plus its standard dimensions, as one unit. */
-export function addRectWithDimensions(ids: { rect: EntityId; width: EntityId; height: EntityId }, props: RectProps, offset = 10): Change {
+export function addRectWithDimensions(ids: { rect: EntityId; width: EntityId; height: EntityId }, props: RectProps, offset = DIMENSION_OFFSET): Change {
   return batch([
     addRect(ids.rect, props),
     addDimension(ids.width, ids.rect, "width", offset),

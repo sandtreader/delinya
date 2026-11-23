@@ -3,8 +3,9 @@
 // unlink. A text box's text is typed here too, live on the canvas.
 
 import {
-  KINDS, derivedAxes, entitiesOfKind, entityAs, isRef, lengthValue, propsChanged,
-  setCornerRadius, setLength, setPolyClosed, setRotation, setTextSize, setTextStyle, setTextWidth, unlinkAlign, unlinkLength, unlinkSpacing,
+  KINDS, derivedAxes, dimensionProps, dimensionsOf, entitiesOfKind, entityAs, isRef, lengthValue, newId, propsChanged, radiusLabelsOf,
+  setCornerRadius, setLength, setPolyClosed, setRotation, setTextSize, setTextStyle, setTextWidth, toggleDimension, toggleRadiusLabel,
+  unlinkAlign, unlinkLength, unlinkSpacing,
   type EntityId, type FontFamily, type Length, type ResolvedRect, type ResolvedText, type TextAlign, type TextStyle,
 } from "../model";
 import type { Change } from "@sandtreader/collab/protocol";
@@ -52,6 +53,7 @@ export function ShapeFields({ id }: { id: EntityId }) {
               onCommit={(v) => { const c = setRotation(store.state, id, v); if (c) store.commit(c); }}
             />
           </Row>
+          <Dimensions id={id} />
           <Corners id={id} />
         </>
       )}
@@ -60,6 +62,7 @@ export function ShapeFields({ id }: { id: EntityId }) {
           <Row label="cx"><Num value={at("cx")} onCommit={(v) => commit({ cx: v })} disabled={derived.has("x")} /></Row>
           <Row label="cy"><Num value={at("cy")} onCommit={(v) => commit({ cy: v })} disabled={derived.has("y")} /></Row>
           <LengthRow id={id} prop="diameter" label="diameter" />
+          <Dimensions id={id} />
         </>
       )}
       {e.kind === KINDS.line && (
@@ -68,6 +71,7 @@ export function ShapeFields({ id }: { id: EntityId }) {
           <Row label="y"><Num value={at("y")} onCommit={(v) => commit({ y: v })} disabled={derived.has("y")} /></Row>
           <LengthRow id={id} prop="length" label="length" />
           <Row label="angle"><Num value={num("angle")} onCommit={(v) => commit({ angle: v })} unit="°" /></Row>
+          <Dimensions id={id} />
         </>
       )}
       {e.kind === KINDS.polyline && <PathFields id={id} />}
@@ -237,6 +241,28 @@ function LengthRow({ id, prop, label, set }: { id: EntityId; prop: string; label
   );
 }
 
+/** A checkbox for each prop the shape's dimensions can measure, ticked while it has that dimension. */
+function Dimensions({ id }: { id: EntityId }) {
+  const state = useDocument();
+  const props = dimensionProps(state.entities[id]?.kind);
+  if (props.length === 0) return null;
+  return (
+    <div className="row" role="group" aria-label="Dimensions">
+      <span className="label" aria-hidden="true">dimensions</span>
+      {props.map((prop) => (
+        <label key={prop} className="inline-check" {...tip(`Show this shape's ${prop} as a dimension`)}>
+          <input
+            type="checkbox" checked={dimensionsOf(state, id, prop).length > 0}
+            onChange={() => { const c = toggleDimension(store.state, id, prop, newId("dim")); if (c) store.commit(c); }}
+          />
+          {prop}
+        </label>
+      ))}
+    </div>
+  );
+}
+
+/** Each corner's radius, and whether its radius is labelled on the drawing (not while it is 0). */
 function Corners({ id }: { id: EntityId }) {
   const state = useDocument();
   const rect = entityAs(state, id, KINDS.rect)!;
@@ -251,12 +277,23 @@ function Corners({ id }: { id: EntityId }) {
         const raw = r[corner]!;
         const value = lengthValue(state, raw) ?? 0;
         const effective = resolved?.r[corner];
+        const labelled = radiusLabelsOf(state, id, corner).length > 0;
+        const sharp = (effective ?? value) === 0;
         return (
-          <Row key={name} label={name}>
-            <Num value={value} onCommit={(v) => { const c = setCornerRadius(store.state, id, corner, v); if (c) store.commit(c); }} />
+          // A div, not a Row's label: the field and the checkbox each have their own name.
+          <div key={name} className="row">
+            <span className="label" aria-hidden="true">{name}</span>
+            <Num label={`${name} radius`} value={value} onCommit={(v) => { const c = setCornerRadius(store.state, id, corner, v); if (c) store.commit(c); }} />
             {isRef(raw) && <span className="linked">= {entityAs(state, raw.ref, KINDS.variable)?.name ?? raw.ref}</span>}
             {effective !== undefined && effective !== value && <span className="warn" {...tip("Clamped to fit")}>→ {formatMm(effective)}</span>}
-          </Row>
+            <label className="inline-check corner-label" {...tip(sharp ? "A sharp corner has no radius to label" : `Label the ${name} radius on the drawing`)}>
+              <input
+                type="checkbox" checked={labelled} disabled={sharp && !labelled} aria-label={`Label the ${name} radius`}
+                onChange={() => { const c = toggleRadiusLabel(store.state, id, corner, newId("radius")); if (c) store.commit(c); }}
+              />
+              label
+            </label>
+          </div>
         );
       })}
     </fieldset>

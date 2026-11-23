@@ -27,9 +27,13 @@ function escape(draft: FieldDraft, rerender: () => void, e: React.KeyboardEvent<
   e.currentTarget.blur();
 }
 
-/** A number field; text that isn't a number, or that `valid` refuses, goes back to the value. An empty `unit` shows none. */
-export function Num({ value, onCommit, disabled, unit = "mm", valid }: {
-  value: number; onCommit: (v: number) => void; disabled?: boolean; unit?: string; valid?: (v: number) => boolean;
+/**
+ * A number field; text that isn't a number, or that `valid` refuses, goes
+ * back to the value. An empty `unit` shows none. `label` names it, when it
+ * isn't inside a Row's label.
+ */
+export function Num({ value, onCommit, disabled, unit = "mm", valid, label }: {
+  value: number; onCommit: (v: number) => void; disabled?: boolean; unit?: string; valid?: (v: number) => boolean; label?: string;
 }) {
   const [draft, rerender] = useDraft(formatMm(value));
   useEffect(() => { draft.reset(formatMm(value)); rerender(); }, [value, draft]);
@@ -43,7 +47,7 @@ export function Num({ value, onCommit, disabled, unit = "mm", valid }: {
   return (
     <span className="num">
       <input
-        type="text" inputMode="decimal" value={draft.text} disabled={disabled}
+        type="text" inputMode="decimal" value={draft.text} disabled={disabled} aria-label={label}
         onChange={(e) => { draft.edit(e.target.value); rerender(); }}
         onBlur={commit}
         onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); if (e.key === "Escape") escape(draft, rerender, e); }}

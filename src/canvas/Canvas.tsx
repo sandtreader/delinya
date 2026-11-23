@@ -12,16 +12,24 @@
 // A text box is typed into on the drawing, in a field laid over it
 // (TextEditor.tsx): a new box goes straight into it, and a double-click
 // (or Enter, in the app's keys) edits one.
+//
+// The Dimension tool measures what is under the pointer (dimensionTargetAt):
+// a press on a shape's edge, outline or line starts a dimension of it (or
+// picks up the one it has) that follows the pointer until the release, or
+// for a click until the next click; a rounded corner toggles its radius
+// label. With the select tool, dimensions and radius labels are picked by
+// click, and a dimension dragged moves it, across its shape to flip sides.
 
 import {
   useCallback, useEffect, useLayoutEffect, useRef, useState,
   type CSSProperties, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent,
 } from "react";
 import {
-  KINDS, addCircle, addDimension, addLine, addPolyline, addText, batch, addRect, bendPolySegment, derivedAxes, distance, dragHandle, drawnOffset, entityAs,
-  freeDelta, handlesFor, insertPolyNode, isRef, isVisible, linkLocks, moveBy, movePolyNode, newId, setPolyHandle, snapNumber, turnTo, unionBounds,
-  type Bounds, type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType, type ResolvedDimension, type ResolvedPolyline,
-  type Resolved, type ResolvedRadiusLabel, type ResolvedShape, type ResolvedText, type SnapPoint,
+  DIMENSION_OFFSET, KINDS, addCircle, addDimension, addLine, addPolyline, addText, batch, addRect, bendPolySegment, derivedAxes, dimensionOffsetAt,
+  dimensionTargetAt, distance, dragHandle, drawnOffset, entityAs, freeDelta, handlesFor, insertPolyNode, isRef, isSelectable, isVisible, linkLocks,
+  moveBy, movePolyNode, newId, placeDimension, setDimensionOffset, setPolyHandle, snapNumber, toggleRadiusLabel, turnTo, unionBounds,
+  type Bounds, type DimensionProp, type DimensionTarget, type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType,
+  type ResolvedDimension, type ResolvedPolyline, type Resolved, type ResolvedRadiusLabel, type ResolvedShape, type ResolvedText, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { currentLayer, hoverShowsPosition, selectedPathNode, selectedPathSegment, useEditor } from "../app/editor";
@@ -31,6 +39,7 @@ import { drawingExtent } from "../view/fit";
 import { pathToSvg } from "../view/svgPath";
 import { formatMm, type DrawTool } from "../view/format";
 import { dimensionText } from "../view/dimensionText";
+import { targetPath } from "../view/dimensionTarget";
 import { newTextProps, textElementAttrs } from "../view/textSvg";
 import { textBoxAt } from "../view/textEdit";
 import { snapMove, snapPoint, type SnapFrame } from "./snap";
@@ -44,7 +53,8 @@ import { TextEditor, type FieldWheel } from "./TextEditor";
 import type { DocState } from "@sandtreader/collab/protocol";
 
 const SNAP_PX = 10;
-const DIMENSION_OFFSET = 10;
+/** Reach (screen px) of the Dimension tool: how near a shape's edge, outline or line the pointer must be. */
+const DIM_PX = 6;
 /** A press that moves less than this (screen px) is a click, not a drag. */
 const CLICK_PX = 3;
 /** Reach (screen px) of a path's node and of a selected node's handle; they are drawn a little smaller. */
@@ -57,6 +67,28 @@ const SAME_NODE_PX = 4;
 
 /** A path being drawn, and the layer it will go on (the current one when it was started). */
 type Draft = PolyDraft & { layer: EntityId };
+
+/**
+ * A dimension following the pointer: a new one (the Dimension tool; `id`
+ * null, previewed until placed) or one being moved (`id`). `offset` is
+ * where it is now. `at`: the press (screen px) while the button is held,
+ * null once a click has let go and it follows until the next click
+ * (`follow`; with select, a click only picks it). `moved`: the press became
+ * a drag. `gesture`: an undo step is open for a move. `grab`: how far the
+ * pointer was from the line at the press (model mm), so the line stays
+ * under it rather than jumping.
+ */
+interface Placing {
+  target: EntityId;
+  prop: DimensionProp;
+  id: EntityId | null;
+  offset: number;
+  at: Point | null;
+  follow: boolean;
+  moved: boolean;
+  gesture: boolean;
+  grab: Point;
+}
 
 // Set while a Canvas is mounted: drops its path draft (see discardPathDraft).
 let discardDraft: (() => void) | null = null;
@@ -119,6 +151,13 @@ export function Canvas() {
   const [closing, setClosing] = useState(false);
   const cursorRef = useRef(editor.cursor);
   cursorRef.current = editor.cursor;
+  // A dimension following the pointer: the ref is what handlers read, the state what renders.
+  const placeRef = useRef<Placing | null>(null);
+  const [placing, setPlacingState] = useState<Placing | null>(null);
+  const setPlacing = useCallback((p: Placing | null) => { placeRef.current = p; setPlacingState(p && { ...p }); }, []);
+  // What the Dimension tool would measure under the pointer, and where the pointer is.
+  const [dimHover, setDimHover] = useState<{ target: DimensionTarget; at: Point } | null>(null);
+  const labelsShown = editor.labels.show;
 
   useLayoutEffect(() => {
     const el = svgRef.current;
@@ -173,6 +212,41 @@ export function Canvas() {
     return () => window.removeEventListener("keydown", esc, true);
   }, [dispatch]);
 
+  // ---- Dimensions following the pointer ----
+
+  /** Drop the dimension following the pointer: a new one is never added, a moved one goes back. */
+  const cancelPlacing = useCallback(() => {
+    const p = placeRef.current;
+    if (!p) return;
+    if (p.gesture) store.abandonGesture();
+    setPlacing(null);
+    dispatch({ type: "pointer", cursor: null, snap: null });
+  }, [dispatch, setPlacing]);
+
+  /** Let go of it where it is: a new one is added (one undo step), a moved one's step closes. */
+  const finishPlacing = useCallback(() => {
+    const p = placeRef.current;
+    if (!p) return;
+    setPlacing(null);
+    if (p.id === null) {
+      if (Object.hasOwn(store.resolved.shapes, p.target)) store.commit(addDimension(newId("dim"), p.target, p.prop, p.offset));
+    } else if (p.gesture) store.endGesture();
+  }, [setPlacing]);
+
+  // Escape puts it back (capture, so the app's Escape doesn't also run);
+  // a change of tool, or hiding dimensions, does too.
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || !placeRef.current) return;
+      e.preventDefault();
+      e.stopPropagation();
+      cancelPlacing();
+    };
+    window.addEventListener("keydown", esc, true);
+    return () => window.removeEventListener("keydown", esc, true);
+  }, [cancelPlacing]);
+  useEffect(() => { if (placeRef.current) cancelPlacing(); }, [tool, labelsShown, cancelPlacing]);
+
   const screenPoint = (e: { clientX: number; clientY: number }): Point => {
     const r = svgRef.current!.getBoundingClientRect();
     return [e.clientX - r.left, e.clientY - r.top];
@@ -187,8 +261,10 @@ export function Canvas() {
   const layerColours = new Map(resolved.layers.map((l) => [l.id, l.colour]));
 
   // New shapes go on the current layer; one this viewer has hidden or locked takes none.
+  // Dimensions aren't on a layer; with them hidden, the Dimension tool has nothing to do.
   const layerId = currentLayer(resolved, editor.layer);
-  const blocked = tool !== "select" && (hiddenLayers.has(layerId) || layerView.locked.has(layerId));
+  const blocked = tool === "dimension" ? !labelsShown
+    : tool !== "select" && (hiddenLayers.has(layerId) || layerView.locked.has(layerId));
 
   // One selected path, with the select tool, shows its nodes to edit (not on a locked layer).
   const single = tool === "select" && selection.length === 1 ? resolved.shapes[selection[0]!] : undefined;
@@ -295,6 +371,73 @@ export function Canvas() {
     dispatch({ type: "pointer", cursor: point, snap: null, draw: { tool: "polyline", start: point } });
   };
 
+  /** The grid step a dimension's offset rounds to: the grid's when snapping to it, else 0.01 mm. */
+  const offsetStep = grid ?? 0.01;
+
+  /** The pointer over the canvas with the Dimension tool: what a press would measure, highlighted and in the status bar. */
+  const dimensionHover = (mp: Point) => {
+    const target = blocked ? null : dimensionTargetAt(store.resolved, mp, DIM_PX / view.scale, layerView);
+    setDimHover(target && { target, at: mp });
+    dispatch({ type: "pointer", cursor: mp, snap: null, ...(target ? { dimension: { what: target } } : {}) });
+  };
+
+  /** Start a dimension following the pointer (see Placing). */
+  const startPlacing = (p: Omit<Placing, "moved" | "gesture">) => {
+    setPlacing({ ...p, moved: false, gesture: false });
+    dispatch({ type: "pointer", cursor: null, snap: null, dimension: { what: { kind: "dimension", target: p.target, prop: p.prop }, offset: p.offset } });
+  };
+
+  /** The pointer moved with a dimension following it: a press must first go far enough to be a drag. */
+  const movePlacing = (p: Placing, mp: Point, sp: Point) => {
+    if (p.at && !p.moved) {
+      if (Math.hypot(sp[0] - p.at[0], sp[1] - p.at[1]) < CLICK_PX) return;
+      p.moved = true;
+    }
+    const offset = dimensionOffsetAt(store.resolved, p.target, p.prop, [mp[0] - p.grab[0], mp[1] - p.grab[1]], offsetStep);
+    if (offset === undefined) return;   // its shape has gone
+    p.offset = offset;
+    if (p.id !== null) {
+      const change = setDimensionOffset(store.state, p.id, offset);
+      if (change) {
+        if (!p.gesture) { store.beginGesture(); p.gesture = true; }
+        store.commit(change);
+      }
+    }
+    setPlacing(p);
+    dispatch({ type: "pointer", cursor: null, snap: null, dimension: { what: { kind: "dimension", target: p.target, prop: p.prop }, offset } });
+  };
+
+  /** A press with the Dimension tool: place the one following, or start one, or toggle a corner's radius label. */
+  const dimensionPress = (mp: Point, sp: Point) => {
+    if (placeRef.current) { finishPlacing(); dimensionHover(mp); return; }
+    const hit = dimensionTargetAt(store.resolved, mp, DIM_PX / view.scale, layerView);
+    if (!hit) return;
+    if (hit.kind === "radius") {
+      const change = toggleRadiusLabel(store.state, hit.target, hit.corner, newId("radius"));
+      if (change) store.commit(change);
+      dimensionHover(mp);
+      return;
+    }
+    setDimHover(null);
+    // One it has already is picked up and moved; else a new one starts at the pointer.
+    const existing = store.resolved.dimensions.find((d) => d.target === hit.target && d.prop === hit.prop);
+    const offset = existing?.offset ?? dimensionOffsetAt(store.resolved, hit.target, hit.prop, mp, offsetStep) ?? 0;
+    startPlacing({ target: hit.target, prop: hit.prop, id: existing?.id ?? null, offset, at: sp, follow: true, grab: [0, 0] });
+  };
+
+  /** The button let go with a dimension following: a drag places it; a click leaves it following until the next (Dimension tool) or just picked it (select). */
+  const releasePlacing = (p: Placing, mp: Point) => {
+    if (p.moved || !p.follow) {
+      finishPlacing();
+      // Back to what hovering shows: nothing with select; what the Dimension tool would measure.
+      if (tool === "dimension") dimensionHover(mp);
+      else if (!hoverShowsPosition(tool)) dispatch({ type: "pointer", cursor: null, snap: null });
+      return;
+    }
+    p.at = null;
+    setPlacing(p);
+  };
+
   const onPointerDown = (e: RPointerEvent<SVGSVGElement>) => {
     if (e.button !== 0 && e.button !== 1) return;
     // A field being edited (the node card's, a panel's) commits first: what
@@ -353,6 +496,17 @@ export function Canvas() {
       const target = linkTargetAt(e.target as Element);
       if (target) { dispatch({ type: "linkPopup", popup: { target, at: sp } }); return; }
       if (editor.linkPopup) dispatch({ type: "linkPopup", popup: null });
+      // A dimension or radius label: picked, and a dimension dragged moves it.
+      const labelId = (e.target as Element).closest<SVGElement>("[data-label]")?.dataset.label;
+      if (labelId !== undefined) {
+        dispatch({ type: "selectLabel", id: labelId });
+        const dim = resolved.dimensions.find((d) => d.id === labelId);
+        if (dim) {
+          const on = nearestOnLine(dim, mp);
+          startPlacing({ target: dim.target, prop: dim.prop, id: dim.id, offset: dim.offset, at: sp, follow: false, grab: [mp[0] - on[0], mp[1] - on[1]] });
+        }
+        return;
+      }
       const hit = (e.target as Element).closest<SVGElement>("[data-id]")?.dataset.id;
       // Dragging the background lassoes with a mouse or pen (Shift adds to the
       // selection) and pans with a finger; a plain click on it clears the selection.
@@ -370,6 +524,7 @@ export function Canvas() {
       return;
     }
     if (blocked) return;
+    if (tool === "dimension") { dimensionPress(mp, sp); return; }
     if (tool === "polyline") { dragRef.current = { kind: "pathClick", at: sp }; return; }
     const { point, snap } = snapPoint(resolved, mp, tolerance, new Set(), grid, hiddenLayers);
     dragRef.current = { kind: "draw", tool, layer: layerId, start: point, current: point };
@@ -383,10 +538,12 @@ export function Canvas() {
     if (e.shiftKey !== shiftHeld) setShiftHeld(e.shiftKey);   // Shift pressed or let go outside the window
     const mp = toModel(view, sp);
     let d = dragRef.current;
+    if (!d && placeRef.current) { movePlacing(placeRef.current, mp, sp); return; }
     if (!d) {
       // Hovering with select shows no position; a drag below does.
       if (!hoverShowsPosition(tool)) { dispatch({ type: "pointer", cursor: null, snap: null }); return; }
       if (tool === "polyline") { pathHover(mp); return; }
+      if (tool === "dimension") { dimensionHover(mp); return; }
       const { point, snap } = blocked ? { point: mp, snap: null } : snapPoint(resolved, mp, tolerance, new Set(), grid, hiddenLayers);
       dispatch({ type: "pointer", cursor: point, snap });
       return;
@@ -532,6 +689,7 @@ export function Canvas() {
     const d = dragRef.current;
     dragRef.current = null;
     setPreview(null);
+    if (!d && placeRef.current?.at) { releasePlacing(placeRef.current, toModel(view, screenPoint(e))); return; }
     if (!d) return;
     if (d.kind === "pan" && d.clearOnClick) {
       const sp = screenPoint(e);
@@ -571,7 +729,7 @@ export function Canvas() {
       // A new text box is added in a gesture its typing joins, so the two
       // are one undo step, and one left empty goes without trace (TextEditor).
       if (d.tool === "text") store.beginGesture();
-      const id = createShape(d);
+      const id = createShape(d, editor.labels.autoDimension);
       if (id) dispatch({ type: "select", ids: [id] });
       if (!e.shiftKey || d.tool === "text") dispatch({ type: "tool", tool: "select" });
       // A new text box goes straight to typing, on the drawing: back to select, Shift or not.
@@ -629,17 +787,26 @@ export function Canvas() {
   const guides = linkGuides(store.state, resolved, selection, GUIDE_OVERHANG_PX * hair, hiddenLayers);
   const varName = linkedNames(selection);
   const shown = (id: EntityId) => isVisible(resolved, id, hiddenLayers);
+  // With the select tool, dimensions and radius labels of shapes that can be picked can be picked too.
+  const pickable = (target: EntityId) => tool === "select" && isSelectable(resolved, target, layerView);
+  const hoverTarget = tool === "dimension" && !blocked && !placing ? dimHover : null;
+  // A new dimension following the pointer, drawn as it would be placed.
+  const placingShape = placing && placing.id === null && Object.hasOwn(resolved.shapes, placing.target) ? resolved.shapes[placing.target]! : undefined;
+  const placed = placing && placingShape ? placeDimension(placingShape, "", placing.prop, placing.offset) : undefined;
 
   return (
     <>
       <svg
         ref={svgRef}
-        className={`canvas tool-${tool}${blocked ? " blocked" : ""}${spaceHeld ? " space" : ""}${dragRef.current?.kind === "pan" ? " panning" : ""}${preview?.kind === "lasso" ? " lassoing" : ""}${preview?.kind === "rotate" ? " rotating" : ""}`}
+        className={`canvas tool-${tool}${blocked ? " blocked" : ""}${hoverTarget ? " on-target" : ""}${spaceHeld ? " space" : ""}${dragRef.current?.kind === "pan" ? " panning" : ""}${preview?.kind === "lasso" ? " lassoing" : ""}${preview?.kind === "rotate" ? " rotating" : ""}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onDoubleClick={onDoubleClick}
-        onPointerLeave={() => { if (!dragRef.current) { dispatch({ type: "pointer", cursor: null, snap: null }); setHover(null); setClosing(false); } }}
+        onPointerLeave={() => {
+          if (dragRef.current || placeRef.current) return;
+          dispatch({ type: "pointer", cursor: null, snap: null }); setHover(null); setClosing(false); setDimHover(null);
+        }}
         onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
       >
@@ -663,8 +830,21 @@ export function Canvas() {
           })}
           {/* The selected segment of the path being edited, over its path. */}
           {editPath && pathSegment && <path className="segment-selected" d={pathToSvg([pathSegment.element])} strokeWidth={hair * 3.5} />}
-          {resolved.dimensions.filter((d) => shown(d.target)).map((d) => <DimensionView key={d.id} dim={d} fontSize={fontSize} hair={hair} link={varName(d.target, d.prop)} />)}
-          {resolved.radiusLabels.filter((l) => shown(l.target)).map((l) => <RadiusLabelView key={l.id} label={l} fontSize={fontSize} link={varName(l.target, "r", l.corner)} />)}
+          {/* What the Dimension tool would measure. */}
+          {hoverTarget && <path className="dim-target" d={pathToSvg(targetPath(resolved, hoverTarget.target, hoverTarget.at))} strokeWidth={hair * 3} />}
+          {labelsShown && resolved.dimensions.filter((d) => shown(d.target)).map((d) => (
+            <DimensionView
+              key={d.id} dim={d} fontSize={fontSize} hair={hair} link={varName(d.target, d.prop)}
+              pickable={pickable(d.target)} selected={editor.label === d.id || placing?.id === d.id}
+            />
+          ))}
+          {labelsShown && resolved.radiusLabels.filter((l) => shown(l.target)).map((l) => (
+            <RadiusLabelView
+              key={l.id} label={l} fontSize={fontSize} link={varName(l.target, "r", l.corner)}
+              pickable={pickable(l.target)} selected={editor.label === l.id}
+            />
+          ))}
+          {placed && <DimensionView dim={placed} fontSize={fontSize} hair={hair} pickable={false} selected preview />}
           {preview?.kind === "draw" && <DrawPreview d={preview} hair={hair} />}
           {tool === "polyline" && draft && <PathDraftPreview draft={draft} pointer={editor.cursor} curve={shiftHeld} closing={closing} hair={hair} />}
         </g>
@@ -728,18 +908,22 @@ function constrain(d: Extract<Drag, { kind: "draw" }>, p: Point, shift: boolean)
   return p;
 }
 
-/** Commit the drawn shape, on its layer, with its standard dimension (a text box has none). Returns the new ID. */
-function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
+/**
+ * Commit the drawn shape, on its layer, with its standard dimensions when
+ * `dimension` (this viewer's Dimension new shapes; a text box has none).
+ * Returns the new ID.
+ */
+function createShape(d: Extract<Drag, { kind: "draw" }>, dimension: boolean): EntityId | undefined {
   const [x0, y0] = d.start, [x1, y1] = d.current, { layer } = d;
   const id = newId(d.tool);
+  const dims = (...props: DimensionProp[]) => (dimension ? props.map((prop) => addDimension(newId("dim"), id, prop, DIMENSION_OFFSET)) : []);
   switch (d.tool) {
     case "rect": {
       const w = snapNumber(Math.abs(x1 - x0)), h = snapNumber(Math.abs(y1 - y0));
       if (w === 0 || h === 0) return undefined;
       store.commit(batch([
         addRect(id, { x: Math.min(x0, x1), y: Math.min(y0, y1), width: w, height: h, layer }),
-        addDimension(newId("dim"), id, "width", DIMENSION_OFFSET),
-        addDimension(newId("dim"), id, "height", DIMENSION_OFFSET),
+        ...dims("width", "height"),
       ]));
       return id;
     }
@@ -748,7 +932,7 @@ function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
       if (r === 0) return undefined;
       store.commit(batch([
         addCircle(id, { cx: x0, cy: y0, diameter: snapNumber(r * 2), layer }),
-        addDimension(newId("dim"), id, "diameter", DIMENSION_OFFSET),
+        ...dims("diameter"),
       ]));
       return id;
     }
@@ -758,7 +942,7 @@ function createShape(d: Extract<Drag, { kind: "draw" }>): EntityId | undefined {
       const angle = snapNumber((Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI);
       store.commit(batch([
         addLine(id, { x: x0, y: y0, length, angle, layer }),
-        addDimension(newId("dim"), id, "length", DIMENSION_OFFSET),
+        ...dims("length"),
       ]));
       return id;
     }
@@ -885,15 +1069,41 @@ function LinkGuideView({ guide, fontSize, hair }: { guide: LinkGuide; fontSize: 
   );
 }
 
-function DimensionView({ dim, fontSize, hair, link }: { dim: ResolvedDimension; fontSize: number; hair: number; link?: LinkName }) {
+/** Roughly how wide a dimension's digits are, in font sizes: for a hit area over them. */
+const DIGIT_EM = 0.6;
+
+/**
+ * A dimension: extension lines, the line with its ticks, and its value.
+ * `pickable`: with the select tool, a click picks it and a drag moves it
+ * (a wide invisible stroke along the line and a box over the value).
+ * `selected`: picked, or being moved. `preview`: one not placed yet.
+ */
+function DimensionView({ dim, fontSize, hair, link, pickable, selected, preview = false }: {
+  dim: ResolvedDimension; fontSize: number; hair: number; link?: LinkName; pickable: boolean; selected: boolean; preview?: boolean;
+}) {
   const { line, anchors } = dim;
   const [ax, ay] = line.from, [bx, by] = line.to;
   const mid: Point = [(ax + bx) / 2, (ay + by) / 2];
   const angle = (Math.atan2(by - ay, bx - ax) * 180) / Math.PI;
   const text = dimensionText(dim);   // as output places it
+  const value = formatMm(dim.value);
   const tick = hair * 4;
+  const textWidth = (value.length * DIGIT_EM + 0.6) * fontSize;
   return (
-    <g className="dimension" strokeWidth={hair * 0.8}>
+    <g
+      className={`dimension${selected ? " selected" : ""}${preview ? " preview-dim" : ""}${pickable ? " pickable" : ""}`}
+      strokeWidth={hair * (selected ? 1.4 : 0.8)} strokeDasharray={preview ? `${4 * hair} ${3 * hair}` : undefined}
+      data-label={pickable ? dim.id : undefined}
+    >
+      {pickable && (
+        <>
+          <line className="label-hit" x1={ax} y1={ay} x2={bx} y2={by} strokeWidth={hair * 10} stroke="transparent" />
+          <rect
+            className="label-hit" fill="transparent" stroke="none" transform={`rotate(${text.angle} ${mid[0]} ${mid[1]})`}
+            x={mid[0] - textWidth / 2} y={mid[1] + (text.above ? -1.15 * fontSize : 0)} width={textWidth} height={1.15 * fontSize}
+          />
+        </>
+      )}
       <line x1={anchors[0][0]} y1={anchors[0][1]} x2={ax} y2={ay} />
       <line x1={anchors[1][0]} y1={anchors[1][1]} x2={bx} y2={by} />
       <line x1={ax} y1={ay} x2={bx} y2={by} />
@@ -906,18 +1116,40 @@ function DimensionView({ dim, fontSize, hair, link }: { dim: ResolvedDimension; 
         dy={text.above ? -fontSize * 0.3 : fontSize}
         transform={`rotate(${text.angle} ${mid[0]} ${mid[1]})`}
       >
-        {formatMm(dim.value)}<LinkNameSpan link={link} />
+        {value}<LinkNameSpan link={link} />
       </text>
     </g>
   );
 }
 
-function RadiusLabelView({ label, fontSize, link }: { label: ResolvedRadiusLabel; fontSize: number; link?: LinkName }) {
+/** A rounded corner's radius, "R5": `pickable` and `selected` as a dimension's. */
+function RadiusLabelView({ label, fontSize, link, pickable, selected }: {
+  label: ResolvedRadiusLabel; fontSize: number; link?: LinkName; pickable: boolean; selected: boolean;
+}) {
+  const value = `R${formatMm(label.radius)}`;
+  const [x, y] = label.at;
   return (
-    <text className="radius-label" x={label.at[0]} y={label.at[1]} fontSize={fontSize} dy={-fontSize * 0.4}>
-      R{formatMm(label.radius)}<LinkNameSpan link={link} />
-    </text>
+    <g className={`radius-label${selected ? " selected" : ""}${pickable ? " pickable" : ""}`} data-label={pickable ? label.id : undefined}>
+      {pickable && (
+        <rect
+          className="label-hit" fill="transparent" x={x - 0.2 * fontSize} y={y - 1.4 * fontSize}
+          width={(value.length * DIGIT_EM + 0.4) * fontSize} height={1.2 * fontSize}
+        />
+      )}
+      <text x={x} y={y} fontSize={fontSize} dy={-fontSize * 0.4}>
+        {value}<LinkNameSpan link={link} />
+      </text>
+    </g>
   );
+}
+
+/** The point on a dimension's line nearest `p`. */
+function nearestOnLine(d: ResolvedDimension, p: Point): Point {
+  const [a, b] = [d.line.from, d.line.to];
+  const dx = b[0] - a[0], dy = b[1] - a[1];
+  const len2 = dx * dx + dy * dy;
+  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
+  return [a[0] + t * dx, a[1] + t * dy];
 }
 
 function DrawPreview({ d, hair }: { d: Extract<Drag, { kind: "draw" }>; hair: number }) {

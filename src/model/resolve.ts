@@ -1038,41 +1038,66 @@ function resolveDimension(ctx: Ctx, id: EntityId, d: DimensionProps, shapes: Rec
   const s = shapes[d.target];
   if (!s) { ctx.issues.push({ entity: id, code: "dangling-target", message: `dimension target ${d.target} missing` }); return undefined; }
   const offset = typeof d.offset === "number" ? d.offset : 0;
-  const measured = measure(s, d.prop);
-  if (!measured) { ctx.issues.push({ entity: id, code: "bad-value", message: `${s.kind} has no ${d.prop}` }); return undefined; }
+  const placed = placeDimension(s, id, d.prop, offset);
+  if (!placed) ctx.issues.push({ entity: id, code: "bad-value", message: `${s.kind} has no ${d.prop}` });
+  return placed;
+}
+
+/**
+ * A dimension `id` of shape `s`'s `prop` at `offset`, as resolve() draws it;
+ * undefined if the shape doesn't measure that way. Also for a dimension that
+ * isn't in the document yet (the Dimension tool's preview).
+ */
+export function placeDimension(s: ResolvedShape, id: EntityId, prop: DimensionProp, offset: number): ResolvedDimension | undefined {
+  const measured = measure(s, prop, offset < 0);
+  if (!measured) return undefined;
   const { value, anchors, normal } = measured;
   const line = segment(
     [anchors[0][0] + normal[0] * offset, anchors[0][1] + normal[1] * offset],
     [anchors[1][0] + normal[0] * offset, anchors[1][1] + normal[1] * offset],
   );
-  return { id, target: d.target, prop: d.prop, value, anchors, line, offset };
+  return { id, target: s.id, prop, value, anchors, line, offset };
 }
 
-/** What a dimension of `prop` measures on a shape, and which way it stands off. */
-function measure(s: ResolvedShape, prop: DimensionProp): { value: number; anchors: [Point, Point]; normal: Point } | undefined {
+/**
+ * What a dimension of `prop` measures on a shape, and which way it stands
+ * off: `normal` is the way a positive offset moves the line. A positive
+ * offset stands off the near side (a rect's top or left edge, the top of a
+ * circle); a negative one (`far`) the far side (the bottom or right edge,
+ * below the circle), so moving a dimension across its shape attaches it to
+ * the other edge rather than drawing extension lines through it. A line has
+ * no near or far: its normal is its left as it runs, either sign.
+ */
+function measure(s: ResolvedShape, prop: DimensionProp, far = false): { value: number; anchors: [Point, Point]; normal: Point } | undefined {
   switch (s.kind) {
     // Along the turned sides, standing off the way the sides face.
-    case "rect":
-      if (prop === "width") return { value: s.width, anchors: [s.corners[0], s.corners[1]], normal: snapXY(rotatePoint([0, -1], s.rotation), TURN_PLACES) };
-      if (prop === "height") return { value: s.height, anchors: [s.corners[0], s.corners[3]], normal: snapXY(rotatePoint([-1, 0], s.rotation), TURN_PLACES) };
+    case "rect": {
+      const [tl, tr, br, bl] = s.corners;
+      if (prop === "width") return { value: s.width, anchors: far ? [bl, br] : [tl, tr], normal: snapXY(rotatePoint([0, -1], s.rotation), TURN_PLACES) };
+      if (prop === "height") return { value: s.height, anchors: far ? [tr, br] : [tl, bl], normal: snapXY(rotatePoint([-1, 0], s.rotation), TURN_PLACES) };
       return undefined;
+    }
     case "circle":
       if (prop === "diameter") {
         const [cx, cy] = s.centre;
-        return { value: s.diameter, anchors: [[cx - s.radius, cy - s.radius], [cx + s.radius, cy - s.radius]], normal: [0, -1] };
+        const y = far ? cy + s.radius : cy - s.radius;
+        return { value: s.diameter, anchors: [[cx - s.radius, y], [cx + s.radius, y]], normal: [0, -1] };
       }
       return undefined;
     case "line":
-      if (prop === "length") {
-        const n = polar([0, 0], 1, s.angle - 90);
-        return { value: s.length, anchors: [s.from, s.to], normal: [snapNumber(n[0]), snapNumber(n[1])] };
-      }
+      if (prop === "length") return { value: s.length, anchors: [s.from, s.to], normal: lineNormal(s.angle) };
       return undefined;
     // No dimensions on paths or text boxes (yet).
     case "polyline":
     case "text":
       return undefined;
   }
+}
+
+/** A line's dimension normal: its left as it runs (a quarter turn anticlockwise on screen), snapped. */
+export function lineNormal(angle: number): Point {
+  const n = polar([0, 0], 1, angle - 90);
+  return [snapNumber(n[0]), snapNumber(n[1])];
 }
 
 function resolveRadiusLabels(ctx: Ctx, shapes: Record<EntityId, ResolvedShape>): ResolvedRadiusLabel[] {

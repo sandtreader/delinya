@@ -12,3 +12,4 @@ export * from "./duplicate";
 export * from "./rotate";
 export * from "./font";
 export * from "./text";
+export * from "./dimensions";

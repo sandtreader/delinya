@@ -100,6 +100,26 @@ export const FullscreenIcon = ({ exit = false }: { exit?: boolean }) => (
   </Icon>
 );
 
+/**
+ * A dimension: a line with arrowheads between two extension lines, struck
+ * through when `off`. The status bar's Show dimensions.
+ */
+export const DimensionsIcon = ({ off = false }: { off?: boolean }) => (
+  <Icon size={BAR}>
+    <path d="M2.5 4v8M13.5 4v8M2.5 8h11M5 6 2.5 8 5 10M11 6l2.5 2-2.5 2" />
+    {off && <path d="M2 14 14 2" />}
+  </Icon>
+);
+
+/** Drawing adds dimensions: a small rect with its width dimensioned above, struck through when off. */
+export const AutoDimensionIcon = ({ off = false }: { off?: boolean }) => (
+  <Icon size={BAR}>
+    <rect x="3.5" y="7.5" width="9" height="6" />
+    <path d="M3.5 2v3.5M12.5 2v3.5M3.5 3.75h9" />
+    {off && <path d="M2 14 14 2" />}
+  </Icon>
+);
+
 // ---- Selection panel ----
 
 const ARROW_TURN = { right: 0, down: 90, left: 180, up: 270 } as const;

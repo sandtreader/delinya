@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { editorReducer, hoverShowsPosition, initialEditor, type EditorState } from "../src/app/editor";
 
 const at = (s: EditorState, tool: EditorState["tool"]): EditorState => ({
-  ...s, tool, cursor: [1, 2], snap: { point: [1, 2], type: "corner" }, draw: tool === "select" ? null : { tool, start: [0, 0] },
+  ...s, tool, cursor: [1, 2], snap: { point: [1, 2], type: "corner" }, draw: tool === "select" || tool === "dimension" ? null : { tool, start: [0, 0] },
 });
 
 describe("pointer position in the status bar", () => {

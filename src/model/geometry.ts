@@ -323,6 +323,17 @@ export function distanceToSegment(p: Point, a: Point, b: Point): number {
   return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
 }
 
+/** Distance from p to the arc `a`: to the circle where p is within the arc's sweep, else to the nearer end. */
+export function distanceToArc(p: Point, a: Arc): number {
+  const dx = p[0] - a.centre[0], dy = p[1] - a.centre[1];
+  if (a.end - a.start >= 360) return Math.abs(Math.hypot(dx, dy) - a.radius);
+  // p's angle about the centre, taken round to at or after the start.
+  const theta = (Math.atan2(dy, dx) * 180) / Math.PI;
+  const along = ((((theta - a.start) % 360) + 360) % 360) + a.start;
+  if (along <= a.end) return Math.abs(Math.hypot(dx, dy) - a.radius);
+  return Math.min(distance(p, arcStart(a)), distance(p, arcEnd(a)));
+}
+
 /** Round to a tolerance so derived values compare cleanly across clients. */
 export function snapNumber(v: number, places = 6): number {
   const f = 10 ** places;

@@ -4,7 +4,7 @@ import { positionStatus } from "../view/format";
 import { DEFAULT_VIEW } from "../view/viewport";
 import { sendPalettesHome } from "./floating";
 import { canFullscreen, toggleFullscreen, useFullscreen } from "../app/fullscreen";
-import { FitViewIcon, FullscreenIcon, IconButton, ResetViewIcon } from "./icons";
+import { DimensionsIcon, FitViewIcon, FullscreenIcon, IconButton, ResetViewIcon } from "./icons";
 import { tip } from "./tip";
 
 export function StatusBar() {
@@ -28,6 +28,15 @@ export function StatusBar() {
         </IconButton>
         <IconButton label="Fit to drawing" tip="Fit to drawing (F)" data-tip-side="above" onClick={() => dispatch({ type: "fit" })}>
           <FitViewIcon />
+        </IconButton>
+        {/* This viewer's choice; printing has its own. */}
+        <IconButton
+          label="Show dimensions" data-tip-side="above"
+          tip={`Show dimensions: ${editor.labels.show ? "on" : "off"}. Dimensions and radius labels on screen; printing has its own option`}
+          className={editor.labels.show ? "icon on" : "icon"} aria-pressed={editor.labels.show}
+          onClick={() => dispatch({ type: "labels", labels: { show: !editor.labels.show } })}
+        >
+          <DimensionsIcon off={!editor.labels.show} />
         </IconButton>
         {canFullscreen() && (
           <IconButton

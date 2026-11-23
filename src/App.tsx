@@ -3,6 +3,7 @@ import {
   EditorContext, editorReducer, initialEditor, selectableOnly, selectedPathNode, selectedPathSegment, useEditor, type Tool,
 } from "./app/editor";
 import { store, useDocument } from "./app/store";
+import { deleteEntity, isSelectable } from "./model";
 import { Canvas } from "./canvas/Canvas";
 import { Rulers } from "./canvas/Rulers";
 import { StatusBar } from "./panels/StatusBar";
@@ -21,6 +22,7 @@ import { Toolbar, useFileCommands } from "./panels/Toolbar";
 import { useDirty, useFileName } from "./app/file";
 import { browserStorage } from "./app/floatPosition";
 import { loadGridView, saveGridView } from "./app/gridView";
+import { loadLabelView, saveLabelView } from "./app/labelView";
 import { STYLE } from "./output/style";
 import { RULER_PX } from "./view/rulers";
 import "./styles.css";
@@ -29,12 +31,15 @@ import "./styles.css";
 const APP_COLOURS = { "--dimension": STYLE.colour.dimension } as CSSProperties;
 const RULER_SIZE = { "--ruler": `${RULER_PX}px` } as CSSProperties;
 
-const TOOL_KEYS: Record<string, Tool> = { v: "select", l: "line", r: "rect", c: "circle", p: "polyline", t: "text" };
+const TOOL_KEYS: Record<string, Tool> = { v: "select", l: "line", r: "rect", c: "circle", p: "polyline", t: "text", d: "dimension" };
 
 export function App() {
-  // Showing and snapping to the grid are this browser's choice, kept between visits.
-  const [editor, dispatch] = useReducer(editorReducer, undefined, () => ({ ...initialEditor, grid: loadGridView(browserStorage()) }));
+  // Showing and snapping to the grid, and the dimension settings, are this browser's choice, kept between visits.
+  const [editor, dispatch] = useReducer(editorReducer, undefined, () => ({
+    ...initialEditor, grid: loadGridView(browserStorage()), labels: loadLabelView(browserStorage()),
+  }));
   useEffect(() => { saveGridView(browserStorage(), editor.grid); }, [editor.grid]);
+  useEffect(() => { saveLabelView(browserStorage(), editor.labels); }, [editor.labels]);
   return (
     <EditorContext.Provider value={{ editor, dispatch }}>
       <Shell />
@@ -56,6 +61,15 @@ function Shell() {
     const keep = selectableOnly(store.resolved, editor.selection, editor.layerView);
     if (keep.length !== editor.selection.length) dispatch({ type: "select", ids: keep });
   }, [state, editor.selection, editor.layerView, dispatch]);
+
+  // The selected dimension or radius label goes when it does (undo, a peer)
+  // or when its shape can no longer be picked (hidden or locked layer).
+  useEffect(() => {
+    if (editor.label === null) return;
+    const r = store.resolved;
+    const l = r.dimensions.find((d) => d.id === editor.label) ?? r.radiusLabels.find((x) => x.id === editor.label);
+    if (!l || !isSelectable(r, l.target, editor.layerView)) dispatch({ type: "selectLabel", id: null });
+  }, [state, editor.label, editor.layerView, dispatch]);
 
   useEffect(() => { document.title = `${dirty ? "• " : ""}${name} — Delinya`; }, [name, dirty]);
 
@@ -125,7 +139,11 @@ function Shell() {
       }
       if (e.key === "Delete" || e.key === "Backspace") {
         e.preventDefault();
-        if (node) deleteNode(node.shape.id, node.node.index, dispatch);
+        if (editor.label !== null) {
+          const c = deleteEntity(store.state, editor.label);
+          if (c) store.commit(c);
+          dispatch({ type: "selectLabel", id: null });
+        } else if (node) deleteNode(node.shape.id, node.node.index, dispatch);
         else if (segment) deleteSegment(segment.shape.id, segment.index, dispatch);
         else if (editor.selection.length) { deleteSelection(editor.selection); dispatch({ type: "select", ids: [] }); }
         return;
@@ -148,7 +166,7 @@ function Shell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editor.selection, editor.dialog, editor.duplicate, editor.tool, editor.node, editor.segment, dispatch, file]);
+  }, [editor.selection, editor.label, editor.dialog, editor.duplicate, editor.tool, editor.node, editor.segment, dispatch, file]);
 
   return (
     <div className="app" style={APP_COLOURS}>

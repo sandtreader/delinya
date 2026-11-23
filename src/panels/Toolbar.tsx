@@ -4,7 +4,7 @@ import { useEditor } from "../app/editor";
 import { newDrawing, openDrawing, saveDrawing, saveDrawingAs, useDirty, useFileName } from "../app/file";
 import { tell } from "../app/ask";
 import { DEFAULT_VIEW } from "../view/viewport";
-import { HistoryIcon, IconButton, NewIcon, OpenIcon, PrintIcon, PropertiesIcon, SaveAsIcon, SaveIcon } from "./icons";
+import { AutoDimensionIcon, HistoryIcon, IconButton, NewIcon, OpenIcon, PrintIcon, PropertiesIcon, SaveAsIcon, SaveIcon } from "./icons";
 import { tip } from "./tip";
 import { quotedTitle } from "../view/format";
 import { discardPathDraft } from "../canvas/Canvas";
@@ -78,6 +78,10 @@ export function Toolbar() {
         </IconButton>
         <IconButton label="Redo" tip="Redo (⇧⌘Z)" disabled={!store.canRedo} onClick={() => store.redo()}><HistoryIcon redo /></IconButton>
       </div>
+      {/* Drawing settings: this viewer's own, remembered per browser. */}
+      <div className="group">
+        <AutoDimensionToggle />
+      </div>
       {/* File name and the drawing's title; opens Properties on its Drawing tab. */}
       <button
         type="button" className="filename" onClick={() => dispatch({ type: "dialog", dialog: "properties" })}
@@ -87,5 +91,21 @@ export function Toolbar() {
         {title && <span className="title">{title}</span>}
       </button>
     </header>
+  );
+}
+
+/** Whether drawing a rect, circle or line adds its dimensions (this viewer's choice). */
+function AutoDimensionToggle() {
+  const { editor, dispatch } = useEditor();
+  const on = editor.labels.autoDimension;
+  return (
+    <IconButton
+      label="Dimension new shapes"
+      tip={`Dimension new shapes: ${on ? "on" : "off"}. Drawing a rectangle, circle or line adds its dimensions`}
+      className={on ? "icon on" : "icon"} aria-pressed={on}
+      onClick={() => dispatch({ type: "labels", labels: { autoDimension: !on } })}
+    >
+      <AutoDimensionIcon off={!on} />
+    </IconButton>
   );
 }

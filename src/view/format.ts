@@ -1,7 +1,9 @@
 // Number formatting shared by the canvas, panels and output, so a length
 // reads the same on screen, in a printout and in an export.
 
-import { LINE_SPACING, type EntityId, type Resolved, type ResolvedShape, elementLength, unionBounds } from "../model";
+import {
+  LINE_SPACING, type DimensionProp, type DimensionTarget, type EntityId, type Resolved, type ResolvedShape, elementLength, unionBounds,
+} from "../model";
 
 /** A length in mm for display: at most two decimals, no trailing zeros. */
 export function formatMm(v: number): string {
@@ -59,7 +61,7 @@ export function shapeStatus(s: ResolvedShape): string {
 
 /** What the status bar's position readout depends on (from editor state). */
 export interface PositionState {
-  tool: "select" | DrawTool;
+  tool: "select" | "dimension" | DrawTool;
   selection: readonly EntityId[];
   cursor: readonly [number, number] | null;
   draw: { tool: DrawTool; start: readonly [number, number] } | null;
@@ -70,17 +72,24 @@ export interface PositionState {
   segment?: { shape: EntityId; index: number } | null;
   /** While the selection is turned by its rotate handle: by how much, degrees clockwise. */
   turn?: number | null;
+  /** What the Dimension tool would measure, or a dimension being placed or dragged and its offset. */
+  dimension?: { what: DimensionTarget; offset?: number } | null;
 }
 
 /**
  * The status bar's position readout, first that applies: the shape being
- * drawn (a path: its segment to the pointer); the turn of the selection
+ * drawn (a path: its segment to the pointer); what the Dimension tool would
+ * measure, or the dimension being placed and its offset; the turn of the selection
  * being rotated; the shape being dragged; with the select tool, a path's selected node (its number and
  * drawn position) or segment (its number and length), then the selection (one shape's position and size, or
  * the bounds of several); the pointer.
  */
 export function positionStatus(e: PositionState, r: Resolved): string {
   if (e.draw && e.cursor) return drawStatus(e.draw.tool, e.draw.start, e.cursor);
+  if (e.dimension) {
+    const text = dimensionStatus(e.dimension.what, e.dimension.offset, r);
+    if (text) return text;
+  }
   if (e.turn != null) return turnStatus(e.turn);
   const dragged = e.measure ? r.shapes[e.measure] : undefined;
   if (dragged) return shapeStatus(dragged);
@@ -105,6 +114,38 @@ export function positionStatus(e: PositionState, r: Resolved): string {
     }
   }
   return e.cursor ? `${formatMm(e.cursor[0])}, ${formatMm(e.cursor[1])} mm` : "";
+}
+
+const CORNER_NAMES = ["top-left", "top-right", "bottom-right", "bottom-left"] as const;
+
+/** What a dimension of `prop` measures on `s`; undefined if it can't. */
+function measured(s: ResolvedShape | undefined, prop: DimensionProp): number | undefined {
+  switch (s?.kind) {
+    case "rect": return prop === "width" ? s.width : prop === "height" ? s.height : undefined;
+    case "circle": return prop === "diameter" ? s.diameter : undefined;
+    case "line": return prop === "length" ? s.length : undefined;
+    default: return undefined;
+  }
+}
+
+/**
+ * The status bar with the Dimension tool, or while a dimension is dragged:
+ * what it measures and, while one is being placed, its offset (the far side
+ * when negative); for a rounded corner, its radius and what a click does.
+ * Empty if its shape has gone.
+ */
+export function dimensionStatus(what: DimensionTarget, offset: number | undefined, r: Resolved): string {
+  const s = Object.hasOwn(r.shapes, what.target) ? r.shapes[what.target] : undefined;
+  if (what.kind === "radius") {
+    if (s?.kind !== "rect") return "";
+    const has = r.radiusLabels.some((l) => l.target === what.target && l.corner === what.corner);
+    return `${CORNER_NAMES[what.corner]} corner R${formatMm(s.r[what.corner])} mm · click to ${has ? "remove its label" : "label it"}`;
+  }
+  const value = measured(s, what.prop);
+  if (value === undefined) return "";
+  const head = `${what.prop} ${formatMm(value)} mm`;
+  if (offset === undefined) return head;
+  return `${head} · offset ${formatMm(Math.abs(offset))} mm${offset < 0 ? ", far side" : ""}`;
 }
 
 /** The status bar while the selection is turned: how far, and which way. */

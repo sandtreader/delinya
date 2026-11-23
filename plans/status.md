@@ -4,8 +4,10 @@ Last updated 2026-11-23. Repo `sandtreader/delinya`, branch `main`.
 v0.1.2 (text boxes, typed on the drawing or in the panel, aligned left,
 centre or right, never narrower than their longest word; Adobe Core 14
 metrics in `model/fontMetrics.ts`) is committed, tagged and deployed to
-delinya.net. Fit view to drawing (see UI) is committed since, not yet
-pushed or deployed. Vitest tests, `tsc` and the build pass.
+delinya.net. Since then, committed but not yet pushed or deployed: fit
+view to drawing, and the Dimension tool, radius labels by hand, moving
+and deleting dimensions and the viewer's dimension settings (see Model,
+Dimensions, and UI). Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -179,6 +181,41 @@ but has no UI.
   `flipShapes` mirrors its text (below). UI: the Text tool, canvas drawing
   and the panel's fields (see UI, Text boxes); the status bar reads "from
   x, y mm · w × h mm · text N mm [at r°]".
+- **Dimensions** (`dimension`: target, prop width | height | diameter |
+  length, offset mm). The **offset is signed**: positive stands off the
+  near side, as before (a rect's top edge for width, its left for height,
+  the top of a circle, a line's left as it runs); negative off the far
+  side (`measure` in `resolve.ts`): a rect's width from its bottom edge
+  (corners 3–2) and height from its right (1–2), turned with it; a
+  circle's diameter below it (anchors (cx ± r, cy + r)); a line's is
+  already signed by its normal (`lineNormal(angle)`, its left). So a
+  dimension moved across its shape attaches to the other edge rather than
+  drawing extension lines through it; the value still reads on the side
+  away from the shape (`view/dimensionText.ts` needed no change).
+  `placeDimension(shape, id, prop, offset)` is resolve's own placing,
+  exported for the tool's preview. `model/dimensions.ts`:
+  `dimensionProps(kind)` (rect: width, height; circle: diameter; line:
+  length; else none); `dimensionOffsetAt(resolved, target, prop, point,
+  step = 0.01)`, the signed offset a pointer gives (a rect in its own
+  frame: pointer in the near half, max(distance out, 0); far half,
+  −max(distance out, step), so it still says far; a circle by its top or
+  bottom; a line by signed distance along its normal; magnitude rounded
+  to the step, snapped, never −0; undefined if it can't measure that
+  way); `dimensionTargetAt(resolved, point, tolerance, { hidden,
+  locked }?)`, what the tool would measure: `{ kind: "dimension", target,
+  prop } | { kind: "radius", target, corner } | null`, topmost visible
+  unlocked shape first; a rect's rounded corner arc (`distanceToArc`,
+  geometry) before its straight edges (top or bottom: width; sides:
+  height; in its own frame), a circle's outline, a line; paths and text
+  nothing. Actions: `toggleDimension(state, target, prop, newId, offset =
+  DIMENSION_OFFSET)` removes every dimension of that target and prop, or
+  with none adds one (undefined if it can't measure that way);
+  `toggleRadiusLabel(state, target, corner, newId)` likewise (undefined
+  for a non-rect; allowed on a sharp corner, which the model draws at the
+  corner point); `setDimensionOffset(state, id, offset)` (undefined if not
+  a dimension or no change); `dimensionsOf` / `radiusLabelsOf` list them.
+  `DIMENSION_OFFSET` (10 mm) lives in `actions.ts` and is `addDimension`'s
+  default. `deleteEntity` deletes one dimension or label on its own.
 - **Spacing links** derive along-axis positions between the anchors' inner
   faces, by gaps or by centres. Items' stored along-axis position is
   ignored while linked; `unlinkSpacing` writes the derived value back.
@@ -233,7 +270,8 @@ grid show/snap) lives in a reducer and is never part of the document; the docume
 through `useSyncExternalStore`.
 
 - **Tool palette** (`panels/ToolPalette.tsx`): select, line, rectangle,
-  circle, path and text as icons in a palette floating over the canvas, top left by
+  circle, path, text and dimension as icons, then the "Dimension new
+  shapes" toggle, in a palette floating over the canvas, top left by
   default, dragged by its grip. Its position is per browser in
   localStorage (`delinya.toolPalette`, via `app/floatPosition.ts`), never
   in the document, and is kept on screen when the window shrinks. The
@@ -273,12 +311,66 @@ through `useSyncExternalStore`.
   canvas, which knows its size, answers each new count with a `view`
   (waiting for a size if it has none yet).
 - **Tools**: select (V), line (L), rect (R), circle (C), path (P), text
-  (T). Drawing a shape also adds its dimensions (rect: width and height;
-  circle: diameter; line: length; path and text: none) and returns to
+  (T), dimension (D). Drawing a shape also adds its dimensions (rect: width and height;
+  circle: diameter; line: length; path and text: none), while this
+  viewer's "Dimension new shapes" is on (below), and returns to
   select unless Shift is held. Shift constrains to square / 45° (for the
   path tool it makes a curve node instead; for text it does nothing, and
   text always returns to select). The path and text tools' tooltips say
   how they work.
+- **Dimension tool** (D; `Canvas.tsx`, tool "dimension"): hovering
+  highlights what `dimensionTargetAt` finds within 6 px (`DIM_PX`): the
+  straight part of the rect edge nearer the pointer, a circle's outline, a
+  line, or a rounded corner's arc (`view/dimensionTarget.ts`
+  `targetPath`), with a pointer cursor; the status bar says what it would
+  measure ("width 150 mm"; a corner: "top-left corner R20 mm · click to
+  label it" or "remove its label"; `dimensionStatus` in `view/format.ts`,
+  via editor `dimension` set by the `pointer` action). A press on an edge,
+  outline or line starts a dimension of that prop following the pointer
+  (offset from `dimensionOffsetAt`, the grid step when grid snapping is
+  on, else 0.01 mm), drawn dashed in the select colour, the status bar
+  reading "… · offset 25 mm, far side"; if the shape already has that
+  dimension, it is picked up instead and moved live (`setDimensionOffset`
+  in one `beginGesture()`). Press-drag-release places it on the release;
+  a click leaves it following until the next click. Placing a new one
+  commits `addDimension` (one step). Escape (capture listener, so the
+  app's Escape doesn't run) cancels: a new one is never added, a moved one
+  goes back (`abandonGesture()`); so does a change of tool or hiding
+  dimensions. A press on a rounded corner commits `toggleRadiusLabel`
+  (adds, or removes the one there). The tool stays selected, for placing
+  several. Picking it turns Show dimensions on (it would place them
+  unseen otherwise); with them off it does nothing. Not blocked by a
+  hidden or locked current layer (dimensions aren't on layers), but it
+  ignores shapes on hidden or locked layers.
+- **Dimensions and radius labels with the select tool**: clickable
+  (a wide transparent stroke along a dimension's line and a box over its
+  value, a box over a label's "R…"; `data-label`, only on shapes that can
+  be selected; still click-through with other tools). A click selects it
+  (editor `label`, action `selectLabel`: one at a time, clearing the shape
+  selection; cleared by `select`, `toggleSelect`, a change of tool,
+  hiding dimensions, and when it goes or its shape's layer is hidden or
+  locked) and draws it in the select colour; hover tints it. Dragging a
+  dimension moves it (`setDimensionOffset` live in one gesture, one undo
+  step), keeping the grabbed point under the pointer, across the shape to
+  flip sides; Escape mid-drag puts it back. Delete/Backspace deletes the
+  selected one (App keys, `deleteEntity`); Escape deselects. The "= name"
+  link on a value still opens its link popup (`linkTargetAt` runs before
+  the label hit); handles, path nodes and the rotate handle are checked
+  before labels, so labels never take their presses.
+- **Dimension settings** (`app/labelView.ts`, like `gridView.ts`):
+  `LabelView { autoDimension, show }`, `DEFAULT_LABEL_VIEW` both on,
+  `loadLabelView`/`saveLabelView` under localStorage `delinya.labels`
+  (junk or missing parts fall back); editor `labels`, loaded at start and
+  saved on change in `App`, action `{ type: "labels", labels }`. Per
+  viewer, never in the document. "Dimension new shapes" is a toggle in its
+  own group of the top toolbar, after Undo/Redo (`AutoDimensionIcon`: a
+  rect with a dimension above, struck through when off; `aria-pressed`,
+  tinted while on); off, drawing adds no dimensions. "Show dimensions" is a toggle in the status bar beside the
+  view buttons (`DimensionsIcon`, struck through when off): off, no
+  dimensions or radius labels are drawn or can be picked on screen.
+  Print and export keep their own dimensions option. The layer palette's
+  home is (10, 279), below the tool palette (259 px with the Dimension
+  tool).
 - **Text boxes** (UI): the Text tool drags out a box like the rectangle
   tool (dashed preview; `newTextProps(start, current, layer)` in
   `view/textSvg.ts`: empty, sans, sized as a rect; nothing if no width or
@@ -541,7 +633,14 @@ through `useSyncExternalStore`.
   rotation as a rect's; **mirrored**, a checkbox committing `{ mirror }`
   in place. Other shapes: x/y, each length with
   a linked badge and unlink, a rect's rotation (°, `setRotation`, so it
-  spins about its centre), corner radii with a clamped indicator,
+  spins about its centre), a **dimensions** row (rect, circle and line)
+  with a checkbox per measurable prop (rect width and height, circle
+  diameter, line length), ticked while the shape has that dimension,
+  toggling it (`toggleDimension`, `newId("dim")`), corner radii with a
+  clamped indicator and a small **label** checkbox per corner
+  (`toggleRadiusLabel`, `newId("radius")`; disabled while the corner is
+  sharp, unless it has a label to take off; each radius field is named by
+  `Num`'s `label`, as the row is a div, not a label),
   spacing and alignment membership with remove. Position fields a link
   controls are locked and show the derived position.
 - **Arrange panel**: two or more shapes selected, select tool only. The
@@ -640,10 +739,12 @@ through `useSyncExternalStore`.
   cancels. Outside-click handlers (the layer card) ignore clicks while a
   question is up.
 - **Keys**: ⌘Z / ⇧⌘Z (Ctrl+Y) undo/redo, Delete/Backspace (a selected
+  dimension or radius label; a selected
   path node or segment, else the selection; while drawing a path, its
-  last node), Escape (a selected path node or segment first; while
+  last node), Escape (a dimension being placed or dragged goes back; a
+  selected path node or segment first; while
   drawing a path, finishes it;
-  else back to select and clear), V/L/R/C/P/T tools, F fit view to the
+  else back to select and clear, which deselects a label too), V/L/R/C/P/T/D tools, F fit view to the
   drawing (not with Shift or Alt), ⌘P print/export, ⌘D one copy of the selection in
   the panel's Duplicate direction and gap (always one, unlinked, whatever
   its count and links; via `duplicateBeside`), selecting it so repeating
@@ -815,7 +916,9 @@ through `useSyncExternalStore`.
   (`unlinkTarget`: align/spacing write positions back; a linked length or
   corner keeps its value). With two or more shapes selected, every link
   joining them shows a broken-chain button on the canvas (`view/
-  linkButtons.ts`). Dimension lines are click-through.
+  linkButtons.ts`). Dimensions and radius labels are click-through except
+  with the select tool, which picks and drags them (a "= name" still opens
+  its popup).
 - Resize handles respect links (`linkLocks`, `dragHandle`): the point a
   link holds (edge or centre; spacing counts as centre) stays put and the
   handle follows the pointer from it; a handle that would have to move the
@@ -836,8 +939,10 @@ through `useSyncExternalStore`.
 - Equal-value links are refs, not link entities.
 - Lines store length and angle, not two endpoints.
 - Corner radii clamp (CSS rule) and flag rather than reject.
-- Dimensions are created automatically with each shape; there is no manual
-  dimension tool yet.
+- Drawing a rect, circle or line adds its dimensions while this viewer's
+  "Dimension new shapes" is on (the default); the Dimension tool and the
+  shape panel's checkboxes add and remove them by hand. A dimension's
+  offset is signed: negative is the far side.
 - Undo is local-only; remote changes bypass history.
 - Derived spacing positions are never written to the document except on
   unlink.
@@ -875,26 +980,27 @@ through `useSyncExternalStore`.
 
 ## Not built yet (in rough priority order)
 
-1. **Manual dimension and radius-label tools**, and dragging dimension
-   offsets.
-2. **Collaboration UI**: connect, session panel, presence cursors. Needs
+1. **Collaboration UI**: connect, session panel, presence cursors. Needs
    the MUI decision. The delinya.net vhost on st1 already proxies
    `/collab` to the relay (port 2901), so connect with `app: "delinya"`.
-3. Links: resizing one of several gap-spaced items drifts its centre
+2. Links: resizing one of several gap-spaced items drifts its centre
    slightly (the held point is approximated as centre). Spacing a
    selection that includes a containing shape (e.g. the panel with its
    holes) makes the panel an anchor and overflows; it could exclude
    shapes that contain the others.
-4. Print refinements: a date in the title block, dimensions in DXF on
+3. Print refinements: a date in the title block, dimensions in DXF on
    their own layer, a custom scale.
-5. Text box extras: system or embedded fonts beyond the PDF standard
+4. Text box extras: system or embedded fonts beyond the PDF standard
    three, and vertical alignment. Then
    named variables/expressions, woodwork extras (see outline "Later").
-6. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by
+5. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by
    bounds, symmetric (equal-length) handles, converting rects/circles to
    paths; also Shift to constrain a handle's angle, selecting a node or
    segment on the click that selects the path, multi-node/segment
    selection, joining by dropping one end on another (now via the card).
+6. Line styles: dashed, dotted and thickness. Point-to-point measurements
+   are a line between snap points with its length dimension, so they need
+   no separate kind.
 
 ## Gotchas for whoever picks this up
 

@@ -97,7 +97,9 @@ button.danger { color: #9b1c1c; }
 .canvas.tool-select .shape.locked { cursor: not-allowed; }
 .canvas.tool-select .shape.locked-x { cursor: ns-resize; }
 .canvas.tool-select .shape.locked-y { cursor: ew-resize; }
-.canvas.tool-line, .canvas.tool-rect, .canvas.tool-circle, .canvas.tool-polyline, .canvas.tool-text { cursor: crosshair; }
+.canvas.tool-line, .canvas.tool-rect, .canvas.tool-circle, .canvas.tool-polyline, .canvas.tool-text, .canvas.tool-dimension { cursor: crosshair; }
+/* The Dimension tool over something it would measure. */
+.canvas.tool-dimension.on-target { cursor: pointer; }
 /* Drawing tool on a hidden or locked current layer: nothing to draw. */
 .canvas.blocked { cursor: not-allowed; }
 /* Space held: a drag pans, in any tool and over anything. */
@@ -131,9 +133,17 @@ button.danger { color: #9b1c1c; }
   white-space: pre-wrap; overflow-wrap: normal; word-break: normal; letter-spacing: normal;
 }
 
-/* Dimensions aren't interactive (yet): clicks go through to links and shapes below. */
+/* Dimensions and radius labels let clicks through to links and shapes below,
+   except with the select tool, where their hit areas pick them (.pickable). */
 .dimension { stroke: var(--dimension); pointer-events: none; }
 .dimension text { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
+.dimension.pickable line.label-hit { pointer-events: stroke; cursor: move; }
+.radius-label.pickable .label-hit, .dimension.pickable rect.label-hit { pointer-events: all; cursor: pointer; }
+.dimension.pickable rect.label-hit { cursor: move; }
+.dimension.pickable:hover, .dimension.selected { stroke: var(--select); }
+.dimension.pickable:hover text, .dimension.selected text { fill: var(--select); }
+/* What the Dimension tool would measure: the edge, outline, line or corner under the pointer. */
+.dim-target { stroke: var(--select); opacity: 0.6; pointer-events: none; }
 .link-guide { stroke: var(--link); fill: none; opacity: 0.4; pointer-events: none; }
 .link-guide.emphasis, .link-guide:hover { opacity: 1; }
 .link-guide .link-hit { pointer-events: stroke; cursor: pointer; }
@@ -143,7 +153,8 @@ button.danger { color: #9b1c1c; }
 .link-name { fill: var(--link); opacity: 0.7; pointer-events: auto; cursor: pointer; }
 .link-name:hover { opacity: 1; text-decoration: underline; }
 .link-name.emphasis { opacity: 1; font-weight: 600; }
-.radius-label { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
+.radius-label text { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
+.radius-label.pickable:hover text, .radius-label.selected text { fill: var(--select); }
 .preview { stroke: var(--select); stroke-dasharray: 4 3; fill: none; }
 /* While lassoing nothing under the pointer reacts: no hover highlight, no other cursor. */
 .canvas.lassoing { cursor: crosshair; }
@@ -201,6 +212,7 @@ fieldset .row { width: 100%; }
 }
 .status .grow { flex: 1; }
 .status button.icon { padding: 2px; }
+.status button.icon.on, .toolbar button.icon.on { background: #e3f0f6; border-color: var(--accent); color: var(--accent); }
 .status .zoom { margin-right: -8px; }
 
 /* ---- Dialogs ---- */
@@ -266,6 +278,10 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .output-options section + section { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
 .output-options .row .label { width: 84px; }
 .row.check { gap: 8px; }
+/* A checkbox and its word, several to a row. */
+.inline-check { display: inline-flex; align-items: center; gap: 3px; margin-right: 6px; white-space: nowrap; }
+.inline-check input { margin: 0; }
+.corner-label { margin-left: auto; margin-right: 0; color: var(--muted); font-size: 11px; }
 .output-preview { flex: 1; min-width: 0; overflow: auto; padding: 16px; background: var(--bg); }
 .output-preview .sheets { display: grid; gap: 12px; align-items: start; }
 .output-preview .sheet svg { display: block; width: 100%; height: auto; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); }
