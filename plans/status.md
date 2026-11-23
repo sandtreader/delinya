@@ -1,11 +1,9 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-23. Repo `sandtreader/delinya`, branch `main`.
-v0.1.1 (rotation; About links to https://sandtreader.com) is deployed to
-delinya.net. Text boxes (the Text tool, panel, canvas drawing and
-output; Adobe Core 14 metrics in `model/fontMetrics.ts`) and typing
-them on the drawing (see UI, Text boxes) are committed and pushed, not
-yet deployed. Vitest tests, `tsc` and the build pass.
+v0.1.2 (text boxes, typed on the drawing or in the panel; Adobe Core
+14 metrics in `model/fontMetrics.ts`) is committed, tagged and deployed
+to delinya.net. Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -856,8 +854,8 @@ through `useSyncExternalStore`.
 
 ## Hosting (st1)
 
-- Live at https://delinya.net (0.1.0 deployed 2026-11-10, 0.1.1
-  2026-11-23). DNS at
+- Live at https://delinya.net (0.1.0 deployed 2026-11-10, 0.1.1 and
+  0.1.2 2026-11-23). DNS at
   Squarespace points delinya.net and www at st1 (109.123.121.122).
 - Apache: `/etc/apache2/sites-available/delinya.net.conf` (http, redirects
   to https) and `delinya.net-le-ssl.conf` (docroot `/var/www/delinya.net`,
