@@ -1,13 +1,13 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-23. Repo `sandtreader/delinya`, branch `main`.
-v0.1.2 (text boxes, typed on the drawing or in the panel, aligned left,
-centre or right, never narrower than their longest word; Adobe Core 14
-metrics in `model/fontMetrics.ts`) is committed, tagged and deployed to
-delinya.net. Since then, committed but not yet pushed or deployed: fit
-view to drawing, and the Dimension tool, radius labels by hand, moving
-and deleting dimensions and the viewer's dimension settings (see Model,
-Dimensions, and UI). Vitest tests, `tsc` and the build pass.
+v0.2.1 is committed, tagged and deployed to delinya.net: on top of
+v0.1.2's text boxes (typed on the drawing or in the panel, aligned, never
+narrower than their longest word; Adobe Core 14 metrics in
+`model/fontMetrics.ts`), fit view to drawing and the Dimension tool,
+radius labels by hand, moving and deleting dimensions and the viewer's
+dimension settings (see Model, Dimensions, and UI). Vitest tests, `tsc`
+and the build pass.
 
 ## Where we are
 
@@ -1023,8 +1023,8 @@ through `useSyncExternalStore`.
 
 ## Hosting (st1)
 
-- Live at https://delinya.net (0.1.0 deployed 2026-11-10, 0.1.1 and
-  0.1.2 2026-11-23). DNS at
+- Live at https://delinya.net (0.1.0 deployed 2026-11-10; 0.1.1, 0.1.2
+  and 0.2.1 2026-11-23). DNS at
   Squarespace points delinya.net and www at st1 (109.123.121.122).
 - Apache: `/etc/apache2/sites-available/delinya.net.conf` (http, redirects
   to https) and `delinya.net-le-ssl.conf` (docroot `/var/www/delinya.net`,
