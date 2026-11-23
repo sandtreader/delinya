@@ -6,6 +6,7 @@ import type { Change, DocState, Props } from "@sandtreader/collab/protocol";
 import { batch, propsChanged, setLength } from "./actions";
 import { normaliseAngle, rotatePoint, snapNumber, snapXY, type Point } from "./geometry";
 import type { LinkLock, LinkLocks, ResolvedShape } from "./resolve";
+import { textBoxWidth } from "./text";
 import type { EntityId } from "./types";
 
 export type Handle =
@@ -94,7 +95,9 @@ export function handlesFor(shape: ResolvedShape, locks: LinkLocks = {}): HandleS
 /**
  * The change that puts `handle` of shape `id` at `p`, with `anchor` the
  * point captured from the resolved shape when the drag began. Returns
- * undefined when the result would be degenerate (zero size).
+ * undefined when the result would be degenerate (zero size). A text box
+ * dragged narrower than its longest word stops at the word (textBoxWidth),
+ * its anchor staying put.
  */
 export function resizeTo(state: DocState, id: EntityId, handle: Handle, p: Point, anchor: Point | undefined): Change | undefined {
   const e = state.entities[id];
@@ -104,10 +107,12 @@ export function resizeTo(state: DocState, id: EntityId, handle: Handle, p: Point
       if (!anchor) return undefined;
       const rotation = isFiniteNum(e.props.rotation) ? normaliseAngle(e.props.rotation) : 0;
       if (rotation !== 0) return turnedRectTo(state, id, rotation, p, anchor);
-      const width = snapNumber(Math.abs(p[0] - anchor[0]));
+      const dragged = snapNumber(Math.abs(p[0] - anchor[0]));
       const height = snapNumber(Math.abs(p[1] - anchor[1]));
-      if (width === 0 || height === 0) return undefined;
-      const changes: Change[] = [propsChanged(id, { x: Math.min(p[0], anchor[0]), y: Math.min(p[1], anchor[1]) })];
+      if (dragged === 0 || height === 0) return undefined;
+      const width = textBoxWidth(state, id, dragged, height);
+      const x = width === dragged ? Math.min(p[0], anchor[0]) : widenedMin(p[0], anchor[0], width);
+      const changes: Change[] = [propsChanged(id, { x, y: Math.min(p[1], anchor[1]) })];
       const w = setLength(state, id, "width", width);
       const h = setLength(state, id, "height", height);
       if (w) changes.push(w);
@@ -140,17 +145,30 @@ export function resizeTo(state: DocState, id: EntityId, handle: Handle, p: Point
 }
 
 /**
+ * The new minimum on an axis for a box `size` long with one side at
+ * `anchor`, the other dragged to `p`, when `size` is longer than the drag
+ * (a text box stopped at its longest word): it grows away from the anchor.
+ */
+function widenedMin(p: number, anchor: number, size: number): number {
+  return p < anchor ? snapNumber(anchor - size) : anchor;
+}
+
+/**
  * A turned rect's corner dragged to `p`, the opposite corner `anchor`
  * staying put: sized along its own sides (in its frame, turned back by
  * `rotation`), flipping across the anchor rather than going negative. The
- * stored (x, y) is its new top-left corner, turned; the rotation stays.
+ * stored (x, y) is its new top-left corner, turned; the rotation stays. A
+ * text box wider than dragged (see resizeTo) grows away from the anchor
+ * along its own x.
  */
 function turnedRectTo(state: DocState, id: EntityId, rotation: number, p: Point, anchor: Point): Change | undefined {
   const [lx, ly] = rotatePoint([p[0] - anchor[0], p[1] - anchor[1]], -rotation);
-  const width = snapNumber(Math.abs(lx));
+  const dragged = snapNumber(Math.abs(lx));
   const height = snapNumber(Math.abs(ly));
-  if (width === 0 || height === 0) return undefined;
-  const corner = rotatePoint([Math.min(0, lx), Math.min(0, ly)], rotation);
+  if (dragged === 0 || height === 0) return undefined;
+  const width = textBoxWidth(state, id, dragged, height);
+  const u = width === dragged ? lx : Math.sign(lx) * width;
+  const corner = rotatePoint([Math.min(0, u), Math.min(0, ly)], rotation);
   const [x, y] = snapXY([anchor[0] + corner[0], anchor[1] + corner[1]]);
   const changes: Change[] = [propsChanged(id, { x, y })];
   const w = setLength(state, id, "width", width);
@@ -192,9 +210,14 @@ export function dragHandle(state: DocState, id: EntityId, spot: HandleSpot, p: P
   switch (handle.kind) {
     case "rect-corner": {
       if (!spot.anchor) return undefined;
-      const ax = rectAxis(locks.x, xSide(handle.corner), p[0], spot.anchor[0]);
+      let ax = rectAxis(locks.x, xSide(handle.corner), p[0], spot.anchor[0]);
       const ay = rectAxis(locks.y, ySide(handle.corner), p[1], spot.anchor[1]);
       if (!ax || !ay || (ax === "still" && ay === "still")) return undefined;
+      if (ax !== "still") {
+        // A text box stops at its longest word (see resizeTo); where a link holds x, it keeps its side itself.
+        const width = textBoxWidth(state, id, ax.size, ay !== "still" ? ay.size : undefined);
+        if (width !== ax.size) ax = { size: width, ...(ax.min !== undefined && { min: widenedMin(p[0], spot.anchor[0], width) }) };
+      }
       const pos: Props = {};
       if (ax !== "still" && ax.min !== undefined) pos.x = ax.min;
       if (ay !== "still" && ay.min !== undefined) pos.y = ay.min;

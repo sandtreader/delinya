@@ -2,6 +2,7 @@
 // button's text colour. Drawn larger, the stroke stays 1.5 px.
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { TextAlign } from "../model";
 import { tip as tipProps } from "./tip";
 
 export function Icon({ size = 16, className, children }: { size?: number; className?: string; children: ReactNode }) {
@@ -120,3 +121,11 @@ export const FlipIcon = ({ axis }: { axis: "x" | "y" }) => (
     </g>
   </Icon>
 );
+
+// ---- Shape panel ----
+
+/** Lines of text, long and short, set left, centred or right: a text box's alignment. */
+export const TextAlignIcon = ({ align }: { align: TextAlign }) => {
+  const x = align === "left" ? 2.5 : align === "centre" ? 4.5 : 6.5;
+  return <Icon><path d={`M2.5 3.5h11M${x} 6.5h7M2.5 9.5h11M${x} 12.5h7`} /></Icon>;
+};

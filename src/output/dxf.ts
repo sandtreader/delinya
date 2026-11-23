@@ -2,9 +2,12 @@
 //
 // AutoCAD R12 (AC1009) ASCII, which every CAM tool reads. Units are
 // millimetres. No dimensions or labels: a cutter would cut them. A text box
-// is its lines, one TEXT entity each (STANDARD style, left baseline, height
-// the font's cap height at the box's size; a mirrored box's are backward),
-// never its outline.
+// is its lines, one TEXT entity each (STANDARD style, height the font's cap
+// height at the box's size; a mirrored box's are backward), never its
+// outline. Each is placed at its baseline's start; a centred or
+// right-aligned line is also justified by DXF's own codes (72 = 1 or 2)
+// at its baseline's middle or end, so a reader whose font is wider or
+// narrower than ours still lines it up as the box does.
 //
 // DXF is y-up, so y is negated on the way out. Our arcs run with increasing
 // angle, clockwise on a y-down screen; the flip keeps them clockwise as
@@ -25,7 +28,7 @@
 
 import {
   type Arc, type Path, type PathElement, type Point, type ResolvedLayer, type ResolvedText,
-  elementEnd, elementLength, elementStart, flattenCubic, fontMetrics, isVisible, layerColourEntry, pointsNear, unionBounds,
+  cosSin, elementEnd, elementLength, elementStart, flattenCubic, fontMetrics, isVisible, layerColourEntry, pointsNear, unionBounds,
 } from "../model";
 import type { EntityId, Resolved } from "../model";
 
@@ -165,18 +168,31 @@ function writePolyline(out: Writer, run: PathElement[], layer: string): void {
   out.entity("SEQEND", layer);
 }
 
+/** TEXT horizontal justification (group 72) for each alignment. */
+const JUSTIFY = { left: 0, centre: 1, right: 2 } as const;
+
 /**
  * A TEXT per line with something on it, from where its baseline starts.
  * Angles turn the way arcs' do (y is flipped), and a mirrored box's lines
- * are backward (flag 2), so they run back from the right-hand side.
+ * are backward (flag 2), so they run back from the right-hand side. A
+ * centred or right-aligned line is justified (72) at its alignment point
+ * (11): its baseline's middle or end, along the way it reads from its
+ * start (back along the box's x when mirrored). A line wider than its box
+ * starts at the box's edge rather than being aligned (see alignOffset in
+ * resolve.ts) but keeps its box's justification, about where it is drawn.
  */
 function writeText(out: Writer, s: ResolvedText, layer: string): void {
   if (!(s.size > 0)) return;
   const height = (fontMetrics(s.font).capHeight / 1000) * s.size;
+  const [c, sn] = cosSin(s.rotation);
+  const dir = s.mirror ? -1 : 1;
   for (const line of s.lines) {
     if (!line.text) continue;
     out.entity("TEXT", layer).point(line.at).pair(40, height).pair(1, dxfText(line.text)).pair(50, angle(-s.rotation));
     if (s.mirror) out.pair(71, 2);
+    if (s.align === "left") continue;
+    const along = dir * (s.align === "centre" ? line.width / 2 : line.width);
+    out.pair(72, JUSTIFY[s.align]).point([line.at[0] + along * c, line.at[1] + along * sn], 1);
   }
 }
 

@@ -22,7 +22,7 @@ describe("the on-drawing text field", () => {
       left: 80, top: 100, width: 200, height: 48,
       transform: "rotate(0deg)", transformOrigin: "0 0",
       fontFamily: fontStack("mono"), fontSize: 20, lineHeight: 1.2,
-      fontWeight: "bold", fontStyle: "normal",
+      fontWeight: "bold", fontStyle: "normal", textAlign: "left",
     });
   });
 

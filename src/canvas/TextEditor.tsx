@@ -1,6 +1,6 @@
 // Typing a text box's text on the drawing: a textarea laid over the box
-// (view/textEdit.ts), in its font, size and line spacing, turned with it and
-// never mirrored. It commits as you type, as the panel's field does
+// (view/textEdit.ts), in its font, size, line spacing and alignment, turned
+// with it and never mirrored. It commits as you type, as the panel's field does
 // (useLiveText), so the box grows and the edit is one undo step. Escape,
 // ⌘/Ctrl+Enter and leaving the field finish; so does the editor dropping
 // it (another selection or tool). A box left empty is deleted in the edit's

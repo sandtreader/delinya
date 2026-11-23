@@ -20,10 +20,10 @@ import {
 } from "./geometry";
 import {
   type Axis, type DimensionProp, type DimensionProps, type EntityId, type Length,
-  type AlignMode, type PolyNodeType, type RadiusLabelProps, type SpacingMode, type SpacingProps,
-  BASE_LAYER_ID, DEFAULT_GRID_SPACING, DOCUMENT_FIELDS, DOCUMENT_ID, FONT_FAMILIES, KINDS, entitiesOfKind, isRef,
+  type AlignMode, type TextAlign, type PolyNodeType, type RadiusLabelProps, type SpacingMode, type SpacingProps,
+  BASE_LAYER_ID, DEFAULT_GRID_SPACING, DOCUMENT_FIELDS, DOCUMENT_ID, FONT_FAMILIES, KINDS, TEXT_ALIGNS, entitiesOfKind, isRef,
 } from "./types";
-import { type FontStyle, BASELINE, LINE_SPACING, fitTextSize, textAdvance, wrapText } from "./font";
+import { type FontStyle, BASELINE, LINE_SPACING, fitTextSize, fitWidth, textAdvance, wrapText } from "./font";
 
 // ---- Output types ----
 
@@ -133,9 +133,11 @@ export interface TextLine {
   /** Its advance at the box's size, from the font's metrics. */
   width: number;
   /**
-   * Where its baseline starts, in the drawing: the box's left side (its
-   * right side when mirrored, the glyphs running back towards the left),
-   * (BASELINE + i × LINE_SPACING) × size below the top, turned with the box.
+   * Where its baseline starts, in the drawing: `alignOffset` in from the
+   * box's left side (from its right side when mirrored, the glyphs running
+   * back towards the left; never outside the box, so a line wider than it
+   * overflows the far side), (BASELINE + i × LINE_SPACING) × size below
+   * the top, turned with the box.
    */
   at: Point;
 }
@@ -150,12 +152,19 @@ export interface ResolvedText extends ResolvedBase {
   kind: "text";
   x: number;
   y: number;
+  /**
+   * As drawn: the stored width, or the longest word at the box's size if
+   * that is wider (fitWidth), so no line runs over the box. Lines wrap and
+   * align in it, and corners, path, bounds and snaps are of it.
+   */
   width: number;
   height: number;
   /** Degrees in [0, 360), clockwise on screen, about (x, y); 0 when absent or bad. */
   rotation: number;
   mirror: boolean;
   font: FontStyle;
+  /** Left when absent or bad. */
+  align: TextAlign;
   text: string;
   /** Font size, mm: derived, never stored. 0 for a box with no width or height. */
   size: number;
@@ -558,27 +567,49 @@ function resolveText(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, 
   const family = FONT_FAMILIES.find((f) => f === p.font) ?? "sans";
   if (p.font != null && family !== p.font) bad("font is not sans, serif or mono");
   const font: FontStyle = { family, bold: flag("bold"), italic: flag("italic") };
+  const align = TEXT_ALIGNS.find((a) => a === p.align) ?? "left";
+  if (p.align != null && align !== p.align) bad("align is not left, centre or right");
   let rotation = 0;
   if (isFiniteNum(p.rotation)) rotation = normaliseAngle(p.rotation);
   else if (p.rotation != null) bad("rotation is not a number");
-  return buildText(id, layer, { x, y, width, height, rotation, mirror: flag("mirror"), font, text });
+  return buildText(id, layer, { x, y, width, height, rotation, mirror: flag("mirror"), font, align, text });
 }
 
-type TextBox = Pick<ResolvedText, "x" | "y" | "width" | "height" | "rotation" | "mirror" | "font" | "text">;
+/**
+ * How far in from the box's start side a line `lineWidth` long starts, set
+ * `align` in a box `width` wide. Never negative: a line wider than the box
+ * (which the box widening to its longest word leaves only for rounding)
+ * starts at the start side whatever its alignment and runs over the far
+ * side, as CSS lays out the field it is typed into.
+ */
+function alignOffset(align: TextAlign, width: number, lineWidth: number): number {
+  const spare = Math.max(0, width - lineWidth);
+  return align === "centre" ? spare / 2 : align === "right" ? spare : 0;
+}
 
-/** A text box laid out: `layout` (its size and lines' text and widths) when already known, as when only moving it. */
+type TextBox = Pick<ResolvedText, "x" | "y" | "width" | "height" | "rotation" | "mirror" | "font" | "align" | "text">;
+
+/**
+ * A text box laid out, from its stored width (widened to its longest word
+ * here), or `layout` (its size and lines' text and widths) when already
+ * known, as when only moving it, with `box` already as drawn.
+ */
 function buildText(id: EntityId, layer: EntityId, box: TextBox, layout?: Pick<ResolvedText, "size" | "lines">): ResolvedText {
-  const { x, y, width, height, rotation, mirror, font, text } = box;
-  const size = layout?.size ?? fitTextSize(text, font, width, height);
+  const { x, y, height, rotation, mirror, font, align, text } = box;
+  const size = layout?.size ?? fitTextSize(text, font, box.width, height);
+  const width = layout ? box.width : fitWidth(text, font, size, box.width);
   const widths = layout?.lines.map((l) => [l.text, l.width] as const)
     ?? wrapText(text, font, size, width).map((t) => [t, textAdvance(t, font, size)] as const);
   // A point in the box's own frame, in the drawing; snapped as a turned rect's are.
   const [c, s] = cosSin(rotation);
   const at = (u: number, v: number): Point => snapXY([x + u * c - v * s, y + u * s + v * c], TURN_PLACES);
   const corners: ResolvedText["corners"] = [at(0, 0), at(width, 0), at(width, height), at(0, height)];
-  const lines = widths.map(([t, w], i) => ({ text: t, width: w, at: at(mirror ? width : 0, (BASELINE + i * LINE_SPACING) * size) }));
+  const lines = widths.map(([t, w], i) => {
+    const u = alignOffset(align, width, w);
+    return { text: t, width: w, at: at(mirror ? width - u : u, (BASELINE + i * LINE_SPACING) * size) };
+  });
   return {
-    id, kind: "text", layer, x, y, width, height, rotation, mirror, font, text, size, lines, corners,
+    id, kind: "text", layer, x, y, width, height, rotation, mirror, font, align, text, size, lines, corners,
     path: corners.map((p, i) => segment(p, corners[(i + 1) % 4]!)),
     bounds: boundsOfPoints(corners),
     snaps: [

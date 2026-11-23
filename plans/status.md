@@ -1,9 +1,10 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-23. Repo `sandtreader/delinya`, branch `main`.
-v0.1.2 (text boxes, typed on the drawing or in the panel; Adobe Core
-14 metrics in `model/fontMetrics.ts`) is committed, tagged and deployed
-to delinya.net. Vitest tests, `tsc` and the build pass.
+v0.1.2 (text boxes, typed on the drawing or in the panel, aligned left,
+centre or right, never narrower than their longest word; Adobe Core 14
+metrics in `model/fontMetrics.ts`) is committed, tagged and deployed to
+delinya.net. Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -118,28 +119,59 @@ but has no UI.
   the grid; snaps to other shapes' points still win.
 - **Text boxes** (stage 1: model and output; see the decision below):
   `text` kind, `TextProps { x, y, width, height, text, font?, bold?,
-  italic?, rotation?, mirror?, layer? }`, sized and turned like a rect
+  italic?, align?, rotation?, mirror?, layer? }` (`TextAlign` "left" |
+  "centre" | "right", `TEXT_ALIGNS`), sized and turned like a rect
   (width and height may be refs). `model/font.ts`: `FontStyle { family,
   bold, italic }`, `textAdvance(text, font, size)`, `wrapText(text, font,
   size, width)` (newlines first, an empty paragraph an empty line, then
   greedily at spaces, runs of spaces and tabs as one; a word wider than the
   width on a line of its own; "" is `[""]`), `LINE_SPACING` 1.2,
-  `BASELINE` 0.9, `fitTextSize(text, font, width, height)`,
+  `BASELINE` 0.9, `longestWord(text, font)` (the widest word's advance
+  in em), `fitWidth(text, font, size, width)` (max(width, longestWord ×
+  size): **a box is never narrower than its longest word**, so its lines
+  align to that word's end rather than raggedly to a narrower box),
+  `fitTextSize(text, font, width, height)` (wraps at fitWidth at each
+  size tried: in em that is max(width / size, longest word), which never
+  grows with the size, so lines never fall and the bisection holds),
   `standardFont`, `fontMetrics`, `winAnsiCode(ch)` (the PDF byte; defined
   for exactly the characters with widths: every WinAnsiEncoding
   character). `ResolvedText`: the box's `x, y, width,
-  height, rotation, mirror`, `font` (bad values default to sans/false
-  with a `bad-value` issue), `text`, `size`, `lines` (`{ text, width, at
-  }`: `at` the world point line i's baseline starts, local (0, (0.9 + 1.2i)
-  × size), or (width, …) mirrored, turned with the box and snapped to 9
-  places like a turned rect's), `corners`, `path` (the outline, for hit-
+  height, rotation, mirror` (`width` effective: fitWidth at its size, so
+  wrapping, alignment, corners, path, bounds, snaps, handles, links and
+  the typing field all use it; the stored width is only the panel's),
+  `font` (bad values default to sans/false
+  with a `bad-value` issue), `align` (absent or bad is left, bad with a
+  `bad-value` issue), `text`, `size`, `lines` (`{ text, width, at }`:
+  `at` the world point line i's baseline starts, local (o, (0.9 + 1.2i) ×
+  size), or (width − o, …) mirrored, where o is 0 (left), spare / 2
+  (centre) or spare (right), spare = max(0, width − line width), the line
+  width its metric advance (wrapped lines carry no outer spaces); the
+  clamp at 0 is now only an edge case (rounding), since the box widens to
+  its longest word, but a line wider than the box would start at the left
+  edge (the right when mirrored) whatever its alignment, as the CSS typing
+  field does; turned with the box and snapped to 9
+  places like a turned rect's; output draws each line start-anchored from
+  `at`, so PDF and SVG follow alignment with no format of their own, and
+  DXF adds its own justification, below), `corners`, `path` (the outline, for hit-
   testing and bounds only), `bounds`, snaps (corners, edge midpoints,
   centre). No dimensions. `model/text.ts`: `addText`, and `setText`,
-  `setTextSize`, `setTextStyle(state, id, { font?, bold?, italic? })`,
-  each keeping (or for setTextSize setting) the font size by rewriting the
-  height to snap(lines at that size × 1.2 × size) through `setLength` (a
-  linked height edits its variable); undefined for a non-text id or no
-  change. `endTextEdit(state, id)`: deletes (`deleteEntity`) a box left
+  `setTextSize`, `setTextStyle(state, id, { font?, bold?, italic?,
+  align? })` (only the parts that differ written), each keeping (or for
+  setTextSize setting) the font size by rewriting the height to snap(lines
+  at that size × 1.2 × size) through `setLength` (a linked height edits
+  its variable), and first, if longestWord × size is wider than the
+  stored width, writing that (snapped) as the width, also through
+  `setLength`: the width only ever grows there, never shrinks, so the
+  document and the panel's width field agree in normal editing; an
+  align-only change writes just `align`, as it doesn't change the wrap;
+  undefined for a non-text id or no change. `textBoxWidth(state, id,
+  width, height?)`: the width a box sized so takes (the longest word at
+  the size those give, if wider); `resizeTo` (upright or turned) and
+  `dragHandle`'s locked path write it, so a corner dragged narrower than
+  the word stops at it, the anchor corner staying put (the box grows away
+  from it along its own x). `setTextWidth(state, id, width)` (the panel's
+  width field): never narrower than the longest word, keeping the font
+  size (height rewritten for the new wrap). `endTextEdit(state, id)`: deletes (`deleteEntity`) a box left
   empty or only whitespace, after typing into it. Moving, links, Duplicate, Equal (`EQUAL_PROPS` width/height),
   rotate, `setRotation` and corner resize handles (in its own frame when
   turned, none while a link places a turned one) all treat it like a rect;
@@ -255,8 +287,9 @@ through `useSyncExternalStore`.
   clips it to the area): `textEditorBox(t, view)` (`view/textEdit.ts`,
   pure) gives left/top (the box's (x, y) on screen), width and height ×
   scale, `rotate(r deg)` about its top left, the font stack, size × scale,
-  `line-height` LINE_SPACING, bold and italic. Never mirrored, so it reads
-  while typed. Transparent, no border, padding or resize, `overflow:
+  `line-height` LINE_SPACING, bold, italic and `textAlign` (CSS "left",
+  "center", "right"). Never mirrored, so it reads while typed: a mirrored
+  box's field aligns as stored (right stays right), not as drawn. Transparent, no border, padding or resize, `overflow:
   hidden`, `pre-wrap` with `overflow-wrap`/`word-break: normal` (a long
   word runs on, as the model's wrap). Ink is the shape's (layer colour or
   `--shape`), caret too. It is shifted up by `translateY` so its first
@@ -302,7 +335,12 @@ through `useSyncExternalStore`.
   field still works alongside; both read the document. Caveat: while
   typing, the field wraps with the viewer's real font, while the finished
   text wraps (and the box grows) by the Adobe metrics, so a line can
-  break differently until you finish, or the field clip a last line.
+  break differently until you finish, or the field clip a last line; and,
+  centred or right-aligned, spaces the model drops (leading, trailing,
+  doubled) shift a line in the field until you finish. The box (and so
+  the field) widens to its longest word as you type it, so a word wider
+  than the box is left only where the viewer's font is wider than the
+  metrics; it then starts at the left edge, whatever the alignment.
   The canvas draws each non-empty line as a `<text>` in model mm with
   `textElementAttrs` (the SVG export's attributes, hyphenated names made
   camelCase for React), filled with the layer colour or `--shape`
@@ -481,7 +519,10 @@ through `useSyncExternalStore`.
   gesture, then blurs; Enter is a newline; the app's keys ignore it as
   they do any textarea); **font** Sans / Serif / Mono (`.icon-toggle`,
   `setTextStyle`); **size** (mm, 2 decimals, `setTextSize`); **style**
-  Bold / Italic toggles (`setTextStyle`); x, y, width, height and
+  Bold / Italic toggles (`setTextStyle`); **align** Left / Centre / Right
+  (`.icon-toggle` of `IconButton`s with `TextAlignIcon`, line stacks from
+  `panels/icons.tsx`, tooltips via `tip()`; `setTextStyle({ align })`);
+  x, y, width, height and
   rotation as a rect's; **mirrored**, a checkbox committing `{ mirror }`
   in place. Other shapes: x/y, each length with
   a linked badge and unlink, a rect's rotation (°, `setRotation`, so it
@@ -632,9 +673,16 @@ through `useSyncExternalStore`.
   "spacing"` so a substitute font fills the metric width, and `transform=
   "translate(x y) rotate(a) scale(-1 1)"` (rotate and scale only when
   needed); labels unchanged. DXF: a `TEXT` per line on the shape's layer
-  (STANDARD style, left baseline at `at`, y flipped; height the font's cap
-  height × size; angle negated like the rest; 71 = 2, backward, when
-  mirrored; "%" as "%%%", ° and ± as %%d/%%p, other non-ASCII as
+  (STANDARD style, insertion point 10/20 the baseline's start `at`, y
+  flipped; height the font's cap height × size; angle negated like the
+  rest; 71 = 2, backward, when mirrored; centred or right-aligned lines
+  also 72 = 1 or 2 with the alignment point 11/21 at the baseline's middle
+  or end, measured from `at` along the way the line reads (the box's +x,
+  −x when mirrored), so a reader whose font differs from the Adobe metrics
+  still centres or right-aligns it; a line wider than its box (now only
+  a rounding edge case, the box widening to its longest word), drawn from
+  the box's edge, keeps the codes about where it is drawn; left lines have
+  no 72/11; "%" as "%%%", ° and ± as %%d/%%p, other non-ASCII as
   `\U+XXXX`), never the outline. `output/text.ts` labels now measure
   with the same Helvetica table (unchanged widths).
 - Dimension text (output and canvas, both via `view/dimensionText.ts`)
@@ -825,7 +873,7 @@ through `useSyncExternalStore`.
 5. Print refinements: a date in the title block, dimensions in DXF on
    their own layer, a custom scale.
 6. Text box extras: system or embedded fonts beyond the PDF standard
-   three, and alignment (left only now; centre/right, vertical). Then
+   three, and vertical alignment. Then
    named variables/expressions, woodwork extras (see outline "Later").
 7. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by
    bounds, symmetric (equal-length) handles, converting rects/circles to

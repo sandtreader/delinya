@@ -116,15 +116,20 @@ export interface PolyProps {
 export type FontFamily = "sans" | "serif" | "mono";
 export const FONT_FAMILIES: readonly FontFamily[] = ["sans", "serif", "mono"];
 
+/** Where each line of a text box sits across its width. */
+export type TextAlign = "left" | "centre" | "right";
+export const TEXT_ALIGNS: readonly TextAlign[] = ["left", "centre", "right"];
+
 /**
  * A text box, drawn and sized like a rect: its (x, y) corner, `width` (where
  * lines wrap) and `height`, turned `rotation` degrees about that corner
  * (absent is 0). The font size is not stored: it is the largest at which
  * `text`, wrapped to the width, fits the height (see font.ts). `font`
- * (absent is sans), `bold` and `italic` apply to the whole box. `mirror`
- * draws the glyphs reflected left to right within the box, each line
- * starting from the right-hand side: a flipped box mirrors its text rather
- * than keeping it readable.
+ * (absent is sans), `bold`, `italic` and `align` (absent is left) apply
+ * to the whole box. `mirror` draws the glyphs reflected left to right
+ * within the box, alignment and all, so a left-aligned line starts from the
+ * right-hand side: a flipped box mirrors its text rather than keeping it
+ * readable.
  */
 export interface TextProps {
   x: number;
@@ -135,6 +140,7 @@ export interface TextProps {
   font?: FontFamily;
   bold?: boolean;
   italic?: boolean;
+  align?: TextAlign;
   rotation?: number;
   mirror?: boolean;
   layer?: EntityId;

@@ -7,7 +7,9 @@
 // wrap the same and the box's font size comes out the same everywhere.
 //
 // The size is not stored: it is the largest at which the text, wrapped to the
-// box's width, fits its height. Line i's baseline sits
+// box's width, fits its height. A box is never narrower than its longest
+// word: at any size it wraps (and is drawn) at that word's width if wider
+// than its own (fitWidth). Line i's baseline sits
 // (BASELINE + i × LINE_SPACING) × size below the top of the box.
 //
 // Pure and deterministic: plain arithmetic only, so every client agrees.
@@ -124,6 +126,32 @@ function breakLines(t: Measured, size: number, width: number): Array<[para: numb
   return out;
 }
 
+/** The widest word's advance in 1/1000 em (words split as wrapping splits them); 0 for none. */
+function longestEm(t: Measured): number {
+  let em = 0;
+  for (const p of t.paragraphs) for (const w of p.ems) if (w > em) em = w;
+  return em;
+}
+
+/**
+ * How far the widest word in `text` runs, in em: at size s it is this × s
+ * long, as wrapping measures it. Words are split as wrapText splits them
+ * (at newlines, spaces and tabs). 0 for no words.
+ */
+export function longestWord(text: string, font: FontStyle): number {
+  return longestEm(measure(text, font)) / 1000;
+}
+
+/**
+ * The width a box `width` wide wraps `text` at at `size`: never narrower
+ * than its longest word, so no line runs over it. `width` itself when that
+ * is wider, or when there is no size.
+ */
+export function fitWidth(text: string, font: FontStyle, size: number, width: number): number {
+  const word = size > 0 ? longestWord(text, font) * size : 0;
+  return word > width ? word : width;
+}
+
 /**
  * `text` in lines no wider than `width` at `size`: split at newlines first
  * (an empty paragraph is an empty line), then greedily at spaces (runs of
@@ -146,18 +174,22 @@ export function textHeight(lines: number, size: number): number {
 const FIT_STEPS = 64;
 
 /**
- * The largest font size at which `text`, wrapped to `width`, fits `height`:
- * lines(size) × LINE_SPACING × size ≤ height. Lines never fall as the size
- * grows, so that is true up to the answer and false beyond it, and a fixed
- * number of halvings of (0, height / LINE_SPACING] finds it the same on
- * every client. When the box is exactly full (the height is what limits
- * it), the answer is exactly height / (LINE_SPACING × lines), so lines land
- * where they should. 0 for a box with no width or height; never NaN.
+ * The largest font size at which `text`, wrapped to the box's width at that
+ * size (`width`, or the longest word if wider: see fitWidth), fits `height`:
+ * lines(size) × LINE_SPACING × size ≤ height. In em the wrap width is
+ * max(width / size, longest word), which never grows with the size, so
+ * lines never fall as the size grows: the test is true up to the answer and
+ * false beyond it, and a fixed number of halvings of
+ * (0, height / LINE_SPACING] finds it the same on every client. When the
+ * box is exactly full (the height is what limits it), the answer is exactly
+ * height / (LINE_SPACING × lines), so lines land where they should. 0 for a
+ * box with no width or height; never NaN.
  */
 export function fitTextSize(text: string, font: FontStyle, width: number, height: number): number {
   if (!(width > 0) || !(height > 0) || !Number.isFinite(width) || !Number.isFinite(height)) return 0;
   const t = measure(text, font);
-  const lines = (size: number) => breakLines(t, size, width).length;
+  const word = longestEm(t) / 1000;
+  const lines = (size: number) => breakLines(t, size, Math.max(width, word * size)).length;
   const limit = height * (1 + SLACK);
   const fits = (size: number) => textHeight(lines(size), size) <= limit;
 

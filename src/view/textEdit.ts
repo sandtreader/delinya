@@ -1,9 +1,10 @@
 // The field a text box is typed into on the drawing: an HTML textarea laid
 // over the box in screen px, in the box's font, size and line spacing,
-// turned with it about its (x, y) corner. Never mirrored, so the text reads
-// while it is typed.
+// turned with it about its (x, y) corner, aligned as the box is. Never
+// mirrored, so the text reads while it is typed (aligned as stored, not as
+// the mirror shows it).
 
-import { LINE_SPACING, isVisible, rotatePoint, type EntityId, type Point, type Resolved, type ResolvedText } from "../model";
+import { LINE_SPACING, isVisible, rotatePoint, type EntityId, type Point, type Resolved, type ResolvedText, type TextAlign } from "../model";
 import { fontStack } from "./textSvg";
 import { toScreen, type View } from "./viewport";
 
@@ -20,7 +21,10 @@ export interface TextEditorBox {
   lineHeight: number;
   fontWeight: "bold" | "normal";
   fontStyle: "italic" | "normal";
+  textAlign: "left" | "center" | "right";
 }
+
+const CSS_ALIGN: Record<TextAlign, TextEditorBox["textAlign"]> = { left: "left", centre: "center", right: "right" };
 
 export function textEditorBox(t: ResolvedText, view: View): TextEditorBox {
   const [left, top] = toScreen(view, [t.x, t.y]);
@@ -29,6 +33,7 @@ export function textEditorBox(t: ResolvedText, view: View): TextEditorBox {
     transform: `rotate(${t.rotation}deg)`, transformOrigin: "0 0",
     fontFamily: fontStack(t.font.family), fontSize: t.size * view.scale, lineHeight: LINE_SPACING,
     fontWeight: t.font.bold ? "bold" : "normal", fontStyle: t.font.italic ? "italic" : "normal",
+    textAlign: CSS_ALIGN[t.align],
   };
 }
 

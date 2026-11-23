@@ -4,15 +4,17 @@
 
 import {
   KINDS, derivedAxes, entitiesOfKind, entityAs, isRef, lengthValue, propsChanged,
-  setCornerRadius, setLength, setPolyClosed, setRotation, setTextSize, setTextStyle, unlinkAlign, unlinkLength, unlinkSpacing,
-  type EntityId, type FontFamily, type Length, type ResolvedRect, type ResolvedText, type TextStyle,
+  setCornerRadius, setLength, setPolyClosed, setRotation, setTextSize, setTextStyle, setTextWidth, unlinkAlign, unlinkLength, unlinkSpacing,
+  type EntityId, type FontFamily, type Length, type ResolvedRect, type ResolvedText, type TextAlign, type TextStyle,
 } from "../model";
+import type { Change } from "@sandtreader/collab/protocol";
 import { store, useDocument } from "../app/store";
 import { useEditor } from "../app/editor";
 import { useLiveText } from "../app/liveText";
 import { ALIGN_LABELS } from "../view/linkButtons";
 import { formatMm } from "../view/format";
 import { Num, Row } from "./fields";
+import { IconButton, TextAlignIcon } from "./icons";
 import { LayerSelect, hasLayerChoice } from "./LayerSelect";
 import { tip } from "./tip";
 
@@ -74,7 +76,8 @@ export function ShapeFields({ id }: { id: EntityId }) {
           <TextFields id={id} />
           <Row label="x"><Num value={at("x")} onCommit={(v) => commit({ x: v })} disabled={derived.has("x")} /></Row>
           <Row label="y"><Num value={at("y")} onCommit={(v) => commit({ y: v })} disabled={derived.has("y")} /></Row>
-          <LengthRow id={id} prop="width" label="width" />
+          {/* Never narrower than the longest word, keeping the font size. */}
+          <LengthRow id={id} prop="width" label="width" set={(v) => setTextWidth(store.state, id, v)} />
           <LengthRow id={id} prop="height" label="height" />
           <Row label="rotation">
             <Num
@@ -126,9 +129,16 @@ const FAMILIES: Array<{ family: FontFamily; label: string; hint: string }> = [
   { family: "mono", label: "Mono", hint: "Monospaced: Courier" },
 ];
 
+const ALIGNS: Array<{ align: TextAlign; label: string; hint: string }> = [
+  { align: "left", label: "Left", hint: "Align left: each line starts at the box's left side" },
+  { align: "centre", label: "Centre", hint: "Centre: each line centred across the box" },
+  { align: "right", label: "Right", hint: "Align right: each line ends at the box's right side" },
+];
+
 /**
- * A text box's text, font, size, bold and italic. Its size is what fits the
- * box, so setting it, or changing the text or style, sets the height.
+ * A text box's text, font, size, bold, italic and alignment. Its size is
+ * what fits the box, so setting it, or changing the text or style, sets the
+ * height.
  */
 function TextFields({ id }: { id: EntityId }) {
   useDocument();
@@ -168,6 +178,19 @@ function TextFields({ id }: { id: EntityId }) {
           </button>
         </span>
       </div>
+      <div className="row" role="group" aria-label="Align">
+        <span className="label" aria-hidden="true">align</span>
+        <span className="icon-toggle">
+          {ALIGNS.map((a) => (
+            <IconButton
+              key={a.align} label={a.label} tip={a.hint} className={s.align === a.align ? "icon on" : "icon"}
+              aria-pressed={s.align === a.align} onClick={() => style({ align: a.align })}
+            >
+              <TextAlignIcon align={a.align} />
+            </IconButton>
+          ))}
+        </span>
+      </div>
     </>
   );
 }
@@ -195,14 +218,15 @@ function TextArea({ id, text }: { id: EntityId; text: string }) {
   );
 }
 
-function LengthRow({ id, prop, label }: { id: EntityId; prop: string; label: string }) {
+/** A length field; `set` builds the change in place of plain setLength. */
+function LengthRow({ id, prop, label, set }: { id: EntityId; prop: string; label: string; set?: (v: number) => Change | undefined }) {
   const state = useDocument();
   const raw = state.entities[id]!.props[prop] as Length;
   const value = lengthValue(state, raw) ?? 0;
   const linked = isRef(raw) ? entityAs(state, raw.ref, KINDS.variable) : undefined;
   return (
     <Row label={label}>
-      <Num value={value} onCommit={(v) => { const c = setLength(state, id, prop, v); if (c) store.commit(c); }} />
+      <Num value={value} onCommit={(v) => { const c = set ? set(v) : setLength(state, id, prop, v); if (c) store.commit(c); }} />
       {isRef(raw) && (
         <span className="linked" {...tip(`Linked to variable ${raw.ref}`)}>
           = {linked?.name ?? raw.ref}
