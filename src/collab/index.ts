@@ -72,25 +72,14 @@ export function bindCollab(store: DrawingStore, client: CollabClient): () => voi
 }
 
 /**
- * The client with `connect` held until `confirm()` says go (unsaved
- * changes saved or let go); everything else passes straight through.
+ * The session panel's `beforeJoin`: starting a session of our own (the
+ * code the panel made up; nobody can be in it yet, so our drawing becomes
+ * its state) goes straight ahead; joining one typed or pasted in, which may
+ * already have a drawing to replace ours, waits for `confirm()` (unsaved
+ * changes saved or let go).
  */
-export function guardConnect<T extends { connect(sessionId: string, serverUrl: string): void }>(
-  client: T, confirm: () => Promise<boolean>,
-): T {
-  const connect = (sessionId: string, serverUrl: string) => {
-    void confirm().then((ok) => { if (ok) client.connect(sessionId, serverUrl); });
-  };
-  return new Proxy(client, {
-    get(target, prop) {
-      if (prop === "connect") return connect;
-      const v: unknown = Reflect.get(target, prop);
-      return typeof v === "function" ? v.bind(target) : v;
-    },
-    set(target, prop, value) {
-      return Reflect.set(target, prop, value);
-    },
-  });
+export function joinCheck(confirm: () => Promise<boolean>): (sessionId: string, isNew: boolean) => boolean | Promise<boolean> {
+  return (_sessionId, isNew) => (isNew ? true : confirm());
 }
 
 // ---- Presence ----

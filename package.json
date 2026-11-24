@@ -1,6 +1,6 @@
 {
   "name": "delinya",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "private": true,
   "description": "Browser-based 2D drawing tool with real units",
   "type": "module",
@@ -20,7 +20,7 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^7.3.11",
     "@mui/material": "^7.3.11",
-    "@sandtreader/collab": "^0.1.3",
+    "@sandtreader/collab": "^0.1.4",
     "bad-words": "^4.1.5",
     "qrcode.react": "^4.2.0",
     "react": "^19.0.0",

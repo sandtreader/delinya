@@ -13,11 +13,10 @@ import { store } from "../app/store";
 import { confirmBeforeJoin } from "../app/file";
 import { toScreen, type View } from "../view/viewport";
 import {
-  COLLAB_APP, STORAGE_PREFIX, bindCollab, collabConfig, collabDocument, guardConnect, registerClient, sessionReplaced,
+  COLLAB_APP, STORAGE_PREFIX, bindCollab, collabConfig, collabDocument, joinCheck, registerClient, sessionReplaced,
 } from ".";
 
 let client: CollabClient | null = null;
-let guarded: CollabClient | null = null;
 
 /** The app's one client, made on first use and bound to the store. */
 function getClient(): CollabClient {
@@ -34,11 +33,8 @@ function getClient(): CollabClient {
   return client;
 }
 
-/** The client as the panel sees it: joining asks to save unsaved changes first. */
-function getGuarded(): CollabClient {
-  guarded ??= guardConnect(getClient(), confirmBeforeJoin);
-  return guarded;
-}
+/** Joining someone's session asks to save unsaved changes first; starting our own doesn't. */
+const beforeJoin = joinCheck(confirmBeforeJoin);
 
 const config = () => collabConfig(window.location);
 
@@ -64,7 +60,7 @@ const Themed = ({ children }: { children: ReactNode }) => <ThemeProvider theme={
 
 /** The Collaborate card's content: display name, join, share link and QR code, members, leave. */
 export function SessionCard() {
-  return <Themed><SessionPanel client={getGuarded()} config={config()} /></Themed>;
+  return <Themed><SessionPanel client={getClient()} config={config()} beforeJoin={beforeJoin} /></Themed>;
 }
 
 /**
@@ -86,7 +82,10 @@ export function SessionCursors({ view }: { view: View }) {
   );
 }
 
-/** Join the session a share link names (`/s/abc-defg-hij`), if any. True if joining. */
+/**
+ * Join the session a share link names (`/s/abc-defg-hij`), if any. True if
+ * joining. Only at startup, with nothing unsaved yet, so nothing to ask.
+ */
 export function autoJoin(): boolean {
-  return autoJoinFromUrl(getGuarded(), config());
+  return autoJoinFromUrl(getClient(), config());
 }

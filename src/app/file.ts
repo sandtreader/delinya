@@ -114,17 +114,18 @@ async function confirmDiscard(): Promise<boolean> {
 }
 
 /**
- * True to go ahead and join a session: nothing unsaved, or it is saved, or
- * the user lets it go. A session that already has a drawing replaces
- * yours, so this comes before joining, not after. Answering is a click, so
- * Save as's picker still has the user activation it needs.
+ * True to go ahead and join someone's session (one typed or pasted in,
+ * not one we start, which takes our drawing): nothing unsaved, or it is
+ * saved, or the user lets it go. A session that already has a drawing
+ * replaces yours, so this comes before joining, not after. Answering is a
+ * click, so Save as's picker still has the user activation it needs.
  */
 export async function confirmBeforeJoin(): Promise<boolean> {
   if (!store.dirty) return true;
   const untitled = !hasFile();
   const c = await choose({
     title: "Unsaved changes",
-    message: `Save changes to “${current.name}” before joining? A session that already has a drawing replaces yours.`,
+    message: `Save changes to “${current.name}” before joining? If the session already has a drawing, it replaces yours.`,
     confirm: untitled ? "Save as…" : "Save",
     alternative: "Join anyway",
   });

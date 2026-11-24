@@ -1,15 +1,12 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-24. Repo `sandtreader/delinya`, branch `main`.
-v0.2.2 is committed, tagged and deployed to delinya.net: on top of
-v0.2.1 (text boxes, fit view, the Dimension tool and radius labels by
-hand), line styles (a pen width and dash pattern per shape, set from the
-top toolbar), the corner radii "all" switch with "4× R" labels, radius
-labels inside the curve and turned with the rect, and Rotate and
-Duplicate as cards from the top toolbar (see Model, Output and UI).
-Since then, not yet released: collaboration (the Collaborate card,
-share links, other people's cursors; see Collaboration). Vitest tests,
-`tsc` and the build pass.
+v0.3.0 is committed and deployed to delinya.net: collaboration (the
+Collaborate card with Start and Join session, share links, other
+people's cursors; see Collaboration) on top of v0.2.2 (line styles, the
+corner radii "all" switch with "4× R" labels, radius labels inside the
+curve, Rotate and Duplicate cards) and v0.2.1 (text boxes, fit view,
+the Dimension tool). Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -315,8 +312,9 @@ browser.
   "state_replaced")`; other changes `applyRemote`); `bindCollab(store,
   client)` forwards emitted changes. `collabConfig(location)`: the relay
   at `ws(s)://<host>/collab` and share links `<origin>/s/<id>`.
-  `guardConnect(client, confirm)`: a Proxy whose `connect` waits for
-  `confirm()`. `presenceSender(client, ms = 100)`: cursor at most every
+  `joinCheck(confirm)`: the panel's `beforeJoin`, which starts a session
+  of our own (`isNew`) at once and waits for `confirm()` before joining
+  someone else's. `presenceSender(client, ms = 100)`: cursor at most every
   100 ms (first at once, latest at the end), selection on change, every
   message both (each replaces what the others hold). The client registers
   itself (`registerClient`); `sendCursor` (Canvas pointer moves, model mm;
@@ -326,15 +324,19 @@ browser.
 - **Session** (`collab/session.tsx`, loaded by dynamic import only when
   the Collaborate card opens or a share link is followed, as it brings
   MUI): the client singleton, `SessionCard` (the package's `SessionPanel`
-  with `guardConnect(client, confirmBeforeJoin)`, in an MUI theme of
+  with `beforeJoin={joinCheck(confirmBeforeJoin)}`, in an MUI theme of
   Delinya's font and accent), `SessionCursors` (`RemoteCursors`, absolute
   in a layer clipped to the drawing area, under the panels) and
   `autoJoin()`. The build puts it in its own chunk (~250 kB, 80 kB gzip;
   the main chunk has no MUI).
-- **Joining**: `confirmBeforeJoin()` (file.ts): with unsaved changes,
-  "Save as…" (untitled) or "Save", or "Join anyway", or Cancel; a session
-  that already has a drawing replaces yours. Starting a session is joining
-  a fresh ID, so it asks too. A share link (`/s/<id>`) opens the card and
+- **Starting and joining**: the panel (collab 0.1.4) fills its session
+  field with a code it made up and reads "Start session" while that's
+  there, "Join session" once another code is typed or pasted; its
+  `beforeJoin(sessionId, isNew)` says which. Starting goes straight in
+  (nobody else can be there; your drawing becomes the session's).
+  Joining asks `confirmBeforeJoin()` (file.ts) first: with unsaved
+  changes, "Save as…" (untitled) or "Save", or "Join anyway", or Cancel,
+  since a session that already has a drawing replaces yours. A share link (`/s/<id>`) opens the card and
   joins at startup. A session's drawing arriving (the joining snapshot, or
   a peer's New or Open) detaches the file (`detachFile`: Untitled, no
   handle, clean, so Save can't write someone else's drawing over yours)
@@ -344,7 +346,7 @@ browser.
   in the session ask first ("This replaces the drawing for everyone").
 - `tests/collab.test.ts` runs two stores through the real relay (late
   joiner snapshot, linked edits, drag + undo); `tests/collabUi.test.ts`
-  the core, the guards and the plumbing.
+  the core, the join check, the guards and the plumbing.
 
 ### UI (`src/canvas/`, `src/panels/`, `src/app/`, `src/view/`)
 
@@ -1172,7 +1174,7 @@ through `useSyncExternalStore`.
 ## Hosting (st1)
 
 - Live at https://delinya.net (0.1.0 deployed 2026-11-10; 0.1.1, 0.1.2
-  and 0.2.1 2026-11-23; 0.2.2 2026-11-24). DNS at
+  and 0.2.1 2026-11-23; 0.2.2 and 0.3.0 2026-11-24). DNS at
   Squarespace points delinya.net and www at st1 (109.123.121.122).
 - Apache: `/etc/apache2/sites-available/delinya.net.conf` (http, redirects
   to https) and `delinya.net-le-ssl.conf` (docroot `/var/www/delinya.net`,

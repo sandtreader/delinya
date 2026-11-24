@@ -4,7 +4,7 @@ import { addRect, DrawingStore } from "../src/model";
 import { answer, currentQuestion } from "../src/app/ask";
 import { confirmBeforeJoin, currentFileName, detachFile } from "../src/app/file";
 import { store } from "../src/app/store";
-import { collabConfig, collabDocument, guardConnect, presenceSender } from "../src/collab";
+import { collabConfig, collabDocument, joinCheck, presenceSender } from "../src/collab";
 import pkg from "../package.json";
 import viteConfig from "../vite.config.ts?raw";
 import htaccess from "../public/.htaccess?raw";
@@ -12,6 +12,7 @@ import toolbarSource from "../src/panels/Toolbar.tsx?raw";
 import appSource from "../src/App.tsx?raw";
 import canvasSource from "../src/canvas/Canvas.tsx?raw";
 import collabSource from "../src/collab/index.ts?raw";
+import sessionSource from "../src/collab/session.tsx?raw";
 import { waitFor } from "./helpers";
 
 // Collaboration, as SynFlo does it: the shared SessionPanel (display name,
@@ -19,7 +20,8 @@ import { waitFor } from "./helpers";
 // toolbar button between Properties and Print, and other people's cursors
 // on the drawing. The relay is reached at /collab on the page's own host
 // (Apache on st1, Vite's proxy in development), and share links are
-// /s/abc-defg-hij on the same site. Joining with unsaved changes asks to
+// /s/abc-defg-hij on the same site. Joining someone else's session (not
+// starting one of our own) with unsaved changes asks to
 // save them first, since a session that already has a drawing replaces
 // yours. A drawing that arrives from a session is no longer your file, so
 // Save can't overwrite it with someone else's drawing.
@@ -66,28 +68,24 @@ describe("MUI only when collaborating", () => {
   });
 });
 
-describe("guardConnect: joining waits for the go-ahead", () => {
-  const fake = () => {
-    const calls: Array<[string, string]> = [];
-    return { calls, status: "disconnected", connect(id: string, url: string) { calls.push([id, url]); }, other: () => 42 };
-  };
-
-  it("connects once confirmed, and not if not", async () => {
-    const yes = fake();
-    guardConnect(yes, async () => true).connect("abc-defg-hij", "ws://x/collab");
-    await waitFor(() => yes.calls.length === 1, "connected");
-    expect(yes.calls).toEqual([["abc-defg-hij", "ws://x/collab"]]);
-    const no = fake();
-    guardConnect(no, async () => false).connect("abc-defg-hij", "ws://x/collab");
-    await new Promise((r) => setTimeout(r, 10));
-    expect(no.calls).toEqual([]);
+describe("joinCheck: only joining someone's session asks about unsaved changes", () => {
+  it("starts a session of our own straight away", async () => {
+    const confirm = vi.fn(async () => false);
+    expect(await joinCheck(confirm)("abc-defg-hij", true)).toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
   });
 
-  it("passes everything else straight through", () => {
-    const c = fake();
-    const g = guardConnect(c, async () => true);
-    expect(g.status).toBe("disconnected");
-    expect(g.other()).toBe(42);
+  it("asks before joining one that may already have a drawing", async () => {
+    const no = vi.fn(async () => false);
+    expect(await joinCheck(no)("abc-defg-hij", false)).toBe(false);
+    expect(no).toHaveBeenCalledTimes(1);
+    expect(await joinCheck(async () => true)("abc-defg-hij", false)).toBe(true);
+  });
+
+  it("is what the session panel asks before connecting", () => {
+    expect(sessionSource).toMatch(/beforeJoin=\{/);
+    expect(sessionSource).toMatch(/joinCheck\(confirmBeforeJoin\)/);
+    expect(sessionSource).not.toMatch(/guardConnect/);
   });
 });
 

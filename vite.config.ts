@@ -8,8 +8,9 @@ export default defineConfig({
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   resolve: {
-    // One copy of React even when @sandtreader/collab is a local link
-    dedupe: ["react", "react-dom"],
+    // One copy of React, MUI and Emotion even when @sandtreader/collab is a
+    // local link (its own dev installs would otherwise split the theme context)
+    dedupe: ["react", "react-dom", "@mui/material", "@mui/icons-material", "@emotion/react", "@emotion/styled"],
   },
   server: {
     port: 5174,
