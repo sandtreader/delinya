@@ -1046,8 +1046,9 @@ through `useSyncExternalStore`.
 ### Documentation site (`site/`, delinya.org)
 
 An Astro site on synflo.org's pattern: Astroship landing pages (home,
-changelog, 404; `src/pages/`, `src/components/`, GPL-3.0 template code,
-`site/LICENSE`) and Starlight docs under `/docs`
+changelog, 404; `src/pages/`, `src/components/`; the Astroship-derived
+parts stay GPL-3.0, `site/NOTICE.md` and `site/LICENSE-astroship`) and
+Starlight docs under `/docs`
 (`src/content/docs/docs/`), Tailwind 4, astro-icon (bx), sitemap. Same
 dependency ranges as SynFlo's site (Astro 5, Starlight 0.30), without its
 reference generator and screenshot scripts.
@@ -1083,6 +1084,10 @@ reference generator and screenshot scripts.
 
 ## Decisions taken (not in the outline)
 
+- Licence: AGPL-3.0-or-later (`LICENSE`, both package.json files). The
+  docs site's Astroship-derived components stay GPL-3.0
+  (`site/LICENSE-astroship`), combined under GPL-3.0 section 13; listed in
+  `site/NOTICE.md`. The collab library stays MIT.
 - Arranging moves once by default; "Keep linked" makes live links. The
   first-selected shape is the reference (Illustrator's key object).
 - Deleting a link's anchor writes its items' derived positions back before

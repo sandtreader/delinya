@@ -83,3 +83,10 @@ pnpm publish:site   # build the docs and rsync them to delinya.org
 
 Each release bumps the version in `package.json` and adds its entry to
 `CHANGELOG.md` (a test checks they agree).
+
+## Licence
+
+Delinya is free software under the GNU Affero General Public License,
+version 3 or any later version (`AGPL-3.0-or-later`): see [`LICENSE`](LICENSE).
+The docs site's landing page components are adapted from the Astroship
+template and stay under its GPL-3.0; see [`site/NOTICE.md`](site/NOTICE.md).

@@ -24,4 +24,6 @@ From the repo root: `pnpm dev:site`, `pnpm build:site`, and
 - The changelog page renders the repo's `CHANGELOG.md`.
 - `public/.htaccess` points Apache's 404 at `404.html`.
 
-The template code is GPL-3.0 (see `LICENSE`), as Astroship's.
+Licensing: AGPL-3.0-or-later like the rest of Delinya, except the landing
+page components adapted from Astroship, which stay GPL-3.0; see
+`NOTICE.md`.
