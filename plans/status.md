@@ -814,10 +814,11 @@ through `useSyncExternalStore`.
   a gaps spacing link per shape, the shape and its last copy as anchors and
   the copies between as items; "size" puts each shape's plain sizes
   (`EQUAL_PROPS`: width/height, diameter, length) and its copies' on a new
-  variable per size, named "width", "width 2"…; a size already on a
-  variable is left shared; "align" adds an align link per shape (anchor
-  the shape, items its copies, mode start across the row: tops for a row,
-  left edges for a column; other axis from gaps, so no clash). All in the
+  variable per size, named "width", "width 2"… (renameable afterwards,
+  see Properties below); a size already on a variable is left shared;
+  "align" adds an align link per shape (anchor the shape, items its
+  copies, mode start across the row: tops for a row, left edges for a
+  column; other axis from gaps, so no clash). All in the
   same batch, nothing moves. The
   copies become the selection, so pressing again carries on the row.
   `duplicateShapes` (`model/duplicate.ts`)
@@ -830,11 +831,16 @@ through `useSyncExternalStore`.
   between tabs, roving tabindex; component state, Drawing first). Drawing:
   title, author, revision, notes, printed in the title block. Grid:
   spacing (mm, the drawing's), Show grid and Snap to grid (yours, this
-  browser). Variables: their editable values. Panels stay mounted (hidden)
-  and share a min-height, so the dialog doesn't jump between tabs.
-  Fields commit on blur, so closing or switching tab blurs first. Field
-  widgets shared with the shape panel are in `panels/fields.tsx`; `Num`
-  takes an optional `valid` check and reverts text it refuses.
+  browser). Variables: a row each, name and value both editable. A
+  variable is renamed wherever its name shows (here, and the `= name` field
+  beside a linked length or radius in the shape panel), through
+  `renameVariable` (trimmed; refuses empty, unchanged or another
+  variable's name; links follow by id; `VariableName` in `fields.tsx`).
+  Panels stay mounted (hidden) and share a min-height, so the dialog
+  doesn't jump between tabs. Fields commit on blur, so closing or
+  switching tab blurs first. Field widgets shared with the shape panel are
+  in `panels/fields.tsx`; `Num` and `Text` take an optional `valid` check
+  and revert text it refuses, and a `label` (aria-label).
 - **Files** (`app/file.ts`): New, Open…, Save, Save as… in the toolbar;
   ⌘O, ⌘S, ⇧⌘S. Uses the File System Access API where present (Chromium),
   so Save writes back to the opened file; elsewhere Save downloads and

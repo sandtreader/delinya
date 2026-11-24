@@ -3,11 +3,11 @@
 // variables, the shared values that linked lengths follow.
 
 import { useEffect, useRef, useState, type KeyboardEvent } from "react";
-import { KINDS, isGridSpacing, propsChanged, setDocumentProps, setGridSpacing, type DocumentField } from "../model";
+import { KINDS, entitiesOfKind, isGridSpacing, propsChanged, setDocumentProps, setGridSpacing, type DocumentField } from "../model";
 import { store, useDocument } from "../app/store";
 import { useEditor } from "../app/editor";
 import { useFileName } from "../app/file";
-import { Num, Row, Text } from "./fields";
+import { Num, Row, Text, VariableName } from "./fields";
 import { tip } from "./tip";
 
 type Tab = "drawing" | "grid" | "variables";
@@ -151,17 +151,22 @@ function GridSettings() {
   );
 }
 
-function Variables() {
+/**
+ * Each variable's name and value, both editable; renaming keeps its links.
+ * A div per variable, not a Row's label: the two fields each have their own name.
+ */
+export function Variables() {
   const state = useDocument();
-  const vars = Object.entries(state.entities).filter(([, e]) => e.kind === KINDS.variable);
+  const vars = entitiesOfKind(state, KINDS.variable);
   return vars.length === 0
-    ? <p className="hint">None yet. Link equal lengths from the arrange panel to make one.</p>
+    ? <p className="hint">None yet. Link equal lengths from the arrange panel, or duplicate with linked size, to make one.</p>
     : (
       <>
-        {vars.map(([id, e]) => (
-          <Row key={id} label={(e.props.name as string | undefined) ?? id}>
-            <Num value={e.props.value as number} onCommit={(v) => store.commit(propsChanged(id, { value: v }))} />
-          </Row>
+        {vars.map(([id, v]) => (
+          <div key={id} className="row variable">
+            <VariableName id={id} name={v.name} />
+            <Num label={`Value of ${v.name ?? id}`} value={v.value} onCommit={(n) => store.commit(propsChanged(id, { value: n }))} />
+          </div>
         ))}
       </>
     );

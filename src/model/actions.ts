@@ -187,6 +187,20 @@ export function linkLengths(state: DocState, members: LengthRef[], variableId: E
 }
 
 /**
+ * Rename a variable; the lengths linked to it follow it by id, so they are
+ * left alone. The name is trimmed; an empty one, the same one, or one
+ * another variable has is refused (undefined), as is an id that isn't a
+ * variable.
+ */
+export function renameVariable(state: DocState, id: EntityId, name: string): Change | undefined {
+  const v = entityAs(state, id, KINDS.variable);
+  const trimmed = name.trim();
+  if (!v || trimmed === "" || trimmed === v.name) return undefined;
+  const taken = entitiesOfKind(state, KINDS.variable).some(([other, p]) => other !== id && p.name === trimmed);
+  return taken ? undefined : propsChanged(id, { name: trimmed });
+}
+
+/**
  * The sizes of each kind that can be made equal or share a variable (the
  * selection panel's Equal, Duplicate's linked size), with their labels.
  * Paths have none.

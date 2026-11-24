@@ -208,6 +208,9 @@ fieldset .row { width: 100%; }
 .row.stacked .text { resize: vertical; }
 .unit { color: var(--muted); }
 .linked { color: var(--accent); white-space: nowrap; }
+/* A linked length's variable, its name renamed in place: a narrow field in the link's colour. */
+span.linked { display: inline-flex; align-items: center; gap: 4px; }
+.row .text.var-name { flex: none; width: 7em; padding: 1px 4px; color: inherit; }
 .hint { color: var(--muted); }
 .warn { color: var(--warn); }
 

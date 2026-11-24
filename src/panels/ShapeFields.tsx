@@ -15,7 +15,7 @@ import { useEditor } from "../app/editor";
 import { useLiveText } from "../app/liveText";
 import { ALIGN_LABELS } from "../view/linkButtons";
 import { formatMm } from "../view/format";
-import { Num, Row } from "./fields";
+import { Num, Row, VariableName } from "./fields";
 import { IconButton, TextAlignIcon } from "./icons";
 import { LayerSelect, hasLayerChoice } from "./LayerSelect";
 import { tip } from "./tip";
@@ -234,7 +234,7 @@ function LengthRow({ id, prop, label, set }: { id: EntityId; prop: string; label
       <Num value={value} onCommit={(v) => { const c = set ? set(v) : setLength(state, id, prop, v); if (c) store.commit(c); }} />
       {isRef(raw) && (
         <span className="linked" {...tip(`Linked to variable ${raw.ref}`)}>
-          = {linked?.name ?? raw.ref}
+          = <VariableName id={raw.ref} name={linked?.name} className="var-name" />
           <button className="small" onClick={() => { const c = unlinkLength(store.state, id, prop); if (c) store.commit(c); }}>unlink</button>
         </span>
       )}
@@ -317,7 +317,7 @@ function AllCorners({ id }: { id: EntityId }) {
         labelled={labelled} sharp={sharp} name="the radius" hint="one label, 4× R…, for all four corners"
         onChange={() => { const c = toggleAllCornersLabel(store.state, id, newId("radius")); if (c) store.commit(c); }}
       />
-      {isRef(raw) && <span className="linked">= {entityAs(state, raw.ref, KINDS.variable)?.name ?? raw.ref}</span>}
+      {isRef(raw) && <span className="linked">= <VariableName id={raw.ref} name={entityAs(state, raw.ref, KINDS.variable)?.name} className="var-name" /></span>}
       {effective !== undefined && effective !== value && <span className="warn" {...tip("Clamped to fit")}>→ {formatMm(effective)}</span>}
     </div>
   );
@@ -341,7 +341,7 @@ function OneCorner({ id, corner }: { id: EntityId; corner: 0 | 1 | 2 | 3 }) {
         labelled={labelled} sharp={sharp} name={`the ${name} radius`}
         onChange={() => { const c = toggleRadiusLabel(store.state, id, corner, newId("radius")); if (c) store.commit(c); }}
       />
-      {isRef(raw) && <span className="linked">= {entityAs(state, raw.ref, KINDS.variable)?.name ?? raw.ref}</span>}
+      {isRef(raw) && <span className="linked">= <VariableName id={raw.ref} name={entityAs(state, raw.ref, KINDS.variable)?.name} className="var-name" /></span>}
       {effective !== undefined && effective !== value && <span className="warn" {...tip("Clamped to fit")}>→ {formatMm(effective)}</span>}
     </div>
   );

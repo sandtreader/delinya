@@ -5,6 +5,8 @@
 
 import { useEffect, useReducer, useRef } from "react";
 import { FieldDraft } from "../app/fieldDraft";
+import { store } from "../app/store";
+import { renameVariable, type EntityId } from "../model";
 import { formatMm } from "../view/format";
 
 export function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -57,18 +59,44 @@ export function Num({ value, onCommit, disabled, unit = "mm", valid, label }: {
   );
 }
 
-/** Free text, committed on blur or Enter (⌘Enter in a multi-line field). */
-export function Text({ value, onCommit, placeholder, multiline }: { value: string; onCommit: (v: string) => void; placeholder?: string; multiline?: boolean }) {
+/**
+ * Free text, committed on blur or Enter (⌘Enter in a multi-line field).
+ * Text that `valid` refuses goes back to the value. `label` names it, when
+ * it isn't inside a Row's label; `className` is added to its own.
+ */
+export function Text({ value, onCommit, placeholder, multiline, valid, label, className }: {
+  value: string; onCommit: (v: string) => void; placeholder?: string; multiline?: boolean;
+  valid?: (v: string) => boolean; label?: string; className?: string;
+}) {
   const [draft, rerender] = useDraft(value);
   useEffect(() => { draft.reset(value); rerender(); }, [value, draft]);
   const props = {
-    className: "text", value: draft.text, placeholder,
+    className: className ? `text ${className}` : "text", value: draft.text, placeholder, "aria-label": label,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => { draft.edit(e.target.value); rerender(); },
-    onBlur: () => { const text = draft.take(); if (text !== undefined) onCommit(text); },
+    onBlur: () => {
+      const text = draft.take();
+      if (text === undefined) return;
+      if (valid?.(text) ?? true) onCommit(text);
+      else { draft.reset(value); rerender(); }
+    },
     onKeyDown: (e: React.KeyboardEvent<HTMLInputElement | HTMLTextAreaElement>) => {
       if (e.key === "Enter" && (!multiline || e.metaKey || e.ctrlKey)) { e.preventDefault(); e.currentTarget.blur(); }
       if (e.key === "Escape") escape(draft, rerender, e);
     },
   };
   return multiline ? <textarea rows={4} {...props} /> : <input type="text" {...props} />;
+}
+
+/**
+ * A variable's name (its id while it has none), renamed in place. A name
+ * renameVariable refuses (empty, unchanged, another variable's) goes back.
+ */
+export function VariableName({ id, name, className }: { id: EntityId; name: string | undefined; className?: string }) {
+  return (
+    <Text
+      label="Variable name" value={name ?? id} className={className}
+      valid={(v) => renameVariable(store.state, id, v) !== undefined}
+      onCommit={(v) => { const c = renameVariable(store.state, id, v); if (c) store.commit(c); }}
+    />
+  );
 }
