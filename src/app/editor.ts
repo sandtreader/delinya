@@ -1,12 +1,12 @@
 // Editor (non-document) state: tool, selection, the selected dimension or
 // radius label, current layer, hidden and locked layers, grid show/snap,
-// dimension settings, view (and requests to fit it to the drawing), open
+// dimension settings, the line style to draw with, view (and requests to fit it to the drawing), open
 // dialog, duplicate settings, the text box being typed into. Never synced,
 // saved or undoable.
 
 import { createContext, useContext, type Dispatch } from "react";
 import {
-  isSelectable, type DimensionTarget, type DuplicateDirection, type EntityId, type LayerView, type LinkTarget, type Resolved, type ResolvedPolyNode,
+  DEFAULT_LINE_STYLE, isSelectable, type DimensionTarget, type LineStyle, type DuplicateDirection, type EntityId, type LayerView, type LinkTarget, type Resolved, type ResolvedPolyNode,
   type PathElement, type ResolvedPolyline, type SnapPoint,
 } from "../model";
 import { DEFAULT_VIEW, pan, zoomAt, type View } from "../view/viewport";
@@ -76,6 +76,11 @@ export interface EditorState {
    * radius labels show on screen: this viewer's own choice, kept in their browser.
    */
   labels: LabelView;
+  /**
+   * The line style new lines, rects, circles and paths are drawn with (the
+   * toolbar's, which also restyles a selection): this viewer's own, kept in their browser.
+   */
+  lineStyle: LineStyle;
   view: View;
   /**
    * How many times the view has been asked to fit the drawing (F, the
@@ -135,6 +140,7 @@ export const initialEditor: EditorState = {
   layerView: { hidden: new Set(), locked: new Set() },
   grid: DEFAULT_GRID_VIEW,
   labels: DEFAULT_LABEL_VIEW,
+  lineStyle: DEFAULT_LINE_STYLE,
   view: DEFAULT_VIEW,
   fitRequest: 0,
   cursor: null,
@@ -163,6 +169,7 @@ export type EditorAction =
   | { type: "resetLayers" }
   | { type: "grid"; grid: Partial<GridView> }
   | { type: "labels"; labels: Partial<LabelView> }
+  | { type: "lineStyle"; style: Partial<LineStyle> }
   | { type: "view"; view: View }
   | { type: "fit" }
   | { type: "panBy"; dx: number; dy: number }
@@ -224,6 +231,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
       const labels = { ...s.labels, ...a.labels };
       return { ...s, labels, label: labels.show ? s.label : null };
     }
+    case "lineStyle": return { ...s, lineStyle: { ...s.lineStyle, ...a.style } };
     case "view": return { ...s, view: a.view };
     case "fit": return { ...s, fitRequest: s.fitRequest + 1 };
     // Deltas, not absolute views: several pointer or wheel events can arrive

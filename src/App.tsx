@@ -23,6 +23,7 @@ import { useDirty, useFileName } from "./app/file";
 import { browserStorage } from "./app/floatPosition";
 import { loadGridView, saveGridView } from "./app/gridView";
 import { loadLabelView, saveLabelView } from "./app/labelView";
+import { loadLineStyle, saveLineStyle } from "./app/lineStylePref";
 import { STYLE } from "./output/style";
 import { RULER_PX } from "./view/rulers";
 import "./styles.css";
@@ -34,12 +35,13 @@ const RULER_SIZE = { "--ruler": `${RULER_PX}px` } as CSSProperties;
 const TOOL_KEYS: Record<string, Tool> = { v: "select", l: "line", r: "rect", c: "circle", p: "polyline", t: "text", d: "dimension" };
 
 export function App() {
-  // Showing and snapping to the grid, and the dimension settings, are this browser's choice, kept between visits.
+  // Showing and snapping to the grid, the dimension settings and the line style are this browser's choice, kept between visits.
   const [editor, dispatch] = useReducer(editorReducer, undefined, () => ({
-    ...initialEditor, grid: loadGridView(browserStorage()), labels: loadLabelView(browserStorage()),
+    ...initialEditor, grid: loadGridView(browserStorage()), labels: loadLabelView(browserStorage()), lineStyle: loadLineStyle(browserStorage()),
   }));
   useEffect(() => { saveGridView(browserStorage(), editor.grid); }, [editor.grid]);
   useEffect(() => { saveLabelView(browserStorage(), editor.labels); }, [editor.labels]);
+  useEffect(() => { saveLineStyle(browserStorage(), editor.lineStyle); }, [editor.lineStyle]);
   return (
     <EditorContext.Provider value={{ editor, dispatch }}>
       <Shell />

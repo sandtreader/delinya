@@ -2,7 +2,7 @@
 // button's text colour. Drawn larger, the stroke stays 1.5 px.
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
-import type { TextAlign } from "../model";
+import type { LineDash, TextAlign } from "../model";
 import { tip as tipProps } from "./tip";
 
 export function Icon({ size = 16, className, children }: { size?: number; className?: string; children: ReactNode }) {
@@ -117,6 +117,16 @@ export const AutoDimensionIcon = ({ off = false }: { off?: boolean }) => (
     <rect x="3.5" y="7.5" width="9" height="6" />
     <path d="M3.5 2v3.5M12.5 2v3.5M3.5 3.75h9" />
     {off && <path d="M2 14 14 2" />}
+  </Icon>
+);
+
+/** A line in a dash pattern: the toolbar's line style buttons. */
+export const LineDashIcon = ({ dash }: { dash: LineDash }) => (
+  <Icon size={BAR}>
+    {dash === "solid" && <path d="M1.5 8h13" />}
+    {dash === "dashed" && <path d="M1.5 8h3.5M6.5 8h3M11 8h3.5" />}
+    {dash === "dotted" && [2, 5, 8, 11, 14].map((x) => <circle key={x} cx={x} cy="8" r="0.9" fill="currentColor" stroke="none" />)}
+    {dash === "dashdot" && <><path d="M1.5 8h5M11 8h3.5" /><circle cx="8.75" cy="8" r="0.9" fill="currentColor" stroke="none" /></>}
   </Icon>
 );
 

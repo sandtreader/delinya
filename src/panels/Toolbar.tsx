@@ -4,7 +4,10 @@ import { useEditor } from "../app/editor";
 import { newDrawing, openDrawing, saveDrawing, saveDrawingAs, useDirty, useFileName } from "../app/file";
 import { tell } from "../app/ask";
 import { DEFAULT_VIEW } from "../view/viewport";
-import { AutoDimensionIcon, HistoryIcon, IconButton, NewIcon, OpenIcon, PrintIcon, PropertiesIcon, SaveAsIcon, SaveIcon } from "./icons";
+import { LINE_DASHES, LINE_WIDTHS, commonLineStyle, setLineStyle, type LineDash, type LineStyle } from "../model";
+import {
+  AutoDimensionIcon, HistoryIcon, IconButton, LineDashIcon, NewIcon, OpenIcon, PrintIcon, PropertiesIcon, SaveAsIcon, SaveIcon,
+} from "./icons";
 import { tip } from "./tip";
 import { quotedTitle } from "../view/format";
 import { discardPathDraft } from "../canvas/Canvas";
@@ -82,6 +85,9 @@ export function Toolbar() {
       <div className="group">
         <AutoDimensionToggle />
       </div>
+      <div className="group" role="group" aria-label="Line style">
+        <LineStylePicker />
+      </div>
       {/* File name and the drawing's title; opens Properties on its Drawing tab. */}
       <button
         type="button" className="filename" onClick={() => dispatch({ type: "dialog", dialog: "properties" })}
@@ -107,5 +113,45 @@ function AutoDimensionToggle() {
     >
       <AutoDimensionIcon off={!on} />
     </IconButton>
+  );
+}
+
+const DASH_LABEL: Record<LineDash, string> = { solid: "Solid line", dashed: "Dashed line", dotted: "Dotted line", dashdot: "Dash-dot (centre) line" };
+
+/**
+ * The line style to draw with: pattern buttons and a pen width. With lines,
+ * rects, circles or paths selected it shows theirs (blank or unpressed
+ * where they differ), and a choice restyles them too, as one undo step.
+ */
+function LineStylePicker() {
+  const { editor, dispatch } = useEditor();
+  const shown = commonLineStyle(store.resolved, editor.selection) ?? editor.lineStyle;
+  const set = (style: Partial<LineStyle>) => {
+    dispatch({ type: "lineStyle", style });
+    const c = setLineStyle(store.state, editor.selection, style);
+    if (c) store.commit(c);
+  };
+  // A width from elsewhere (a peer, a hand-edited file) still shows.
+  const widths = shown.width === null || LINE_WIDTHS.includes(shown.width) ? LINE_WIDTHS : [...LINE_WIDTHS, shown.width].sort((a, b) => a - b);
+  return (
+    <>
+      {LINE_DASHES.map((dash) => (
+        <IconButton
+          key={dash} label={DASH_LABEL[dash]} tip={`${DASH_LABEL[dash]}: for new shapes, and the selected ones`}
+          className={shown.dash === dash ? "icon on" : "icon"} aria-pressed={shown.dash === dash}
+          onClick={() => set({ dash })}
+        >
+          <LineDashIcon dash={dash} />
+        </IconButton>
+      ))}
+      <select
+        className="line-width" aria-label="Line width" {...tip("Line width: pen width on paper, at any print scale", "Line width")}
+        value={shown.width === null ? "" : String(shown.width)}
+        onChange={(e) => { const w = Number(e.target.value); if (w > 0) set({ width: w }); }}
+      >
+        {shown.width === null && <option value="">mixed</option>}
+        {widths.map((w) => <option key={w} value={String(w)}>{w} mm</option>)}
+      </select>
+    </>
   );
 }

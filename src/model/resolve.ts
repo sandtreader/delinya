@@ -21,7 +21,9 @@ import {
 import {
   type Axis, type DimensionProp, type DimensionProps, type EntityId, type Length,
   type AlignMode, type TextAlign, type PolyNodeType, type RadiusLabelProps, type SpacingMode, type SpacingProps,
-  BASE_LAYER_ID, DEFAULT_GRID_SPACING, DOCUMENT_FIELDS, DOCUMENT_ID, FONT_FAMILIES, KINDS, TEXT_ALIGNS, entitiesOfKind, isRef,
+  type LineStyle,
+  BASE_LAYER_ID, DEFAULT_GRID_SPACING, DEFAULT_LINE_STYLE, DOCUMENT_FIELDS, DOCUMENT_ID, FONT_FAMILIES, KINDS, LINE_DASHES, TEXT_ALIGNS,
+  entitiesOfKind, isRef,
 } from "./types";
 import { type FontStyle, BASELINE, LINE_SPACING, fitTextSize, fitWidth, textAdvance, wrapText } from "./font";
 
@@ -60,7 +62,12 @@ interface ResolvedBase {
   snaps: SnapPoint[];
 }
 
-export interface ResolvedLine extends ResolvedBase {
+/** A shape drawn as a stroke: its pen width on paper and dash pattern. */
+interface Stroked {
+  style: LineStyle;
+}
+
+export interface ResolvedLine extends ResolvedBase, Stroked {
   kind: "line";
   from: Point;
   to: Point;
@@ -68,7 +75,7 @@ export interface ResolvedLine extends ResolvedBase {
   angle: number;
 }
 
-export interface ResolvedRect extends ResolvedBase {
+export interface ResolvedRect extends ResolvedBase, Stroked {
   kind: "rect";
   x: number;
   y: number;
@@ -89,7 +96,7 @@ export interface ResolvedRect extends ResolvedBase {
   rotation: number;
 }
 
-export interface ResolvedCircle extends ResolvedBase {
+export interface ResolvedCircle extends ResolvedBase, Stroked {
   kind: "circle";
   centre: Point;
   diameter: number;
@@ -120,7 +127,7 @@ export interface ResolvedPolyNode {
  * endpoints, cusps as corners, curve nodes as tangents) and
  * the middle of each straight segment.
  */
-export interface ResolvedPolyline extends ResolvedBase {
+export interface ResolvedPolyline extends ResolvedBase, Stroked {
   kind: "polyline";
   /** The usable nodes, in order; at least 2 (3 when closed). */
   nodes: ResolvedPolyNode[];
@@ -413,15 +420,28 @@ function resolveLine(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, 
   const x = num(ctx, id, "x", p.x), y = num(ctx, id, "y", p.y);
   const angle = num(ctx, id, "angle", p.angle);
   const length = resolveLength(ctx, id, "length", p.length);
-  return buildLine(id, layer, [x, y], length, angle);
+  return buildLine(id, layer, [x, y], length, angle, lineStyle(ctx, id, p));
 }
 
-function buildLine(id: EntityId, layer: EntityId, from: Point, length: number, angle: number): ResolvedLine {
+/**
+ * A stroked shape's line style: the default's width or pattern where none
+ * is stored, or where what is stored is no good (with an issue).
+ */
+function lineStyle(ctx: Ctx, id: EntityId, p: Record<string, unknown>): LineStyle {
+  let { width, dash } = DEFAULT_LINE_STYLE;
+  if (isFiniteNum(p.lineWidth) && p.lineWidth > 0) width = p.lineWidth;
+  else if (p.lineWidth != null) ctx.issues.push({ entity: id, code: "bad-value", message: "line width is not a positive number" });
+  if ((LINE_DASHES as readonly unknown[]).includes(p.lineDash)) dash = p.lineDash as LineStyle["dash"];
+  else if (p.lineDash != null) ctx.issues.push({ entity: id, code: "bad-value", message: "line pattern is not one of solid, dashed, dotted or dashdot" });
+  return width === DEFAULT_LINE_STYLE.width && dash === DEFAULT_LINE_STYLE.dash ? DEFAULT_LINE_STYLE : { width, dash };
+}
+
+function buildLine(id: EntityId, layer: EntityId, from: Point, length: number, angle: number, style: LineStyle): ResolvedLine {
   // Not .map(snapNumber): map's index would become the decimal places.
   const to = polar(from, length, angle).map((v) => snapNumber(v)) as Point;
   const seg = segment(from, to);
   return {
-    id, kind: "line", layer, from, to, length, angle,
+    id, kind: "line", layer, from, to, length, angle, style,
     path: [seg],
     bounds: boundsOfPoints([from, to]),
     snaps: [
@@ -443,7 +463,7 @@ function resolveRect(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, 
   let rotation = 0;
   if (isFiniteNum(p.rotation)) rotation = normaliseAngle(p.rotation);
   else if (p.rotation != null) ctx.issues.push({ entity: id, code: "bad-value", message: "rotation is not a number" });
-  return buildRect(id, layer, x, y, width, height, clamped, rotation);
+  return buildRect(id, layer, x, y, width, height, clamped, rotation, lineStyle(ctx, id, p));
 }
 
 /**
@@ -466,6 +486,7 @@ export function clampRadii(r: [number, number, number, number], width: number, h
 
 function buildRect(
   id: EntityId, layer: EntityId, x: number, y: number, width: number, height: number, r: [number, number, number, number], rotation: number,
+  style: LineStyle,
 ): ResolvedRect {
   const [tl, tr, br, bl] = r;
   const corners: [Point, Point, Point, Point] = [[x, y], [x + width, y], [x + width, y + height], [x, y + height]];
@@ -513,7 +534,7 @@ function buildRect(
   );
 
   const upright: ResolvedRect = {
-    id, kind: "rect", layer, x, y, width, height, r, corners, arcs, path, snaps, rotation: 0,
+    id, kind: "rect", layer, x, y, width, height, r, corners, arcs, path, snaps, rotation: 0, style,
     bounds: { minX: x, minY: y, maxX: x + width, maxY: y + height },
   };
   return rotation === 0 ? upright : turnRect(upright, rotation);
@@ -623,14 +644,14 @@ function buildText(id: EntityId, layer: EntityId, box: TextBox, layout?: Pick<Re
 function resolveCircle(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, unknown>): ResolvedCircle {
   const cx = num(ctx, id, "cx", p.cx), cy = num(ctx, id, "cy", p.cy);
   const diameter = resolveLength(ctx, id, "diameter", p.diameter);
-  return buildCircle(id, layer, [cx, cy], diameter);
+  return buildCircle(id, layer, [cx, cy], diameter, lineStyle(ctx, id, p));
 }
 
-function buildCircle(id: EntityId, layer: EntityId, centre: Point, diameter: number): ResolvedCircle {
+function buildCircle(id: EntityId, layer: EntityId, centre: Point, diameter: number, style: LineStyle): ResolvedCircle {
   const radius = diameter / 2;
   const [cx, cy] = centre;
   return {
-    id, kind: "circle", layer, centre, diameter, radius,
+    id, kind: "circle", layer, centre, diameter, radius, style,
     path: [fullCircle(centre, radius)],
     bounds: { minX: cx - radius, minY: cy - radius, maxX: cx + radius, maxY: cy + radius },
     snaps: [
@@ -677,7 +698,7 @@ function resolvePolyline(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<stri
   let closed = p.closed === true;
   if (closed && nodes.length < 3) { bad("a closed path needs at least 3 nodes"); closed = false; }
   smoothAutoNodes(nodes, closed);
-  return buildPolyline(id, layer, nodes, closed);
+  return buildPolyline(id, layer, nodes, closed, lineStyle(ctx, id, p));
 }
 
 function isFiniteNum(v: unknown): v is number {
@@ -720,7 +741,7 @@ function smoothAutoNodes(nodes: ResolvedPolyNode[], closed: boolean): void {
 }
 
 /** Path, bounds and snaps from nodes whose curve nodes all have their handles (auto ones smoothed). */
-function buildPolyline(id: EntityId, layer: EntityId, nodes: ResolvedPolyNode[], closed: boolean): ResolvedPolyline {
+function buildPolyline(id: EntityId, layer: EntityId, nodes: ResolvedPolyNode[], closed: boolean, style: LineStyle): ResolvedPolyline {
   const n = nodes.length;
   const path: Path = [];
   const snaps: SnapPoint[] = nodes.map((node, i) => ({
@@ -738,18 +759,18 @@ function buildPolyline(id: EntityId, layer: EntityId, nodes: ResolvedPolyNode[],
       path.push(cubic(a.point, offsetBy(a.point, a.out), offsetBy(b.point, b.in), b.point));
     }
   }
-  return { id, kind: "polyline", layer, nodes, closed, path, bounds: pathBounds(path), snaps };
+  return { id, kind: "polyline", layer, nodes, closed, style, path, bounds: pathBounds(path), snaps };
 }
 
 /** Rebuild a shape at a new position. Sizes are untouched. */
 export function translateShape(s: ResolvedShape, dx: number, dy: number): ResolvedShape {
   if (dx === 0 && dy === 0) return s;
   switch (s.kind) {
-    case "line": return buildLine(s.id, s.layer, [s.from[0] + dx, s.from[1] + dy], s.length, s.angle);
-    case "rect": return buildRect(s.id, s.layer, s.x + dx, s.y + dy, s.width, s.height, s.r, s.rotation);
-    case "circle": return buildCircle(s.id, s.layer, [s.centre[0] + dx, s.centre[1] + dy], s.diameter);
+    case "line": return buildLine(s.id, s.layer, [s.from[0] + dx, s.from[1] + dy], s.length, s.angle, s.style);
+    case "rect": return buildRect(s.id, s.layer, s.x + dx, s.y + dy, s.width, s.height, s.r, s.rotation, s.style);
+    case "circle": return buildCircle(s.id, s.layer, [s.centre[0] + dx, s.centre[1] + dy], s.diameter, s.style);
     // Handles are offsets, so they move with their nodes.
-    case "polyline": return buildPolyline(s.id, s.layer, s.nodes.map((n) => ({ ...n, point: [n.point[0] + dx, n.point[1] + dy] })), s.closed);
+    case "polyline": return buildPolyline(s.id, s.layer, s.nodes.map((n) => ({ ...n, point: [n.point[0] + dx, n.point[1] + dy] })), s.closed, s.style);
     // Same box and text, so the same size and lines.
     case "text": return buildText(s.id, s.layer, { ...s, x: s.x + dx, y: s.y + dy }, s);
   }

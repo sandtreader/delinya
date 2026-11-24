@@ -8,7 +8,7 @@
 // Every change replaces the whole `nodes` list: props_changed merges
 // shallowly, and a node is one value of it.
 
-import { type Change, type DocState, type PropValue, applyChange } from "@sandtreader/collab/protocol";
+import { type Change, type DocState, type Props, type PropValue, applyChange } from "@sandtreader/collab/protocol";
 import { type Point, cubic, distance, lerp, snapNumber, splitCubic } from "./geometry";
 import { type Resolved, type ResolvedPolyNode, type ResolvedPolyline, resolve } from "./resolve";
 import { type Gesture, batch, deleteEntity, drawnOffset, propsChanged, shiftNodes } from "./actions";
@@ -357,11 +357,10 @@ export function deletePolySegment(
   if (!keepTail) return { change: propsChanged(id, { nodes: head as PropValue[] }), ids: [id] };
   if (!keepHead) return { change: propsChanged(id, { nodes: tail as PropValue[] }), ids: [id] };
   const other = makeId(KINDS.polyline);
-  const layer = state.entities[id]!.props.layer;
   return {
     change: batch([
       propsChanged(id, { nodes: head as PropValue[] }),
-      { type: "entity_added", id: other, kind: KINDS.polyline, props: { nodes: structuredClone(tail) as PropValue[], ...(layer !== undefined ? { layer } : {}) } },
+      { type: "entity_added", id: other, kind: KINDS.polyline, props: { nodes: structuredClone(tail) as PropValue[], ...partProps(state, id) } },
     ]),
     ids: [id, other],
   };
@@ -431,11 +430,10 @@ export function breakPolyNode(
   const k = all.indexOf(node);
   if (k === 0 || k === all.length - 1) return undefined;
   const other = makeId(KINDS.polyline);
-  const layer = state.entities[id]!.props.layer;
   return {
     change: batch([
       propsChanged(id, { nodes: [...stored.slice(0, index), head] as PropValue[] }),
-      { type: "entity_added", id: other, kind: KINDS.polyline, props: { nodes: structuredClone([tail, ...stored.slice(index + 1)]) as PropValue[], ...(layer !== undefined ? { layer } : {}) } },
+      { type: "entity_added", id: other, kind: KINDS.polyline, props: { nodes: structuredClone([tail, ...stored.slice(index + 1)]) as PropValue[], ...partProps(state, id) } },
     ]),
     ids: [id, other],
     node: index,
@@ -521,4 +519,12 @@ export function joinPolyEnds(state: DocState, a: PolyNodeRef, b: PolyNodeRef): {
     change: batch([...(gone.type === "batch" ? gone.changes : [gone]), propsChanged(a.shape, props)]),
     node: headA.length,
   };
+}
+
+/** What a path split in two passes to its new part: its layer and line style, as stored. */
+function partProps(state: DocState, id: EntityId): Props {
+  const p = state.entities[id]!.props;
+  const out: Props = {};
+  for (const k of ["layer", "lineWidth", "lineDash"] as const) if (p[k] !== undefined) out[k] = structuredClone(p[k]!);
+  return out;
 }

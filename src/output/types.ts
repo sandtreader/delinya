@@ -8,7 +8,7 @@
 // Coordinates as in the model: x right, y down, angles in degrees from +x
 // towards +y. Page units are paper millimetres from the top-left corner.
 
-import type { Bounds, EntityId, FontStyle, Path, Point } from "../model";
+import type { Bounds, EntityId, FontStyle, LineStyle, Path, Point } from "../model";
 
 /** What a primitive is; each renderer picks stroke width and dash from it. */
 export type Role = "shape" | "dimension" | "furniture" | "guide";
@@ -20,6 +20,11 @@ export interface PathPrim {
   path: Path;
   /** Ink ("#rrggbb") in place of the role's: a shape on a coloured layer. */
   colour?: string;
+  /**
+   * A shape's own line style in place of the role's width and solid line,
+   * when it isn't the default. The width is paper mm whatever the scale.
+   */
+  line?: LineStyle;
 }
 
 export interface TextPrim {

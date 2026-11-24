@@ -48,6 +48,12 @@ body { background: var(--bg); }
 .filename .title { color: var(--ink); margin-left: 8px; }
 .group { display: flex; gap: 4px; align-items: center; }
 .toolbar .group { gap: 2px; }
+/* The line style's pen width, sized like the buttons beside it. */
+.toolbar select.line-width {
+  font: inherit; color: var(--ink); background: var(--panel); height: 30px; margin-left: 2px;
+  border: 1px solid var(--line); border-radius: 4px; padding: 0 2px; cursor: pointer; font-variant-numeric: tabular-nums;
+}
+.toolbar select.line-width:hover { border-color: var(--accent); }
 button.icon { padding: 4px; line-height: 0; }
 .zoom { color: var(--muted); font-variant-numeric: tabular-nums; margin-right: 6px; }
 

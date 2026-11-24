@@ -46,8 +46,30 @@ export const SHAPE_KINDS: ReadonlySet<string> = new Set<ShapeKind>(["line", "rec
 
 // ---- Shapes ----
 
+/** A stroke's dash pattern (see lineStyle.ts for the lengths). */
+export type LineDash = "solid" | "dashed" | "dotted" | "dashdot";
+export const LINE_DASHES: readonly LineDash[] = ["solid", "dashed", "dotted", "dashdot"];
+/** The ISO 128 pen widths offered, paper mm. */
+export const LINE_WIDTHS: readonly number[] = [0.13, 0.18, 0.25, 0.35, 0.5, 0.7, 1, 1.4, 2];
+
+/**
+ * How a line, rect, circle or path is stroked: `width` is a pen width on
+ * paper (mm), the same at any print scale and on screen at any zoom.
+ */
+export interface LineStyle {
+  width: number;
+  dash: LineDash;
+}
+export const DEFAULT_LINE_STYLE: LineStyle = { width: 0.35, dash: "solid" };
+
+/** A stroked shape's line style as stored: absent is the default's. */
+export interface StrokeProps {
+  lineWidth?: number;
+  lineDash?: LineDash;
+}
+
 /** A line from (x, y) at `angle` for `length`. Length can be linked. */
-export interface LineProps {
+export interface LineProps extends StrokeProps {
   x: number;
   y: number;
   length: Length;
@@ -61,7 +83,7 @@ export interface LineProps {
  * height and r (one corner radius per corner, [tl, tr, br, bl]) are its own
  * sides and corners, as if it were upright.
  */
-export interface RectProps {
+export interface RectProps extends StrokeProps {
   x: number;
   y: number;
   width: Length;
@@ -71,7 +93,7 @@ export interface RectProps {
   layer?: EntityId;
 }
 
-export interface CircleProps {
+export interface CircleProps extends StrokeProps {
   cx: number;
   cy: number;
   diameter: Length;
@@ -106,7 +128,7 @@ export type PolyNode = {
  * its start has an `out` or its end an `in` (an auto curve node always
  * has both), else straight. At least 2 nodes; closed needs 3.
  */
-export interface PolyProps {
+export interface PolyProps extends StrokeProps {
   nodes: PolyNode[];
   closed?: boolean;
   layer?: EntityId;

@@ -25,10 +25,18 @@
 // hidden, and their shapes, are left out. See dxfLayerNames for how layers
 // are named. A layer's colour is its palette entry's ACI (7, black on white,
 // for the default; the nearest entry for a colour outside the palette).
+//
+// A shape's dash pattern is a linetype: DASHED, DOTTED or DASHDOT, defined
+// in the LTYPE table (only those used) at the default width's lengths and
+// named on the entity (group 6); a solid shape names none, so is the
+// layer's CONTINUOUS. R12 has no line widths (group 39 is extrusion
+// thickness, not a pen), so widths are left out; CAM tools ignore them anyway.
 
 import {
   type Arc, type Path, type PathElement, type Point, type ResolvedLayer, type ResolvedText,
-  cosSin, elementEnd, elementLength, elementStart, flattenCubic, fontMetrics, isVisible, layerColourEntry, pointsNear, unionBounds,
+  type LineDash,
+  DEFAULT_LINE_STYLE, LINE_DASHES, cosSin, dashLengths, elementEnd, elementLength, elementStart, flattenCubic, fontMetrics, isVisible,
+  layerColourEntry, pointsNear, unionBounds,
 } from "../model";
 import type { EntityId, Resolved } from "../model";
 
@@ -37,6 +45,18 @@ const JOIN = 1e-6;
 
 /** Furthest (mm) a flattened curve's chords stray from it. */
 const FLATTEN = 0.01;
+
+/** Each dash pattern's linetype name and description. */
+const LINETYPES: Record<Exclude<LineDash, "solid">, { name: string; description: string }> = {
+  dashed: { name: "DASHED", description: "Dashed __ __ __" },
+  dotted: { name: "DOTTED", description: "Dotted . . . ." },
+  dashdot: { name: "DASHDOT", description: "Dash dot __ . __ ." },
+};
+
+/** The linetype a shape names, or undefined for solid (by layer). */
+function linetypeOf(dash: LineDash): string | undefined {
+  return dash === "solid" ? undefined : LINETYPES[dash].name;
+}
 
 /** Longest layer name R12 allows. */
 const MAX_NAME = 31;
@@ -60,9 +80,18 @@ export function exportDxf(resolved: Resolved, hidden: ReadonlySet<EntityId> = ne
   out.endsec();
 
   out.section("TABLES");
-  out.pair(0, "TABLE").pair(2, "LTYPE").pair(70, 1);
+  const used = new Set(shapes.map((s) => (s.kind === "text" ? "solid" : s.style.dash)));
+  const dashes = LINE_DASHES.filter((d): d is Exclude<LineDash, "solid"> => d !== "solid" && used.has(d));
+  out.pair(0, "TABLE").pair(2, "LTYPE").pair(70, 1 + dashes.length);
   out.pair(0, "LTYPE").pair(2, "CONTINUOUS").pair(70, 0).pair(3, "Solid line")
     .pair(72, 65).pair(73, 0).pair(40, 0);
+  for (const d of dashes) {
+    // As seen at the default width: dashes positive, gaps negative, dots 0.
+    const lengths = dashLengths(d, DEFAULT_LINE_STYLE.width);
+    out.pair(0, "LTYPE").pair(2, LINETYPES[d].name).pair(70, 0).pair(3, LINETYPES[d].description)
+      .pair(72, 65).pair(73, lengths.length).pair(40, lengths.reduce((a, b) => a + b, 0));
+    lengths.forEach((v, i) => out.pair(49, i % 2 === 0 ? v : -v));
+  }
   out.pair(0, "ENDTAB");
   out.pair(0, "TABLE").pair(2, "LAYER").pair(70, layers.length);
   for (const l of layers) {
@@ -74,7 +103,7 @@ export function exportDxf(resolved: Resolved, hidden: ReadonlySet<EntityId> = ne
   out.section("ENTITIES");
   for (const s of shapes) {
     if (s.kind === "text") writeText(out, s, names.get(s.layer)!);
-    else writePath(out, s.path, names.get(s.layer)!);
+    else writePath(out, s.path, { layer: names.get(s.layer)!, linetype: linetypeOf(s.style.dash) });
   }
   out.endsec();
 
@@ -104,13 +133,19 @@ function dxfLayerNames(layers: ResolvedLayer[]): Map<EntityId, string> {
   return out;
 }
 
-function writePath(out: Writer, path: Path, layer: string): void {
+/** Where an entity goes: its DXF layer, and its linetype if not the layer's. */
+interface On {
+  layer: string;
+  linetype?: string;
+}
+
+function writePath(out: Writer, path: Path, on: On): void {
   for (const run of runs(path)) {
     const e = run[0]!;
-    if (run.length > 1 || e.kind === "cubic") writePolyline(out, run, layer);
-    else if (e.kind === "segment") writeLine(out, e.from, e.to, layer);
-    else if (isFullCircle(e)) writeCircle(out, e, layer);
-    else writeArc(out, e, layer);
+    if (run.length > 1 || e.kind === "cubic") writePolyline(out, run, on);
+    else if (e.kind === "segment") writeLine(out, e.from, e.to, on);
+    else if (isFullCircle(e)) writeCircle(out, e, on);
+    else writeArc(out, e, on);
   }
 }
 
@@ -133,24 +168,26 @@ function runs(path: Path): PathElement[][] {
   return out;
 }
 
-function writeLine(out: Writer, from: Point, to: Point, layer: string): void {
-  out.entity("LINE", layer).point(from).point(to, 1);
+function writeLine(out: Writer, from: Point, to: Point, on: On): void {
+  out.shape("LINE", on).point(from).point(to, 1);
 }
 
-function writeCircle(out: Writer, a: Arc, layer: string): void {
-  out.entity("CIRCLE", layer).point(a.centre).pair(40, a.radius);
+function writeCircle(out: Writer, a: Arc, on: On): void {
+  out.shape("CIRCLE", on).point(a.centre).pair(40, a.radius);
 }
 
-function writeArc(out: Writer, a: Arc, layer: string): void {
+function writeArc(out: Writer, a: Arc, on: On): void {
   // Negating y negates angles and reverses direction: the clockwise
   // start→end becomes counter-clockwise from −end to −start.
   const lo = Math.min(a.start, a.end), hi = Math.max(a.start, a.end);
-  out.entity("ARC", layer).point(a.centre).pair(40, a.radius).pair(50, angle(-hi)).pair(51, angle(-lo));
+  out.shape("ARC", on).point(a.centre).pair(40, a.radius).pair(50, angle(-hi)).pair(51, angle(-lo));
 }
 
-function writePolyline(out: Writer, run: PathElement[], layer: string): void {
+function writePolyline(out: Writer, run: PathElement[], on: On): void {
+  const { layer } = on;
   const closed = pointsNear(endOf(run[run.length - 1]!), startOf(run[0]!), JOIN);
-  out.entity("POLYLINE", layer).pair(66, 1).point([0, 0]).pair(70, closed ? 1 : 0);
+  // The linetype on the POLYLINE: its vertices draw with it.
+  out.shape("POLYLINE", on).pair(66, 1).point([0, 0]).pair(70, closed ? 1 : 0);
   for (const e of run) {
     if (e.kind === "cubic") {
       // Every point but the last, which starts the next element (or ends the run).
@@ -251,6 +288,12 @@ class Writer {
   /** An entity record's start, on DXF layer `layer`. */
   entity(type: string, layer: string): this {
     return this.pair(0, type).pair(8, layer);
+  }
+
+  /** A shape entity's start: its layer, and its linetype when it names one. */
+  shape(type: string, on: On): this {
+    this.entity(type, on.layer);
+    return on.linetype ? this.pair(6, on.linetype) : this;
   }
 
   section(name: string): this {

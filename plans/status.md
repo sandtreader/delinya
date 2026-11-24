@@ -1,13 +1,15 @@
 # Delinya — Status and Handoff
 
-Last updated 2026-11-23. Repo `sandtreader/delinya`, branch `main`.
+Last updated 2026-11-24. Repo `sandtreader/delinya`, branch `main`.
 v0.2.1 is committed, tagged and deployed to delinya.net: on top of
 v0.1.2's text boxes (typed on the drawing or in the panel, aligned, never
 narrower than their longest word; Adobe Core 14 metrics in
 `model/fontMetrics.ts`), fit view to drawing and the Dimension tool,
 radius labels by hand, moving and deleting dimensions and the viewer's
-dimension settings (see Model, Dimensions, and UI). Vitest tests, `tsc`
-and the build pass.
+dimension settings (see Model, Dimensions, and UI). Since then, not yet
+released: line styles, a pen width and dash pattern per shape, set from
+the top toolbar (see Model, Output and UI). Vitest tests, `tsc` and the
+build pass.
 
 ## Where we are
 
@@ -252,6 +254,30 @@ but has no UI.
   the generic entity shape (resolve handles bad props), keeps unknown
   kinds, and refuses newer versions. Bump `FILE_VERSION` only when an
   older reader would misread a file.
+- **Line styles** (`types.ts`, `lineStyle.ts`): lines, rects, circles and
+  paths (not text) store optional `lineWidth` (a pen width on paper, mm:
+  the same at any print scale, on screen at any zoom) and `lineDash`
+  (`LineDash` "solid" | "dashed" | "dotted" | "dashdot", `LINE_DASHES`),
+  absent meaning `DEFAULT_LINE_STYLE` { 0.35, solid }; `LINE_WIDTHS` are
+  the ISO 128 pens offered (0.13 … 2). Resolve gives those shapes `style:
+  LineStyle` (a bad width, not a positive number, or pattern is the
+  default's with a `bad-value` issue each); `translateShape` keeps it.
+  Patterns are ISO 128 in units u = max(width, `DASH_UNIT_MIN` 0.35), so
+  thin lines still read as dashed: `dashLengths(dash, width)` as seen
+  (dashed 12u dash 3u gap; dotted dots 3u apart; dash-dot 24u, 3u, dot,
+  3u); `dashArray(dash, width)` is what SVG and PDF stroke with round
+  caps (each dash shortened by the width, min 0, each gap lengthened by
+  it; `roundCapArray(dash, unit, width)` for any units). Actions:
+  `setLineStyle(state, ids, { width?, dash? })` on the stroked shapes
+  among ids as one change (the default stored as nothing: the prop
+  removed; undefined if nothing changes or the style is bad);
+  `styleProps(style)` what a new shape stores (only what differs);
+  `commonLineStyle(resolved, ids)` the stroked shapes' shared style, each
+  part null where they differ, null with none. Splitting a path
+  (`deletePolySegment`, `breakPolyNode`) gives the new part the old one's
+  layer and style; turning, duplicating and joining (the first path's)
+  keep them. Point-to-point measurements need no kind of their own: a line
+  between snap points with its length dimension.
 
 ### Collaboration (`src/collab/index.ts`)
 
@@ -371,6 +397,25 @@ through `useSyncExternalStore`.
   Print and export keep their own dimensions option. The layer palette's
   home is (10, 279), below the tool palette (259 px with the Dimension
   tool).
+- **Line styles** (UI): the top toolbar's "Line style" group, after
+  "Dimension new shapes": four pattern buttons (`LineDashIcon`: solid,
+  dashed, dotted, dash-dot; tinted and `aria-pressed` for the one shown)
+  and a pen width `<select>` ("0.35 mm"…; a width outside `LINE_WIDTHS`
+  still listed; "mixed" when the selection differs). It shows
+  `commonLineStyle` of the selection when that has lines, rects, circles
+  or paths, else the viewer's current style. A choice sets the current
+  style (editor `lineStyle`, action `{ type: "lineStyle", style }`;
+  `app/lineStylePref.ts` `loadLineStyle`/`saveLineStyle` under
+  localStorage `delinya.lineStyle`, each part falling back to the
+  default; loaded at start and saved on change in `App`) and restyles the
+  selected stroked shapes, one undo step per choice. Lines, rects, circles
+  and paths drawn take `styleProps` of the current style (a path's as it
+  is when finished). The canvas strokes each at its paper width at 96 px
+  to the inch whatever the zoom (`view/lineScreen.ts`:
+  `SCREEN_PX_PER_MM`, `screenLineWidth` at least 1 px, `screenDashArray`
+  in px with the round-cap rule at the drawn width; × `hair` for world
+  units), 0.8 px thicker when selected, hit area max(12, width + 8) px;
+  locked layers' shapes too. Previews and text are as before.
 - **Text boxes** (UI): the Text tool drags out a box like the rectangle
   tool (dashed preview; `newTextProps(start, current, layer)` in
   `view/textSvg.ts`: empty, sans, sized as a rect; nothing if no width or
@@ -803,6 +848,18 @@ through `useSyncExternalStore`.
   no 72/11; "%" as "%%%", ° and ± as %%d/%%p, other non-ASCII as
   `\U+XXXX`), never the outline. `output/text.ts` labels now measure
   with the same Helvetica table (unchanged widths).
+- **Line styles in output**: a shape's `PathPrim` carries `line` (its
+  `LineStyle`) when it isn't the default; compose passes it through
+  unscaled (paper widths). `strokeOf(prim)` (`style.ts`) gives width and
+  round-cap dash array: the shape's, else the role's width, dashed only
+  for guides. SVG writes `stroke-width` and `stroke-dasharray`; PDF sets
+  `w` and `d` only when they change (the state holds the array as
+  written, so guides' dashes still work). DXF (R12 has no line widths;
+  group 39 is extrusion, not a pen) defines a linetype for each pattern
+  used, DASHED, DOTTED, DASHDOT, in the LTYPE table at 0.35 mm's lengths
+  (72 = 65, 73 count, 40 total, 49 each: dash +, gap −, dot 0), and names
+  it (6) on the shape's LINE, CIRCLE, ARC or POLYLINE; solid names none,
+  so is the layer's CONTINUOUS. Widths are left out.
 - Dimension text (output and canvas, both via `view/dimensionText.ts`)
   runs along its line turned to read left to right (vertical reads bottom
   to top), on the side away from the shape, so a turned rect's or any
@@ -998,9 +1055,8 @@ through `useSyncExternalStore`.
    paths; also Shift to constrain a handle's angle, selecting a node or
    segment on the click that selects the path, multi-node/segment
    selection, joining by dropping one end on another (now via the card).
-6. Line styles: dashed, dotted and thickness. Point-to-point measurements
-   are a line between snap points with its length dimension, so they need
-   no separate kind.
+6. Line style extras: by layer (a layer default, shapes overriding),
+   line widths in DXF (needs R2000+, group 370).
 
 ## Gotchas for whoever picks this up
 

@@ -1,6 +1,9 @@
 // Fixed sizes for output, in paper millimetres. Shared by every renderer so
 // a printout, its PDF and the preview match.
 
+import { dashArray } from "../model";
+import type { PathPrim } from "./types";
+
 export const STYLE = {
   /** Stroke widths by role. */
   stroke: { shape: 0.35, dimension: 0.18, furniture: 0.2, guide: 0.2 },
@@ -20,6 +23,15 @@ export const STYLE = {
   /** Clear space kept around the drawing's bounds. */
   padding: 2,
 };
+
+/**
+ * How a path is stroked: its shape's own line style, else its role's width
+ * (dashed for guides). `dash` is the array to draw with round caps; [] is solid.
+ */
+export function strokeOf(p: PathPrim): { width: number; dash: readonly number[] } {
+  if (p.line) return { width: p.line.width, dash: dashArray(p.line.dash, p.line.width) };
+  return { width: STYLE.stroke[p.role], dash: p.role === "guide" ? STYLE.guideDash : [] };
+}
 
 /** Blank border on every page; most printers can't reach the edge. */
 export const PAGE_MARGIN = 10;

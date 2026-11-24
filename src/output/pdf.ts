@@ -9,9 +9,9 @@
 // file is ASCII and uncompressed, and the output is deterministic.
 
 import { type Arc, type Path, type Point, type StandardFont, DEFAULT_FONT, STANDARD_FONTS, standardFont, textAdvance } from "../model";
-import { STYLE } from "./style";
+import { STYLE, strokeOf } from "./style";
 import { textWidth, toWinAnsi } from "./text";
-import type { PageDrawing, PathPrim, Primitive, Role, TextPrim } from "./types";
+import type { PageDrawing, PathPrim, Primitive, TextPrim } from "./types";
 
 /** Points per paper millimetre. */
 const PT = 72 / 25.4;
@@ -91,7 +91,8 @@ function blankPage(width: number, height: number): PageDrawing {
 /** Graphics state the writer has set, so it only emits changes. */
 interface GState {
   width: number | null;
-  dashed: boolean;
+  /** The dash operator's array as written ("" solid). */
+  dash: string;
   /** Stroke and fill colours as written: "r g b", 0..1. */
   stroke: string;
   fill: string;
@@ -107,7 +108,7 @@ function pageContent(page: PageDrawing, height: string): string {
     `${BLACK} RG`,
     `${BLACK} rg`,
   ];
-  let state: GState = { width: null, dashed: false, stroke: BLACK, fill: BLACK };
+  let state: GState = { width: null, dash: "", stroke: BLACK, fill: BLACK };
 
   const c = page.clip;
   const saved = { ...state };
@@ -128,15 +129,15 @@ function primitive(p: Primitive, ops: string[], state: GState): void {
 function pathOps(p: PathPrim, ops: string[], state: GState): void {
   const draw = pathDrawOps(p.path);
   if (draw.length === 0) return;
-  const width = STYLE.stroke[p.role];
-  if (state.width !== width) {
-    ops.push(`${f(width)} w`);
-    state.width = width;
+  const stroke = strokeOf(p);
+  if (state.width !== stroke.width) {
+    ops.push(`${f(stroke.width)} w`);
+    state.width = stroke.width;
   }
-  const dashed = isDashed(p.role);
-  if (state.dashed !== dashed) {
-    ops.push(dashed ? `[${STYLE.guideDash.map((d) => f(d)).join(" ")}] 0 d` : "[] 0 d");
-    state.dashed = dashed;
+  const dash = stroke.dash.map((d) => f(d)).join(" ");
+  if (state.dash !== dash) {
+    ops.push(`[${dash}] 0 d`);
+    state.dash = dash;
   }
   const colour = rgb(p.colour ?? STYLE.colour[p.role]);
   if (state.stroke !== colour) {
@@ -144,10 +145,6 @@ function pathOps(p: PathPrim, ops: string[], state: GState): void {
     state.stroke = colour;
   }
   ops.push(...draw, "S");
-}
-
-function isDashed(role: Role): boolean {
-  return role === "guide";
 }
 
 /** Path construction operators; moves only where a run doesn't continue. */

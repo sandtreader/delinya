@@ -5,7 +5,7 @@ import type { EntityId, Resolved } from "../model";
 import { pathToSvg } from "../view/svgPath";
 import { svgNumber as num, textElementAttrs } from "../view/textSvg";
 import { drawingPrimitives, primitivesBounds } from "./primitives";
-import { STYLE, SVG_PADDING } from "./style";
+import { STYLE, SVG_PADDING, strokeOf } from "./style";
 import type { PageDrawing, Primitive } from "./types";
 
 const FONT = "Helvetica, Arial, sans-serif";
@@ -54,8 +54,9 @@ function layer(prims: Primitive[]): string {
   for (const p of prims) {
     if (p.kind === "path") {
       if (!p.path.length) continue;
-      const dash = p.role === "guide" ? ` stroke-dasharray="${STYLE.guideDash.join(" ")}"` : "";
-      paths.push(`<path d="${pathToSvg(p.path)}" stroke-width="${STYLE.stroke[p.role]}"${dash}${ink("stroke", p.colour ?? STYLE.colour[p.role])}/>`);
+      const stroke = strokeOf(p);
+      const dash = stroke.dash.length ? ` stroke-dasharray="${stroke.dash.map((d) => num(d)).join(" ")}"` : "";
+      paths.push(`<path d="${pathToSvg(p.path)}" stroke-width="${num(stroke.width)}"${dash}${ink("stroke", p.colour ?? STYLE.colour[p.role])}/>`);
     } else if (p.text && p.font) {
       const attrs = Object.entries(textElementAttrs({ ...p, font: p.font })).map(([k, v]) => ` ${k}="${escapeXml(v)}"`).join("");
       const anchor = p.anchor !== "start" ? ` text-anchor="${p.anchor}"` : "";

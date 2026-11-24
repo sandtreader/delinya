@@ -7,7 +7,7 @@
 
 import {
   type Bounds, type EntityId, type Path, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type Resolved, type ResolvedText,
-  boundsOfPoints, fontMetrics, isVisible, midpoint, pathBounds, pointsNear, polar, segment, textAdvance, unionBounds,
+  DEFAULT_LINE_STYLE, boundsOfPoints, fontMetrics, isVisible, midpoint, pathBounds, pointsNear, polar, segment, textAdvance, unionBounds,
 } from "../model";
 import { dimensionText } from "../view/dimensionText";
 import { formatMm } from "../view/format";
@@ -43,7 +43,10 @@ export function drawingPrimitives(resolved: Resolved, o: PrimitiveOptions): Prim
     const colour = colours.get(shape.layer);
     const ink = colour ? { colour } : {};
     if (shape.kind === "text") out.push(...textBoxPrims(shape, ink));
-    else out.push({ kind: "path", role: "shape", path: shape.path, ...ink });
+    else {
+      const plain = shape.style.width === DEFAULT_LINE_STYLE.width && shape.style.dash === DEFAULT_LINE_STYLE.dash;
+      out.push({ kind: "path", role: "shape", path: shape.path, ...ink, ...(plain ? {} : { line: shape.style }) });
+    }
   }
   if (!o.dimensions) return out;
   for (const d of resolved.dimensions) if (shown(d.target)) out.push(...dimensionPrims(d, o));

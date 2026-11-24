@@ -27,8 +27,8 @@ import {
 import {
   DIMENSION_OFFSET, KINDS, addCircle, addDimension, addLine, addPolyline, addText, batch, addRect, bendPolySegment, derivedAxes, dimensionOffsetAt,
   dimensionTargetAt, distance, dragHandle, drawnOffset, entityAs, freeDelta, handlesFor, insertPolyNode, isRef, isSelectable, isVisible, linkLocks,
-  moveBy, movePolyNode, newId, placeDimension, setDimensionOffset, setPolyHandle, snapNumber, toggleRadiusLabel, turnTo, unionBounds,
-  type Bounds, type DimensionProp, type DimensionTarget, type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType,
+  moveBy, movePolyNode, newId, placeDimension, setDimensionOffset, setPolyHandle, snapNumber, styleProps, toggleRadiusLabel, turnTo, unionBounds,
+  type Bounds, type LineStyle, type DimensionProp, type DimensionTarget, type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType,
   type ResolvedDimension, type ResolvedPolyline, type Resolved, type ResolvedRadiusLabel, type ResolvedShape, type ResolvedText, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
@@ -37,6 +37,7 @@ import { currentQuestion } from "../app/ask";
 import { fitView, gridPitch, toModel, toScreen, wheelZoom, type View } from "../view/viewport";
 import { drawingExtent } from "../view/fit";
 import { pathToSvg } from "../view/svgPath";
+import { screenDashArray, screenLineWidth } from "../view/lineScreen";
 import { formatMm, type DrawTool } from "../view/format";
 import { dimensionText } from "../view/dimensionText";
 import { targetPath } from "../view/dimensionTarget";
@@ -145,6 +146,9 @@ export function Canvas() {
   const draftRef = useRef<Draft | null>(null);
   const [draft, setDraftState] = useState<Draft | null>(null);
   const setDraft = useCallback((d: Draft | null) => { draftRef.current = d; setDraftState(d); }, []);
+  // The toolbar's line style, for what is drawn next; a ref so finishing a path reads it as it is then.
+  const lineStyleRef = useRef(editor.lineStyle);
+  lineStyleRef.current = editor.lineStyle;
   // Shift makes the next path node a curve, so the preview follows it.
   const [shiftHeld, setShiftHeld] = useState(false);
   // The pointer is on the draft's start: a click there closes the path.
@@ -299,7 +303,7 @@ export function Canvas() {
     const out = d && draftFinish(d, closed);
     if (d && out) {
       const id = newId("path");
-      store.commit(addPolyline(id, { nodes: out.nodes, ...(out.closed ? { closed: true } : {}), layer: d.layer }));
+      store.commit(addPolyline(id, { nodes: out.nodes, ...(out.closed ? { closed: true } : {}), layer: d.layer, ...styleProps(lineStyleRef.current) }));
       dispatch({ type: "select", ids: [id] });
     }
     if (!keepTool) dispatch({ type: "tool", tool: "select" });
@@ -729,7 +733,7 @@ export function Canvas() {
       // A new text box is added in a gesture its typing joins, so the two
       // are one undo step, and one left empty goes without trace (TextEditor).
       if (d.tool === "text") store.beginGesture();
-      const id = createShape(d, editor.labels.autoDimension);
+      const id = createShape(d, editor.labels.autoDimension, editor.lineStyle);
       if (id) dispatch({ type: "select", ids: [id] });
       if (!e.shiftKey || d.tool === "text") dispatch({ type: "tool", tool: "select" });
       // A new text box goes straight to typing, on the drawing: back to select, Shift or not.
@@ -910,11 +914,12 @@ function constrain(d: Extract<Drag, { kind: "draw" }>, p: Point, shift: boolean)
 
 /**
  * Commit the drawn shape, on its layer, with its standard dimensions when
- * `dimension` (this viewer's Dimension new shapes; a text box has none).
- * Returns the new ID.
+ * `dimension` (this viewer's Dimension new shapes; a text box has none) and
+ * the toolbar's line style (not a text box's). Returns the new ID.
  */
-function createShape(d: Extract<Drag, { kind: "draw" }>, dimension: boolean): EntityId | undefined {
+function createShape(d: Extract<Drag, { kind: "draw" }>, dimension: boolean, lineStyle: LineStyle): EntityId | undefined {
   const [x0, y0] = d.start, [x1, y1] = d.current, { layer } = d;
+  const stroke = styleProps(lineStyle);
   const id = newId(d.tool);
   const dims = (...props: DimensionProp[]) => (dimension ? props.map((prop) => addDimension(newId("dim"), id, prop, DIMENSION_OFFSET)) : []);
   switch (d.tool) {
@@ -922,7 +927,7 @@ function createShape(d: Extract<Drag, { kind: "draw" }>, dimension: boolean): En
       const w = snapNumber(Math.abs(x1 - x0)), h = snapNumber(Math.abs(y1 - y0));
       if (w === 0 || h === 0) return undefined;
       store.commit(batch([
-        addRect(id, { x: Math.min(x0, x1), y: Math.min(y0, y1), width: w, height: h, layer }),
+        addRect(id, { x: Math.min(x0, x1), y: Math.min(y0, y1), width: w, height: h, layer, ...stroke }),
         ...dims("width", "height"),
       ]));
       return id;
@@ -931,7 +936,7 @@ function createShape(d: Extract<Drag, { kind: "draw" }>, dimension: boolean): En
       const r = snapNumber(Math.hypot(x1 - x0, y1 - y0));
       if (r === 0) return undefined;
       store.commit(batch([
-        addCircle(id, { cx: x0, cy: y0, diameter: snapNumber(r * 2), layer }),
+        addCircle(id, { cx: x0, cy: y0, diameter: snapNumber(r * 2), layer, ...stroke }),
         ...dims("diameter"),
       ]));
       return id;
@@ -941,7 +946,7 @@ function createShape(d: Extract<Drag, { kind: "draw" }>, dimension: boolean): En
       if (length === 0) return undefined;
       const angle = snapNumber((Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI);
       store.commit(batch([
-        addLine(id, { x: x0, y: y0, length, angle, layer }),
+        addLine(id, { x: x0, y: y0, length, angle, layer, ...stroke }),
         ...dims("length"),
       ]));
       return id;
@@ -971,19 +976,22 @@ function ShapeView({ shape, selected, reference, locked, inert, editing, hair, c
   const d = pathToSvg(shape.path);
   const style = colour ? ({ "--layer-colour": colour } as CSSProperties) : undefined;
   const text = shape.kind === "text";
+  // A stroke's pen width and dashes, in screen px whatever the zoom; selected a little thicker.
+  const px = text ? 1 : screenLineWidth(shape.style.width);
+  const dash = text ? undefined : screenDashArray(shape.style.dash, shape.style.width).map((v) => v * hair).join(" ") || undefined;
   if (inert) {
-    if (!text) return <path d={d} className="shape inert" strokeWidth={hair * 1.2} style={style} />;
+    if (!text) return <path d={d} className="shape inert" strokeWidth={hair * px} strokeDasharray={dash} style={style} />;
     return <g className="shape inert" style={style}><TextFrame shape={shape} d={d} selected={false} hair={hair} /><TextLines shape={shape} /></g>;
   }
   const lock = locked.size === 2 ? " locked" : locked.has("x") ? " locked-x" : locked.has("y") ? " locked-y" : "";
   return (
     <g data-id={shape.id} className={`shape${text ? " text-box" : ""}${selected ? " selected" : ""}${lock}`} style={style}>
-      {reference && <path d={d} className="ref-halo" strokeWidth={hair * 7} />}
+      {reference && <path d={d} className="ref-halo" strokeWidth={hair * (px + 6)} />}
       {/* A text box is hit anywhere inside, not just on its edge. */}
-      <path d={d} className={text ? "hit area" : "hit"} strokeWidth={hair * 12} stroke="transparent" fill={text ? "transparent" : undefined} />
+      <path d={d} className={text ? "hit area" : "hit"} strokeWidth={hair * Math.max(12, px + 8)} stroke="transparent" fill={text ? "transparent" : undefined} />
       {text
         ? <><TextFrame shape={shape} d={d} selected={selected || editing} hair={hair} />{!editing && <TextLines shape={shape} />}</>
-        : <path d={d} className="stroke" strokeWidth={hair * (selected ? 2 : 1.2)} />}
+        : <path d={d} className="stroke" strokeWidth={hair * (selected ? px + 0.8 : px)} strokeDasharray={dash} />}
     </g>
   );
 }
