@@ -9,7 +9,7 @@ import {
   type Bounds, type EntityId, type Path, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type Resolved, type ResolvedText,
   DEFAULT_LINE_STYLE, boundsOfPoints, fontMetrics, isVisible, midpoint, pathBounds, pointsNear, polar, segment, textAdvance, unionBounds,
 } from "../model";
-import { dimensionText } from "../view/dimensionText";
+import { dimensionText, radiusLabelPlace, radiusLabelText } from "../view/dimensionText";
 import { formatMm } from "../view/format";
 import { textWidth } from "./text";
 import type { Primitive, TextPrim } from "./types";
@@ -86,10 +86,8 @@ function dimensionPrims(d: ResolvedDimension, { textSize: size, tick }: Primitiv
 }
 
 function radiusLabelPrim(l: ResolvedRadiusLabel, size: number): TextPrim {
-  return {
-    kind: "text", role: "dimension", text: `R${formatMm(l.radius)}`, size, anchor: "start", angle: 0,
-    at: [l.at[0], l.at[1] - 0.4 * size],
-  };
+  const { at, angle, anchor } = radiusLabelPlace(l, size);
+  return { kind: "text", role: "dimension", text: radiusLabelText(l), size, anchor, angle, at };
 }
 
 /** `p` moved by `d` given in a frame rotated by `angle` degrees. */

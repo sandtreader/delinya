@@ -72,14 +72,15 @@ describe("drawingPrimitives", () => {
     expect(h.at[1]).toBeCloseTo(25);
   });
 
-  it("labels corner radii at the arc midpoint", () => {
+  it("labels corner radii inside the arc, right-aligned on the right", () => {
     const r = sample();
     const label = r.radiusLabels[0]!;
     const t = texts(drawingPrimitives(r, { dimensions: true, textSize: SIZE, tick: TICK })).find((x) => x.text === "R10")!;
-    expect(t).toMatchObject({ role: "dimension", anchor: "start", size: SIZE });
+    // Top-right: in and down from the arc's midpoint, ending there.
+    expect(t).toMatchObject({ role: "dimension", anchor: "end", size: SIZE });
     expect(norm(t.angle)).toBeCloseTo(0);
-    expect(t.at[0]).toBeCloseTo(label.at[0]);
-    expect(t.at[1]).toBeCloseTo(label.at[1] - 0.4 * SIZE);
+    expect(t.at[0]).toBeCloseTo(label.at[0] - 0.3 * SIZE);
+    expect(t.at[1]).toBeCloseTo(label.at[1] + SIZE);
   });
 
   it("scales text and ticks with the options", () => {

@@ -39,7 +39,7 @@ import { drawingExtent } from "../view/fit";
 import { pathToSvg } from "../view/svgPath";
 import { screenDashArray, screenLineWidth } from "../view/lineScreen";
 import { formatMm, type DrawTool } from "../view/format";
-import { dimensionText } from "../view/dimensionText";
+import { dimensionText, radiusLabelPlace, radiusLabelText } from "../view/dimensionText";
 import { targetPath } from "../view/dimensionTarget";
 import { newTextProps, textElementAttrs } from "../view/textSvg";
 import { textBoxAt } from "../view/textEdit";
@@ -1130,21 +1130,30 @@ function DimensionView({ dim, fontSize, hair, link, pickable, selected, preview 
   );
 }
 
-/** A rounded corner's radius, "R5": `pickable` and `selected` as a dimension's. */
+/**
+ * A rounded corner's radius, "R5" (or "4× R5" for all four), inside the
+ * corner's curve and turned with the rect (radiusLabelPlace): `pickable`
+ * and `selected` as a dimension's.
+ */
 function RadiusLabelView({ label, fontSize, link, pickable, selected }: {
   label: ResolvedRadiusLabel; fontSize: number; link?: LinkName; pickable: boolean; selected: boolean;
 }) {
-  const value = `R${formatMm(label.radius)}`;
-  const [x, y] = label.at;
+  const value = radiusLabelText(label);
+  const { at: [x, y], angle, anchor } = radiusLabelPlace(label, fontSize);
+  const turn = `rotate(${angle} ${x} ${y})`;
+  // The hit box covers the text as set, link name and all: from its start, or back from its end.
+  const chars = value.length + (link ? link.name.length + 3 : 0);
+  const width = (chars * DIGIT_EM + 0.4) * fontSize;
   return (
     <g className={`radius-label${selected ? " selected" : ""}${pickable ? " pickable" : ""}`} data-label={pickable ? label.id : undefined}>
       {pickable && (
         <rect
-          className="label-hit" fill="transparent" x={x - 0.2 * fontSize} y={y - 1.4 * fontSize}
-          width={(value.length * DIGIT_EM + 0.4) * fontSize} height={1.2 * fontSize}
+          className="label-hit" fill="transparent" transform={turn}
+          x={anchor === "end" ? x - width + 0.2 * fontSize : x - 0.2 * fontSize} y={y - 0.95 * fontSize}
+          width={width} height={1.2 * fontSize}
         />
       )}
-      <text x={x} y={y} fontSize={fontSize} dy={-fontSize * 0.4}>
+      <text x={x} y={y} fontSize={fontSize} textAnchor={anchor} transform={turn}>
         {value}<LinkNameSpan link={link} />
       </text>
     </g>

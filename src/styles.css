@@ -323,6 +323,11 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .selection-panel .row .label { width: 76px; }
 .selection-panel .num input { width: 72px; }
 .selection-panel .row .linked { margin-left: auto; }
+/* Corner radii: a narrow field so each corner's label checkbox stays on its line; the "all" switch in the legend. */
+.selection-panel .corners .row .label { white-space: nowrap; }
+.selection-panel .corners .num input { width: 52px; }
+.corners legend { display: flex; align-items: center; gap: 8px; }
+.corners-all { margin-right: 0; color: var(--muted); font-size: 11px; }
 .selection-panel .actions { display: flex; margin-top: 8px; }
 .selection-panel header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
 .selection-panel .hint { color: var(--muted); }

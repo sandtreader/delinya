@@ -2,9 +2,10 @@
 // linked field edits the shared variable; the panel says so and offers to
 // unlink. A text box's text is typed here too, live on the canvas.
 
+import { useState } from "react";
 import {
-  KINDS, derivedAxes, dimensionProps, dimensionsOf, entitiesOfKind, entityAs, isRef, lengthValue, newId, propsChanged, radiusLabelsOf,
-  setCornerRadius, setLength, setPolyClosed, setRotation, setTextSize, setTextStyle, setTextWidth, toggleDimension, toggleRadiusLabel,
+  KINDS, cornersAlike, derivedAxes, dimensionProps, dimensionsOf, entitiesOfKind, entityAs, isRef, lengthValue, newId, propsChanged, radiusLabelsOf,
+  joinCorners, setAllCornerRadii, setCornerRadius, setLength, setPolyClosed, setRotation, setTextSize, setTextStyle, setTextWidth, toggleAllCornersLabel, toggleDimension, toggleRadiusLabel,
   unlinkAlign, unlinkLength, unlinkSpacing,
   type EntityId, type FontFamily, type Length, type ResolvedRect, type ResolvedText, type TextAlign, type TextStyle,
 } from "../model";
@@ -54,7 +55,7 @@ export function ShapeFields({ id }: { id: EntityId }) {
             />
           </Row>
           <Dimensions id={id} />
-          <Corners id={id} />
+          <Corners key={id} id={id} />
         </>
       )}
       {e.kind === KINDS.circle && (
@@ -262,41 +263,99 @@ function Dimensions({ id }: { id: EntityId }) {
   );
 }
 
-/** Each corner's radius, and whether its radius is labelled on the drawing (not while it is 0). */
+const CORNER_NAMES = ["top-left", "top-right", "bottom-right", "bottom-left"] as const;
+
+/**
+ * Corner radii. With "all" on (while the corners are alike: one stored
+ * radius and at most one label), one radius and one label for the four,
+ * the label reading "4× R…"; off, each corner's own radius and label.
+ * Turning "all" back on gives every corner the largest radius and keeps a
+ * label if any corner had one. The switch is this panel's, not the
+ * drawing's: it starts on for each shape whose corners are alike.
+ */
 function Corners({ id }: { id: EntityId }) {
   const state = useDocument();
-  const rect = entityAs(state, id, KINDS.rect)!;
-  const r = rect.r ?? [0, 0, 0, 0];
-  const resolved = store.resolved.shapes[id] as ResolvedRect | undefined;
-  const names = ["top-left", "top-right", "bottom-right", "bottom-left"] as const;
+  const [split, setSplit] = useState(false);
+  const all = !split && cornersAlike(state, id);
+  const toggleAll = () => {
+    if (all) { setSplit(true); return; }
+    setSplit(false);
+    const c = joinCorners(store.state, id);
+    if (c) store.commit(c);
+  };
   return (
-    <fieldset>
-      <legend>corner radii</legend>
-      {names.map((name, i) => {
-        const corner = i as 0 | 1 | 2 | 3;
-        const raw = r[corner]!;
-        const value = lengthValue(state, raw) ?? 0;
-        const effective = resolved?.r[corner];
-        const labelled = radiusLabelsOf(state, id, corner).length > 0;
-        const sharp = (effective ?? value) === 0;
-        return (
-          // A div, not a Row's label: the field and the checkbox each have their own name.
-          <div key={name} className="row">
-            <span className="label" aria-hidden="true">{name}</span>
-            <Num label={`${name} radius`} value={value} onCommit={(v) => { const c = setCornerRadius(store.state, id, corner, v); if (c) store.commit(c); }} />
-            {isRef(raw) && <span className="linked">= {entityAs(state, raw.ref, KINDS.variable)?.name ?? raw.ref}</span>}
-            {effective !== undefined && effective !== value && <span className="warn" {...tip("Clamped to fit")}>→ {formatMm(effective)}</span>}
-            <label className="inline-check corner-label" {...tip(sharp ? "A sharp corner has no radius to label" : `Label the ${name} radius on the drawing`)}>
-              <input
-                type="checkbox" checked={labelled} disabled={sharp && !labelled} aria-label={`Label the ${name} radius`}
-                onChange={() => { const c = toggleRadiusLabel(store.state, id, corner, newId("radius")); if (c) store.commit(c); }}
-              />
-              label
-            </label>
-          </div>
-        );
-      })}
+    <fieldset className="corners">
+      <legend>
+        corner radii
+        <label className="inline-check corners-all" {...tip(all ? "Set each corner on its own" : "One radius for all four corners: the largest, keeping a label if any")}>
+          <input type="checkbox" checked={all} onChange={toggleAll} aria-label="Same radius on all corners" />
+          all
+        </label>
+      </legend>
+      {all ? <AllCorners id={id} /> : CORNER_NAMES.map((name, i) => <OneCorner key={name} id={id} corner={i as 0 | 1 | 2 | 3} />)}
     </fieldset>
+  );
+}
+
+/** One radius and one label for all four corners. */
+function AllCorners({ id }: { id: EntityId }) {
+  const state = useDocument();
+  const raw = (entityAs(state, id, KINDS.rect)!.r ?? [0, 0, 0, 0])[0];
+  const value = lengthValue(state, raw) ?? 0;
+  const effective = (store.resolved.shapes[id] as ResolvedRect | undefined)?.r[0];
+  const labelled = ([0, 1, 2, 3] as const).some((c) => radiusLabelsOf(state, id, c).length > 0);
+  const sharp = (effective ?? value) === 0;
+  return (
+    // A div, not a Row's label: the field and the checkbox each have their own name.
+    <div className="row">
+      <span className="label" aria-hidden="true">radius</span>
+      <Num
+        label="Radius of all corners" value={value} valid={(v) => v >= 0}
+        onCommit={(v) => { const c = setAllCornerRadii(store.state, id, v); if (c) store.commit(c); }}
+      />
+      <LabelCheck
+        labelled={labelled} sharp={sharp} name="the radius" hint="one label, 4× R…, for all four corners"
+        onChange={() => { const c = toggleAllCornersLabel(store.state, id, newId("radius")); if (c) store.commit(c); }}
+      />
+      {isRef(raw) && <span className="linked">= {entityAs(state, raw.ref, KINDS.variable)?.name ?? raw.ref}</span>}
+      {effective !== undefined && effective !== value && <span className="warn" {...tip("Clamped to fit")}>→ {formatMm(effective)}</span>}
+    </div>
+  );
+}
+
+/** A corner's radius, and whether its radius is labelled on the drawing (not while it is 0). */
+function OneCorner({ id, corner }: { id: EntityId; corner: 0 | 1 | 2 | 3 }) {
+  const state = useDocument();
+  const name = CORNER_NAMES[corner];
+  const raw = (entityAs(state, id, KINDS.rect)!.r ?? [0, 0, 0, 0])[corner];
+  const value = lengthValue(state, raw) ?? 0;
+  const effective = (store.resolved.shapes[id] as ResolvedRect | undefined)?.r[corner];
+  const labelled = radiusLabelsOf(state, id, corner).length > 0;
+  const sharp = (effective ?? value) === 0;
+  return (
+    // A div, not a Row's label: the field and the checkbox each have their own name.
+    <div className="row">
+      <span className="label" aria-hidden="true">{name}</span>
+      <Num label={`${name} radius`} value={value} onCommit={(v) => { const c = setCornerRadius(store.state, id, corner, v); if (c) store.commit(c); }} />
+      <LabelCheck
+        labelled={labelled} sharp={sharp} name={`the ${name} radius`}
+        onChange={() => { const c = toggleRadiusLabel(store.state, id, corner, newId("radius")); if (c) store.commit(c); }}
+      />
+      {isRef(raw) && <span className="linked">= {entityAs(state, raw.ref, KINDS.variable)?.name ?? raw.ref}</span>}
+      {effective !== undefined && effective !== value && <span className="warn" {...tip("Clamped to fit")}>→ {formatMm(effective)}</span>}
+    </div>
+  );
+}
+
+/** The "label" checkbox beside a radius: off for a sharp corner, which has no radius to label (unless one is there to take off). */
+function LabelCheck({ labelled, sharp, name, hint, onChange }: {
+  labelled: boolean; sharp: boolean; name: string; hint?: string; onChange: () => void;
+}) {
+  return (
+    <label className="inline-check corner-label" {...tip(sharp ? "A sharp corner has no radius to label" : `Label ${name} on the drawing${hint ? `: ${hint}` : ""}`)}>
+      <input type="checkbox" checked={labelled} disabled={sharp && !labelled} aria-label={`Label ${name}`} onChange={onChange} />
+      label
+    </label>
   );
 }
 

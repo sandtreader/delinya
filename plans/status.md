@@ -94,7 +94,30 @@ but has no UI.
 - **Corner radii** are clamped with the CSS `border-radius` rule (scale all
   radii by the smallest ratio side ÷ adjacent-pair sum). This settles the
   outline's "clamp or flag" question: clamp, and flag with a
-  `radius-clamped` issue shown in the shape panel.
+  `radius-clamped` issue shown in the shape panel. All four together
+  (`model/corners.ts`): `cornersAlike` (the four stored radii the same,
+  one number or one ref, a missing `r` all 0, and at most one radius
+  label), `setAllCornerRadii` (the variable when all four share one, else
+  all four the number; none for a negative or non-finite value),
+  `joinCorners` (every corner the stored Length of the largest, so a
+  variable stays linked; of any labels only the first corner's kept; one
+  change, none when alike) and `toggleAllCornersLabel` (off takes every
+  label off; on adds one at `ALL_CORNERS_LABEL_CORNER`, 2, bottom-right,
+  clear of the width and height dimensions). `ResolvedRadiusLabel.count`
+  is 4 when it is the rect's only radius label and all four effective
+  (clamped) radii are equal, else 1; `radiusLabelText` (view/
+  dimensionText.ts) reads "4× R10" or "R10" on screen and in output (×
+  is WinAnsi 0xD7 in the PDF). Placement (`radiusLabelPlace`, same file,
+  canvas and output alike): `ResolvedRadiusLabel` carries `at` (the arc
+  midpoint, or the corner if sharp) and the rect's `rotation`; the text
+  sits inside the curve, in from `at` by `RADIUS_LABEL_GAP` (0.3 em), in
+  the rect's own frame so it turns with the rect: a left corner's starts
+  there, a right corner's ends there (anchor end, right-aligned against
+  the right-hand edge), a top corner's hangs below (gap + cap height
+  `RADIUS_LABEL_CAP`, 0.7 em), a bottom corner's stands above. Kept
+  readable as dimension text is (angle in [-90, 90)): turned past upright
+  the text turns half round and the corner's role with it (top-left
+  reads as bottom-right).
 - **Rotation** (steps 1 and 2): a rect stores `rotation` (degrees, clockwise on
   screen like a line's angle, about its (x, y) corner; absent is 0, a bad
   value is 0 with a `bad-value` issue). Width, height and r stay its own
@@ -681,11 +704,16 @@ through `useSyncExternalStore`.
   spins about its centre), a **dimensions** row (rect, circle and line)
   with a checkbox per measurable prop (rect width and height, circle
   diameter, line length), ticked while the shape has that dimension,
-  toggling it (`toggleDimension`, `newId("dim")`), corner radii with a
-  clamped indicator and a small **label** checkbox per corner
-  (`toggleRadiusLabel`, `newId("radius")`; disabled while the corner is
-  sharp, unless it has a label to take off; each radius field is named by
-  `Num`'s `label`, as the row is a div, not a label),
+  toggling it (`toggleDimension`, `newId("dim")`), corner radii with an
+  **all** switch in the legend (default on; the panel's state, not the
+  drawing's, reset per shape: one "radius" field and one **label**
+  checkbox for all four while `cornersAlike`, the label "4× R…"; off, or
+  whenever the corners aren't alike, a row per corner; switching it on
+  commits `joinCorners`), a clamped indicator and a small **label**
+  checkbox per corner on the field's line (the radius field narrowed to
+  fit) (`toggleRadiusLabel`, `newId("radius")`; disabled while the corner
+  is sharp, unless it has a label to take off; each radius field is named
+  by `Num`'s `label`, as the row is a div, not a label),
   spacing and alignment membership with remove. Position fields a link
   controls are locked and show the derived position.
 - **Arrange panel**: two or more shapes selected, select tool only. The

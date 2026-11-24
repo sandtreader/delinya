@@ -201,6 +201,13 @@ export interface ResolvedRadiusLabel {
   radius: number;
   /** Where the label attaches: the arc midpoint, or the corner if sharp. */
   at: Point;
+  /** The rect's rotation, degrees: the label is set in the rect's own frame. */
+  rotation: number;
+  /**
+   * The corners it stands for: 4 when it is the rect's only radius label
+   * and all four corners are drawn the same ("4× R10"), else 1.
+   */
+  count: 1 | 4;
 }
 
 export interface ResolvedSpacing {
@@ -1128,7 +1135,14 @@ function resolveRadiusLabels(ctx: Ctx, shapes: Record<EntityId, ResolvedShape>):
     if (!s || s.kind !== "rect") { ctx.issues.push({ entity: id, code: "dangling-target", message: `radius label target ${l.target} is not a rect` }); continue; }
     const corner = ([0, 1, 2, 3] as const).includes(l.corner) ? l.corner : 0;
     const a = s.arcs[corner];
-    out.push({ id, target: l.target, corner, radius: s.r[corner], at: a ? arcMid(a) : s.corners[corner] });
+    out.push({ id, target: l.target, corner, radius: s.r[corner], at: a ? arcMid(a) : s.corners[corner], rotation: s.rotation, count: 1 });
+  }
+  // A rect's only label, its corners all drawn alike, stands for all four.
+  const perTarget = new Map<EntityId, number>();
+  for (const l of out) perTarget.set(l.target, (perTarget.get(l.target) ?? 0) + 1);
+  for (const l of out) {
+    const s = shapes[l.target] as ResolvedRect;
+    if (perTarget.get(l.target) === 1 && s.r.every((v) => v === s.r[0])) l.count = 4;
   }
   return out;
 }
