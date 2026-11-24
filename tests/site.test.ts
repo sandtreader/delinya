@@ -13,7 +13,7 @@ const files = import.meta.glob<string>(
   [
     "../site/package.json", "../site/pnpm-lock.yaml", "../site/astro.config.mjs",
     "../site/src/content/docs/docs/**/*.mdx", "../site/src/pages/*.astro",
-    "../site/src/components/navbar/navbar.astro", "../site/src/components/hero.astro", "../site/public/favicon.svg",
+    "../site/src/components/navbar/navbar.astro", "../site/src/components/hero.astro", "../site/src/components/footer.astro", "../site/public/favicon.svg",
     "../public/favicon.svg", "../CHANGELOG.md", "../pnpm-workspace.yaml",
   ],
   { query: "?raw", import: "default", eager: true },
@@ -104,6 +104,12 @@ describe("the landing pages", () => {
     const hero = read("site/src/components/hero.astro");
     expect(hero).toMatch(/Cornish for .drawing./);
     expect(hero).toContain('href="https://en.wiktionary.org/wiki/delinya"');
+  });
+
+  it("links the source on GitHub from the footer's Product section", () => {
+    const footer = read("site/src/components/footer.astro");
+    const product = footer.slice(footer.indexOf('title: "Product"'), footer.indexOf('title: "Learn"'));
+    expect(product).toContain('href: "https://github.com/sandtreader/delinya"');
   });
 
   it("opens the app at delinya.net", () => {
