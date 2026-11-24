@@ -1,0 +1,56 @@
+---
+title: Drawing shapes
+description: Lines, rectangles and circles, snapping, the grid and the current layer.
+sidebar:
+  order: 1
+---
+
+Pick a tool in the tool palette, or press its key:
+
+| Tool | Key | Draw by |
+|---|---|---|
+| Line | L | dragging from one end to the other |
+| Rectangle | R | dragging from one corner to the opposite one |
+| Circle | C | dragging from the centre out to the radius |
+| Path | P | clicking node by node: see [Paths](/docs/guide/paths/) |
+| Text | T | dragging out a box: see [Text](/docs/guide/text/) |
+
+After drawing, Delinya goes back to the Select tool and selects the new
+shape, so you can type its exact size in the panel straight away. Hold
+**Shift** as you release to stay in the same tool and draw another.
+
+Holding **Shift** while dragging keeps a rectangle square and a line at
+multiples of 45°.
+
+## Snapping
+
+The pointer snaps to other shapes' key points (ends, corners, midpoints,
+centres and a circle's quarter points) within a few pixels, and otherwise
+to the grid. The status bar
+says what it snapped to.
+
+The grid's spacing belongs to the drawing (1 mm unless you change it in
+**Properties… → Grid**). Showing the grid and snapping to it are your own
+settings, also in Properties: with grid snap off, points round to
+0.01 mm, but still snap to other shapes. Zoomed out, the grid shows every
+2nd, 5th or 10th line so it never gets too dense.
+
+## Exact sizes
+
+The selection panel shows the selected shape's position and sizes in
+millimetres: x and y (a rectangle's top-left corner, a line's start),
+then width and height for a rectangle, length and angle for a line, and
+for a circle cx and cy (its centre) and its diameter. Type a value and press
+Enter or Tab. Angles are in degrees, clockwise on screen from pointing
+right.
+
+A rectangle also has a **rotation** and **corner radii**: see
+[Rotate and duplicate](/docs/guide/rotate-and-duplicate/) and
+[Dimensions](/docs/guide/dimensions/).
+
+## Where new shapes go
+
+New shapes go on the current layer (see [Layers](/docs/guide/layers/))
+in the current line style (see [Line styles](/docs/guide/line-styles/)).
+With **Dimension new shapes** on in the toolbar, a new rectangle gets its
+width and height dimensions, a circle its diameter and a line its length.

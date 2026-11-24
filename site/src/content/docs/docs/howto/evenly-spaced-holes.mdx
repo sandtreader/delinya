@@ -1,0 +1,54 @@
+---
+title: Evenly spaced holes
+description: Lay out a row of shelf-pin holes at an exact pitch, linked so they stay even.
+sidebar:
+  order: 3
+---
+
+A cabinet side with a column of shelf-pin holes: 5 mm holes at a 32 mm
+pitch, 37 mm in from the front edge. The same steps work for any row of
+holes, slots or parts.
+
+## The panel
+
+1. Press **R** and drag out a rectangle. In the panel, type **x** 0,
+   **y** 0, **width** 300 and **height** 600.
+
+Starting the panel at 0, 0 makes the holes' positions easy to type.
+
+## The first hole
+
+2. Press **C** and drag out a small circle anywhere.
+3. In the panel, type **cx** 37, **cy** 96 and **diameter** 5.
+
+## The rest of the column
+
+4. With the hole selected, click **Duplicate…** in the toolbar.
+5. Set the direction to **down** (↓) and **×** to the number of extra
+   holes, say 12.
+6. Set the **gap**. It's the clear space between holes, not the pitch:
+   for a 32 mm pitch with 5 mm holes, the gap is 32 − 5 = **27**.
+7. Tick the **link** boxes:
+   - **gaps** keeps the holes evenly spaced between the first and the
+     last;
+   - **size** gives them all one diameter, so changing one changes all;
+   - **align** keeps them in a straight column.
+8. Click **Duplicate**.
+
+Now drag the last hole (or type its **cy**) and the ones between spread
+out evenly. Change any hole's diameter and they all follow.
+
+## A second column
+
+9. Lasso all the holes, then in the Duplicate card set the direction to
+   **right**, **×** to 1 and the **gap** to the distance you want between
+   the columns, less one hole's diameter. Untick the links if this copy
+   should move on its own.
+
+## Already drawn?
+
+If the holes are already there, select them all and use **Space →
+Centres ↕** in the panel: the outermost two stay put and the rest are
+spaced at an equal pitch between them. Turn on **Keep linked** first to
+keep them even as you move the outer holes. See
+[Links](/docs/guide/links/).

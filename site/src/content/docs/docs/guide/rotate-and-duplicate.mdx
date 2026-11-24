@@ -1,0 +1,55 @@
+---
+title: Rotate and duplicate
+description: Turn and flip a selection, and copy it in rows, optionally linked.
+sidebar:
+  order: 9
+---
+
+**Rotate…** and **Duplicate…** are toolbar buttons, after Undo and Redo.
+Each opens a small card that acts on the selected shapes. The card stays
+open while you work, so you can turn or copy again, or pick other shapes;
+Escape or a click elsewhere closes it.
+
+## Rotate
+
+The Rotate card has:
+
+- **Rotate by** an angle you type (15° to start with): clockwise, or
+  anticlockwise if negative.
+- Quarter turns: **Rotate 90° anticlockwise** and **Rotate 90° clockwise**.
+- **Flip horizontally** (mirror left to right) and **Flip vertically**
+  (mirror top to bottom).
+
+The selection turns about its own centre. You can also drag the
+**rotate handle** above a selection (Shift for 15° steps), or type a
+rectangle's or text box's **rotation** in the panel, which spins it about
+its centre.
+
+A turned rectangle keeps its own width, height and corners, and resizes
+along its own sides.
+
+## Duplicate
+
+The Duplicate card sets:
+
+- the **direction**: right, down, left or up;
+- **×**, the number of copies (1 to 100);
+- **gap**: the clear space between the selection and its copy, and
+  between copies.
+
+**Duplicate** makes the copies in a row and selects them, so pressing it
+again carries the row on. **⌘D** (Ctrl+D) makes one more copy the same
+way at any time.
+
+### Linked copies
+
+Three **link** checkboxes tie the row together:
+
+- **gaps** (two or more copies): keeps the copies evenly spaced between
+  the original and the last copy.
+- **size**: links each copy's size to the original's through a shared
+  variable, so resizing one resizes them all.
+- **align**: keeps the copies lined up with the original (tops for a row
+  across, left edges for a column down).
+
+⌘D always makes a plain, unlinked copy.

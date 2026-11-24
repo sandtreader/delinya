@@ -1,0 +1,61 @@
+---
+import { Picture } from "astro:assets";
+import heroImage from "@/assets/hero.png";
+import Link from "@/components/ui/link.astro";
+import { Icon } from "astro-icon/components";
+
+const headline = "Draw it to the millimetre.";
+const subhead =
+  "Delinya is a 2D drawing tool that runs in your browser and works in real units. Type the sizes you mean, link the ones that must match, and print at true scale, for woodwork and anything else.";
+const appUrl = "https://delinya.net";
+---
+
+<main
+  class="grid lg:grid-cols-2 place-items-center pt-16 pb-8 md:pt-12 md:pb-24 gap-10">
+  <div class="py-6 md:order-1 hidden md:block">
+    <div
+      class="border border-[var(--color-border-subtle)] rounded-md shadow-sm overflow-hidden bg-white">
+      <Picture
+        src={heroImage}
+        alt="A cabinet side drawn in Delinya: a panel with rounded corners, evenly spaced shelf-pin holes and dimensions in millimetres"
+        widths={[300, 600, 900]}
+        sizes="(max-width: 800px) 100vw, 620px"
+        loading="eager"
+        format="avif"
+        class="block"
+      />
+    </div>
+  </div>
+  <div>
+    <h1
+      class="font-display font-light text-5xl lg:text-6xl xl:text-7xl lg:tracking-tight xl:tracking-tighter text-[var(--color-text)]">
+      {headline}
+    </h1>
+    <p
+      class="text-lg mt-4 text-[var(--color-text-muted)] max-w-xl leading-relaxed">
+      {subhead}
+    </p>
+    <div class="mt-6 flex flex-col sm:flex-row gap-3">
+      <Link
+        href={appUrl}
+        class="flex gap-1 items-center justify-center"
+        rel="noopener">
+        <Icon class="w-5 h-5" name="bx:bxs-pencil" />
+        Open Delinya
+      </Link>
+      <Link
+        size="lg"
+        style="outline"
+        href="/docs/getting-started/"
+        class="flex gap-1 items-center justify-center">
+        Getting started
+      </Link>
+    </div>
+    <p class="mt-6 text-sm text-[var(--color-text-muted)]">
+      <em>Delinya</em> is Cornish for ‘drawing’ (<a
+        href="https://en.wiktionary.org/wiki/delinya"
+        class="underline underline-offset-2 hover:text-[var(--color-accent)] transition"
+        rel="noopener">Wiktionary</a>).
+    </p>
+  </div>
+</main>

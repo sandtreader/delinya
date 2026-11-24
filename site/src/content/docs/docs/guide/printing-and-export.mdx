@@ -1,0 +1,52 @@
+---
+title: Printing and export
+description: Print at true scale across tiled sheets, and download PDF, SVG and DXF.
+sidebar:
+  order: 11
+---
+
+**Print / Export…** in the toolbar (⌘P) opens a preview of every sheet,
+with the settings beside it.
+
+## Settings
+
+- **Paper**: A4 to A0, Letter, Legal or Tabloid.
+- **Orientation**: portrait, landscape, or auto, which picks whichever
+  needs fewer sheets.
+- **Scale**: 2:1, 1:1, 1:2, 1:5, 1:10, 1:20, 1:50 or 1:100. **Fit** picks
+  the largest that fits on one sheet.
+- **Dimensions**: include dimensions and radius labels, or not.
+
+Paper, orientation and the dimensions choice are remembered in your
+browser.
+
+## The sheets
+
+Each sheet has:
+
+- the drawing, at the scale chosen;
+- a **100 mm check ruler**: measure it on the printout to be sure your
+  printer kept the scale;
+- a **title block** with the drawing's title, author, revision, scale,
+  sheet and notes (set in **Properties… → Drawing**; the title falls back
+  to the file name).
+
+A drawing bigger than one sheet is **tiled** across several, labelled
+A1, A2… across and B1, B2… down. Neighbouring tiles overlap by 10 mm,
+with dashed guides where the next one starts, so you can line them up and
+tape them together.
+
+Line widths print at their pen width whatever the scale, and layers print
+in their colours. Layers you've hidden are left out.
+
+## Printing and downloads
+
+- **Print…** prints the sheets through your browser. Make sure the
+  browser's print dialog isn't set to "fit to page", or the scale will be
+  wrong: check the ruler.
+- **Download PDF** saves the same sheets as a PDF.
+- **Download SVG** saves the whole drawing at 1:1, in millimetres, as one
+  image.
+- **Download DXF** saves the shapes at 1:1, in millimetres, for CAD, CAM,
+  laser cutters and CNC. See
+  [Export for a laser cutter or CNC](/docs/howto/export-for-laser-or-cnc/).

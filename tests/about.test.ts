@@ -13,6 +13,15 @@ describe("About", () => {
     expect(aboutSource).toMatch(/<a href="https:\/\/sandtreader\.com"[^>]*>@sandtreader<\/a>/);
   });
 
+  it("says what it is", () => {
+    expect(aboutSource).toContain("Collaborative 2D drawing with real units.");
+  });
+
+  it("links the home page and the documentation on delinya.org", () => {
+    expect(aboutSource).toMatch(/<a href="https:\/\/delinya\.org\/"[^>]*>home page<\/a>/);
+    expect(aboutSource).toMatch(/<a href="https:\/\/delinya\.org\/docs\/"[^>]*>documentation<\/a>/);
+  });
+
   it("opens and closes like the other dialogs", () => {
     const open = editorReducer(initialEditor, { type: "dialog", dialog: "about" });
     expect(open.dialog).toBe("about");

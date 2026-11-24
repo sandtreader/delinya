@@ -1,0 +1,31 @@
+---
+import Layout from "@/layouts/Layout.astro";
+import Container from "@/components/container.astro";
+import Sectionhead from "@/components/sectionhead.astro";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { marked } from "marked";
+
+// The app's own changelog, at the root of the Delinya repo.
+const changelogPath = fileURLToPath(
+  new URL("../../../CHANGELOG.md", import.meta.url),
+);
+const source = readFileSync(changelogPath, "utf-8");
+
+// Strip the top-level "# Changelog" heading — we render our own via Sectionhead
+const stripped = source.replace(/^#\s+Changelog\s*\n/, "");
+const html = await marked.parse(stripped);
+---
+
+<Layout title="Changelog">
+  <Container>
+    <Sectionhead>
+      <Fragment slot="title">Changelog</Fragment>
+      <Fragment slot="desc">What's new in each release of Delinya.</Fragment>
+    </Sectionhead>
+    <article
+      class="mx-auto max-w-3xl mt-12 prose prose-lg prose-headings:font-display prose-headings:font-medium prose-a:text-[var(--color-accent)] prose-strong:text-[var(--color-text)]"
+      set:html={html}
+    />
+  </Container>
+</Layout>

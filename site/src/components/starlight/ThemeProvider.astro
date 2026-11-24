@@ -1,0 +1,10 @@
+---
+// Light only, like the app and its screenshots: Starlight's ThemeProvider
+// without the dark scheme (ThemeSelect is overridden to nothing).
+---
+
+{/* Inlined, as Starlight's own, to avoid a flash of the wrong theme. */}
+<script is:inline>
+	document.documentElement.dataset.theme = 'light';
+	window.StarlightThemeProvider = { updatePickers() {} };
+</script>

@@ -13,7 +13,10 @@
     "test:watch": "vitest",
     "clean": "rm -rf dist",
     "relay": "PORT=2901 collab-relay",
-    "publish:web": "pnpm build && rsync -avz --delete dist/ st1:/var/www/delinya.net/"
+    "publish:web": "pnpm build && rsync -avz --delete dist/ st1:/var/www/delinya.net/",
+    "dev:site": "pnpm --dir site dev",
+    "build:site": "pnpm --dir site build",
+    "publish:site": "pnpm --dir site build && rsync -avz --delete site/dist/ st1:/var/www/delinya.org/"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

@@ -1,0 +1,36 @@
+---
+title: Line styles
+description: Dashed, dotted and dash-dot lines, and pen widths on paper.
+sidebar:
+  order: 8
+---
+
+Lines, rectangles, circles and paths each have a line style: a pattern
+and a pen width. Text has none.
+
+## Choosing a style
+
+The **line style** group in the toolbar has four pattern buttons, **Solid**,
+**Dashed**, **Dotted** and **Dash-dot** (a centre line), and a **width**
+menu.
+
+- With nothing selected, it shows and sets the style for the shapes you
+  draw next. Your choice is remembered in your browser.
+- With shapes selected, it shows theirs ("mixed" where they differ), and
+  a choice restyles them as well as setting the style for what you draw
+  next.
+
+## Widths are pen widths
+
+The widths are the standard technical pen sizes: 0.13, 0.18, 0.25, 0.35
+(the default), 0.5, 0.7, 1, 1.4 and 2 mm. They are widths **on paper**: a
+0.5 mm line prints 0.5 mm wide at 1:1 or at 1:10, and looks the same
+thickness on screen at any zoom.
+
+The dash lengths follow the ISO standard, in proportion to the width,
+but no shorter than for 0.35 mm, so thin lines still look dashed.
+
+## In output
+
+Printing, PDF and SVG use the widths and patterns. DXF keeps the
+patterns as linetypes (DASHED, DOTTED, DASHDOT), but has no line widths.

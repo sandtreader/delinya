@@ -1,0 +1,59 @@
+---
+title: File format
+description: What's inside a .dln drawing file.
+sidebar:
+  order: 2
+---
+
+A Delinya drawing is a `.dln` file: JSON text, which you can read in any
+text editor. It holds the drawing exactly as you made it, and nothing
+worked out from it.
+
+```json
+{
+  "format": "delinya",
+  "version": 1,
+  "doc": {
+    "entities": {
+      "rect_k3v9q2": {
+        "kind": "rect",
+        "props": { "x": 0, "y": 0, "width": 300, "height": 600, "layer": "layer" }
+      },
+      "circle_a81x0p": {
+        "kind": "circle",
+        "props": { "cx": 37, "cy": 96, "diameter": 5 }
+      }
+    }
+  }
+}
+```
+
+- **format** is always `"delinya"`, and **version** is the format's
+  version, currently 1. A newer Delinya reads older files; an older one
+  refuses a file from a newer version rather than misread it.
+- **doc.entities** maps each entity's ID to its **kind** and **props**.
+
+## Kinds
+
+| Kind | What it is |
+|---|---|
+| `line` | A line: start `x`, `y`, `length` and `angle` |
+| `rect` | A rectangle: corner `x`, `y`, `width`, `height`, optional corner radii `r` and `rotation` |
+| `circle` | A circle: centre `cx`, `cy` and `diameter` |
+| `polyline` | A path: its `nodes` and whether it is `closed` |
+| `text` | A text box: `x`, `y`, `width`, `height`, `text` and its style |
+| `dimension` | A dimension of a shape's size, with its offset |
+| `radius-label` | A label on one of a rectangle's corners |
+| `variable` | A shared value that linked sizes refer to |
+| `link.align`, `link.spacing` | Live alignment and spacing links |
+| `layer` | A layer: its name, order and colour |
+| `document` | The title block text and grid spacing |
+
+Shapes may also have a `layer`, a `lineWidth` and a `lineDash`.
+
+## Units
+
+All lengths are millimetres. x runs right and y runs **down**, as on the
+screen; angles are in degrees, clockwise from pointing right. A size
+linked to a variable is stored as `{ "ref": "<variable id>" }` in place of
+a number.

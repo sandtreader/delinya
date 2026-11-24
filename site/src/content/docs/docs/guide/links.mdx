@@ -1,0 +1,61 @@
+---
+title: Links
+description: Align, space and equalise shapes once or with live links, and share values through variables.
+sidebar:
+  order: 6
+---
+
+Links keep shapes in step: equal sizes, aligned edges, even spacing. You
+can make each arrangement once, or keep it as a live link that follows
+later edits.
+
+## Arranging a selection
+
+Select two or more shapes with the Select tool. The **first one you
+selected is the reference** (drawn with a halo); the others move to it.
+The panel then offers:
+
+- **Align**: an **Across** row (left edges, centres, right edges) and a
+  **Down** row (top edges, middles, bottom edges).
+- **Centre**: **On reference**, centring the others on it both ways.
+- **Space** (three or more shapes): **Gaps ↔** and **Gaps ↕** make the
+  gaps equal, **Centres ↔** and **Centres ↕** make the centre-to-centre
+  pitch equal, between the outermost two.
+- **Equal** (shapes of one kind): give them the reference's width or
+  height, diameter, or length.
+
+## Once, or kept linked
+
+With **Keep linked** off (the default), each action moves or resizes the
+shapes once and leaves no link. Turn it on and the same actions create
+**live links**:
+
+- an aligned shape stays aligned when the reference moves;
+- spaced shapes stay evenly spaced between the outer two;
+- equal sizes go through a shared **variable**, so changing any of them
+  changes them all.
+
+Live links show on the drawing in purple: dashed guides along aligned
+edges, "=" marks across equal gaps, and "= name" after a linked size's
+dimension. A link that can't apply (it clashes with another, or goes
+round in a circle) shows in red.
+
+## Variables
+
+Shared sizes are named variables. **Properties… → Variables** lists them
+with their values; editing one changes every size linked to it. A linked
+size in the panel has a badge showing its variable, and an unlink button.
+
+## Removing links
+
+- Click a link's guide, or a "= name" on a dimension, to get a small
+  broken-chain button that removes that link.
+- With the shapes selected, each link joining them shows a broken-chain
+  button.
+- A shape's panel lists the spacing and alignment links it belongs to,
+  with a button to take it out of each.
+
+Removing a link leaves everything where it is.
+
+Duplicating can make links too: see
+[Rotate and duplicate](/docs/guide/rotate-and-duplicate/).

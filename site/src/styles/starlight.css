@@ -1,0 +1,22 @@
+/* Delinya's palette for Starlight: the app's accent and greys on paper.
+   The docs are light only (ThemeProvider override), like the app. */
+
+:root,
+:root[data-theme='light'] {
+  --sl-font: 'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --sl-font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, monospace;
+
+  --sl-color-accent-low: #d4e9f2;
+  --sl-color-accent: #0b6e99;
+  --sl-color-accent-high: #08425c;
+
+  --sl-color-white: #1d1d1b;
+  --sl-color-gray-1: #2e2e2b;
+  --sl-color-gray-2: #45453f;
+  --sl-color-gray-3: #6b6b66;
+  --sl-color-gray-4: #9a9a94;
+  --sl-color-gray-5: #d9d9d4;
+  --sl-color-gray-6: #ecece8;
+  --sl-color-gray-7: #f7f7f5;
+  --sl-color-black: #fbfcfd;
+}

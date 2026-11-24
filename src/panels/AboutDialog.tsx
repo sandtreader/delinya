@@ -1,5 +1,5 @@
-// About Delinya, from the name in the header: what it is and the version.
-// The text is a placeholder until the real wording arrives.
+// About Delinya, from the name in the header: what it is, the version, and
+// links to its home page and documentation on delinya.org.
 
 import { useEffect } from "react";
 import { useEditor } from "../app/editor";
@@ -24,7 +24,12 @@ export function AboutDialog() {
         </header>
         <div className="about-body">
           <p className="about-name">Delinya <span className="about-version">version {APP_VERSION}</span></p>
-          <p>2D drawing with real units.</p>
+          <p>Collaborative 2D drawing with real units.</p>
+          <p>
+            <a href="https://delinya.org/" target="_blank" rel="noreferrer">home page</a>
+            {" · "}
+            <a href="https://delinya.org/docs/" target="_blank" rel="noreferrer">documentation</a>
+          </p>
           <p>by Paul Clark <a href="https://sandtreader.com" target="_blank" rel="noreferrer">@sandtreader</a></p>
           <div className="buttons">
             <button className="primary" onClick={close} autoFocus>OK</button>

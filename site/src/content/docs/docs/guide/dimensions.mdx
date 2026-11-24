@@ -1,0 +1,56 @@
+---
+title: Dimensions
+description: Dimensions and radius labels, added automatically or by hand, moved and removed.
+sidebar:
+  order: 5
+---
+
+Dimensions show a shape's size on the drawing: a rectangle's width and
+height, a circle's diameter, a line's length. They're drawn in blue, on
+screen and on paper, and they always show the shape's current size.
+
+## Adding dimensions
+
+- **Automatically**: with **Dimension new shapes** on (in the toolbar, on
+  by default), a new rectangle, circle or line gets its dimensions as you
+  draw it. Turn it off to draw without them. It's your own setting,
+  remembered in your browser.
+- **From the panel**: the **dimensions** row has a checkbox for each size
+  the shape has; tick it to add that dimension, untick to remove it.
+- **With the Dimension tool** (**D**): point at a rectangle's edge (top or
+  bottom for its width, a side for its height), a circle's outline or a
+  line, then click where the dimension should go. Or press, drag and
+  release. The tool stays selected for the next one; Escape cancels.
+
+To measure between two points that aren't one shape's size, draw a line
+between them (it snaps to both) and dimension its length.
+
+## Moving and removing
+
+With the Select tool, click a dimension to select it, then:
+
+- **drag** it nearer to or further from the shape, or across the shape to
+  the other side;
+- press **Delete** to remove it.
+
+## Radius labels
+
+A rounded corner can carry a radius label, "R10", inside its curve. Click
+a rounded corner with the Dimension tool to add or remove one, or tick
+**label** beside the corner in the panel.
+
+A rectangle's **corner radii** have an **all** switch, on by default: one
+radius and one label checkbox for all four corners. With all four corners
+equal, a single label reads "4× R10". Switch **all** off to set each
+corner on its own; switching it back on gives every corner the largest
+radius. Radii too big for the rectangle are reduced to fit, and the panel
+says so.
+
+## Showing and printing
+
+**Show dimensions** in the status bar hides or shows dimensions and
+radius labels on screen; it's your own setting. Printing and export have
+their own **Dimensions** option.
+
+Where a size is linked to a shared value, its dimension shows the
+value's name: "= shelf". See [Links](/docs/guide/links/).

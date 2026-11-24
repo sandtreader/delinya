@@ -1,0 +1,59 @@
+@import 'tailwindcss';
+
+@plugin '@tailwindcss/typography';
+
+@theme {
+  /* Fonts: Inter, close to the app's system-ui */
+  --font-sans:
+    'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif,
+    'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+  --font-display:
+    'Inter Variable', 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    'Liberation Mono', 'Courier New', monospace;
+
+  /* Palette: the app's paper and ink (src/styles.css in the app) */
+  --color-accent: #0b6e99;
+  --color-accent-dark: #08536f;
+  --color-dimension: #3070c0;
+  --color-select: #e8730c;
+
+  --color-bg-deep: #fbfcfd;
+  --color-bg-surface: #f7f7f5;
+  --color-bg-card: #ffffff;
+  --color-bg-elevated: #f0f0ec;
+  --color-border-subtle: #d9d9d4;
+
+  --color-text: #1d1d1b;
+  --color-text-muted: #6b6b66;
+}
+
+@layer base {
+  html {
+    background-color: var(--color-bg-deep);
+    color: var(--color-text);
+  }
+
+  body {
+    font-family: var(--font-sans);
+  }
+
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-border-subtle);
+  }
+}
+
+/* Graph paper behind the hero, as the app's canvas */
+.graph-paper {
+  background-color: var(--color-bg-deep);
+  background-image:
+    linear-gradient(var(--color-bg-elevated) 1px, transparent 1px),
+    linear-gradient(90deg, var(--color-bg-elevated) 1px, transparent 1px);
+  background-size: 20px 20px;
+}

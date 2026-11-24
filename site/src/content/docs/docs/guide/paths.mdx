@@ -1,0 +1,53 @@
+---
+title: Paths
+description: Draw paths of straight and curved segments, and edit their nodes and segments.
+sidebar:
+  order: 2
+---
+
+A path is a run of nodes joined by straight or curved segments, open or
+closed: an outline that a rectangle or circle can't make.
+
+## Drawing a path
+
+Press **P** (Path), then click, don't drag:
+
+- **Click** to add a corner node; the segment to it is straight.
+- **Shift-click** to add a smooth node; the path curves through it.
+- **Click the first node** (with three or more nodes) to close the path
+  and finish.
+- **Enter**, **Escape** or a **double-click** finishes it open.
+- **Backspace** or **Delete** takes back the last node.
+
+Nodes snap to the grid and to other shapes, as for other tools. The status
+bar shows the length and angle of the segment you're about to add.
+
+## Editing nodes
+
+Select a path with the Select tool and its nodes appear: squares for
+corners, circles for smooth nodes.
+
+- **Drag a node** to move it. Click it to select it and show its handles.
+- **Drag a handle** to bend the segments either side. On a smooth node the
+  two handles stay in line; **Alt** (Option) while dragging breaks them
+  apart, making it a corner.
+- **Alt-drag a corner node** to pull a new handle out of it. Drop a handle
+  back onto its node to remove it.
+- **Double-click** the path to add a node there, without changing its
+  shape.
+- **Delete** removes the selected node; **Escape** deselects it.
+
+The selected node gets a small card beside it: **Corner** or **Smooth**,
+**Join** (on an open end lying on another open end: closes the path, or
+joins two paths into one), **Break apart** (splits the path at that node),
+a bin to delete the node, and its exact x and y.
+
+## Editing segments
+
+Click a selected path between its nodes to select that segment.
+
+- **Drag the segment** to bend it.
+- Its card switches it between **Straight** and **Curve**, or deletes it,
+  which opens a closed path or splits an open one in two.
+
+The panel shows the path's node count and a **Closed** checkbox.

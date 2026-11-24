@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Graph paper -->
+  <clipPath id="paper"><rect width="32" height="32" rx="6"/></clipPath>
+  <g clip-path="url(#paper)">
+    <rect width="32" height="32" fill="#fbfcfd"/>
+    <path d="M8 0V32M16 0V32M24 0V32M0 8H32M0 16H32M0 24H32" stroke="#a9cde6" stroke-width="0.8"/>
+  </g>
+  <!-- Set square, clear blue acrylic with a cut-out -->
+  <path d="M27 27V8L8 27ZM23 23H17.7L23 17.7Z" fill="#0b6e99" fill-opacity="0.32" fill-rule="evenodd"
+        stroke="#0b6e99" stroke-width="1.2" stroke-linejoin="round"/>
+  <!-- Drawn line, left behind the point along the edge -->
+  <path d="M9.45 24.45L6.2 27.7" stroke="#3a3a3a" stroke-width="0.9" stroke-linecap="round"/>
+  <!-- Pencil, its point on the hypotenuse and the cone's lower side along it -->
+  <g transform="translate(9.7 24.7) rotate(-65.26)">
+    <path d="M0 0L6.5-2.4V2.4Z" fill="#f0c995"/>
+    <path d="M0 0L2.2-0.81V0.81Z" fill="#2b2b2b"/>
+    <rect x="6.5" y="-2.4" width="11.5" height="4.8" fill="#f5b400"/>
+    <rect x="6.5" y="0.8" width="11.5" height="1.6" fill="#d99600"/>
+    <rect x="18" y="-2.4" width="1.6" height="4.8" fill="#a7b0b6"/>
+    <path d="M19.6-2.4H21.4A0.8 0.8 0 0 1 22.2-1.6V1.6A0.8 0.8 0 0 1 21.4 2.4H19.6Z" fill="#e8899a"/>
+  </g>
+</svg>

@@ -1,0 +1,44 @@
+---
+title: Export for a laser cutter or CNC
+description: Get clean DXF or SVG files at true size for CAM software.
+sidebar:
+  order: 2
+---
+
+Laser cutters, CNC routers and most CAM software read DXF or SVG. Delinya
+writes both at 1:1 in millimetres.
+
+## Prepare the drawing
+
+- Put the cut lines and the engraving or marking on separate
+  [layers](/docs/guide/layers/), with different colours if your software
+  assigns operations by colour.
+- Hide layers that shouldn't go to the machine. Hidden layers are left out
+  of every export.
+- Close outlines: draw them as rectangles, circles or **closed** paths, so
+  CAM gets whole contours.
+
+## DXF
+
+In **Print / Export…**, click **Download DXF**. The file is AutoCAD R12,
+which almost every CAM tool reads:
+
+- millimetre units, at full size;
+- one DXF layer per visible Delinya layer, with its name and colour;
+- rectangles (rounded corners included) as single closed outlines, circles
+  as circles, paths as polylines (curves become many short straight
+  pieces, within 0.01 mm);
+- text as DXF text;
+- dashed, dotted and dash-dot lines as named linetypes. R12 has no line
+  widths, so those are left out.
+
+Dimensions, radius labels and the title block are not included: the DXF
+holds only the shapes.
+
+## SVG
+
+**Download SVG** writes the whole drawing as one SVG in millimetres at
+1:1, with the layer colours, line widths and dash patterns, and the
+dimensions if **Dimensions** is ticked. Untick it for a clean cutting
+file. Check that your laser software imports SVG at its real size (some
+assume 72 or 96 dots per inch).

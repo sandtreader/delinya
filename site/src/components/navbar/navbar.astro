@@ -1,0 +1,62 @@
+---
+import Container from "@/components/container.astro";
+import Link from "@/components/ui/link.astro";
+import { Astronav, MenuItems, MenuIcon } from "astro-navbar";
+import logo from "@/assets/logo.svg?raw";
+
+const menuitems = [
+  { title: "Home", path: "/" },
+  { title: "Docs", path: "/docs/" },
+  { title: "Getting started", path: "/docs/getting-started/" },
+  { title: "Changelog", path: "/changelog" },
+];
+
+const appUrl = "https://delinya.net";
+---
+
+<Container>
+  <header
+    class="flex flex-col lg:flex-row justify-between items-center my-5">
+    <Astronav>
+      <div class="flex w-full lg:w-auto items-center justify-between">
+        <a href="/" class="flex items-center gap-3">
+          <span
+            class="inline-block w-[40px] h-[40px] [&>svg]:w-full [&>svg]:h-full [&>svg]:block"
+            aria-hidden="true"
+            set:html={logo}
+          />
+          <span
+            class="font-display font-semibold text-2xl tracking-tight text-[var(--color-text)]"
+            >Delinya</span
+          >
+        </a>
+        <div class="block lg:hidden">
+          <MenuIcon class="w-5 h-5 text-[var(--color-text)]" />
+        </div>
+      </div>
+      <MenuItems class="hidden w-full lg:w-auto mt-2 lg:flex lg:mt-0">
+        <ul class="flex flex-col lg:flex-row lg:gap-3">
+          {
+            menuitems.map((item) => (
+              <li>
+                <a
+                  href={item.path}
+                  class="flex lg:px-3 py-2 items-center text-[var(--color-text-muted)] hover:text-[var(--color-accent)] transition">
+                  <span>{item.title}</span>
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+        <div class="lg:hidden flex items-center mt-3 gap-4">
+          <Link href={appUrl} size="md" block>Open Delinya →</Link>
+        </div>
+      </MenuItems>
+    </Astronav>
+    <div>
+      <div class="hidden lg:flex items-center gap-4">
+        <Link href={appUrl} size="md">Open Delinya →</Link>
+      </div>
+    </div>
+  </header>
+</Container>

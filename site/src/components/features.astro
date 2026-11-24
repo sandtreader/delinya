@@ -1,0 +1,74 @@
+---
+// @ts-ignore
+import { Icon } from "astro-icon/components";
+
+const features = [
+  {
+    title: "Nothing to install",
+    description:
+      "Delinya runs in your browser. Open the page and start drawing; your drawings save as files on your own computer.",
+    icon: "bx:bxs-window-alt",
+  },
+  {
+    title: "Exact sizes",
+    description:
+      "Every shape has its position and size in millimetres, typed in or snapped to the grid and to other shapes. Dimensions show them on the drawing.",
+    icon: "bx:bx-ruler",
+  },
+  {
+    title: "Linked values and spacing",
+    description:
+      "Make sizes equal through shared variables, and keep shapes aligned or evenly spaced with live links that follow your edits.",
+    icon: "bx:bx-link",
+  },
+  {
+    title: "True-scale printing",
+    description:
+      "Print at full size or to scale, tiled across sheets with overlap guides, a check ruler and a title block.",
+    icon: "bx:bx-printer",
+  },
+  {
+    title: "PDF, SVG and DXF",
+    description:
+      "Download a PDF of the printed sheets, or SVG and DXF at 1:1 for laser cutters, CNC and other CAD tools.",
+    icon: "bx:bx-export",
+  },
+  {
+    title: "Draw together",
+    description:
+      "Start a session and share the link: everyone in it edits the same drawing live, and sees each other's cursors.",
+    icon: "bx:bx-group",
+  },
+];
+---
+
+<div class="mt-16 md:mt-0">
+  <h2
+    class="font-display text-4xl lg:text-5xl font-light lg:tracking-tight text-[var(--color-text)]">
+    A drawing board that knows its sizes
+  </h2>
+  <p class="text-lg mt-4 text-[var(--color-text-muted)] max-w-2xl">
+    Woodwork was the first use, but Delinya is for any flat drawing where the
+    numbers matter: templates, layouts, panels, plans.
+  </p>
+</div>
+
+<div class="grid sm:grid-cols-2 md:grid-cols-3 mt-16 gap-10">
+  {
+    features.map((item) => (
+      <div class="flex flex-col gap-4 items-start p-6 rounded-lg bg-[var(--color-bg-card)] border border-[var(--color-border-subtle)]">
+        <div class="bg-[var(--color-accent)]/10 rounded-md p-2 w-10 h-10 shrink-0 flex items-center justify-center">
+          <Icon class="text-[var(--color-accent)] w-6 h-6" name={item.icon} />
+        </div>
+        <div>
+          <h3 class="font-display font-medium text-xl text-[var(--color-text)]">
+            {item.title}
+          </h3>
+          <p class="text-[var(--color-text-muted)] mt-2 leading-relaxed">
+            {item.description}
+          </p>
+        </div>
+      </div>
+    ))
+  }
+</div>

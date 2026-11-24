@@ -1,0 +1,19 @@
+---
+import Link from "./ui/link.astro";
+const appUrl = "https://delinya.net";
+---
+
+<div
+  class="graph-paper border border-[var(--color-border-subtle)] p-8 md:px-20 md:py-20 mt-20 mx-auto max-w-5xl rounded-lg flex flex-col items-center text-center">
+  <h2
+    class="font-display text-[var(--color-text)] text-4xl md:text-6xl tracking-tight font-light">
+    Measure twice. Draw once.
+  </h2>
+  <p class="text-lg mt-4 text-[var(--color-text-muted)] max-w-xl">
+    Free to use, nothing to sign up for. Your drawings stay on your computer.
+  </p>
+  <div class="flex flex-col sm:flex-row mt-6 gap-3">
+    <Link href={appUrl}>Open Delinya →</Link>
+    <Link href="/docs/" style="outline">Read the docs</Link>
+  </div>
+</div>

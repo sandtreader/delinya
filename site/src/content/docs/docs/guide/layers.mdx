@@ -1,0 +1,48 @@
+---
+title: Layers
+description: Organise a drawing in layers, with line colours, hiding and locking.
+sidebar:
+  order: 7
+---
+
+Every shape is on a layer. A new drawing has one; add more to keep parts
+of a drawing apart: the parts, the holes, the cut lines, the notes.
+
+## The layer palette
+
+The layer palette floats below the tool palette, with one numbered
+button per layer, **1** at the top. Layer 1 is drawn at the back.
+
+- The highlighted button is the **current layer**: new shapes go on it.
+- **+** adds a layer in front and makes it current.
+- **Drag** a button up or down to reorder the layers.
+
+Clicking a layer's button makes it current and opens its card (click
+again, or press Escape, to close it):
+
+- a **name**;
+- a **line colour**, from a small palette of inks that print well;
+- **hide** or **show**, and **lock** or **unlock**;
+- **delete**, which deletes the layer and its shapes (asking first).
+
+## Colour, hiding and locking
+
+A layer's **colour** is part of the drawing: everyone sees it, and it
+prints and exports in that colour.
+
+**Hidden** and **locked** are your own view, not the drawing's: they
+aren't saved, and in a shared session each person has their own. Opening
+a drawing shows every layer, unlocked.
+
+- A **hidden** layer isn't drawn, can't be selected or snapped to, and is
+  left out of printing and export.
+- A **locked** layer is drawn and snapped to, but its shapes can't be
+  selected or changed. You can't draw on a hidden or locked current
+  layer.
+
+## Moving shapes between layers
+
+With more than one layer, the selection panel has a **Layer** menu: pick
+a layer to move the selected shapes onto it.
+
+In DXF export, each layer becomes a DXF layer with its name and colour.
