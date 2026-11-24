@@ -96,7 +96,7 @@ export interface DuplicatePlacement {
 
 /**
  * Copy the shapes beside the bounds they make together, `spacing` mm clear
- * in `direction`: the selection panel's Duplicate and ⌘D. `count` copies
+ * in `direction`: the toolbar's Duplicate card and ⌘D. `count` copies
  * make a row, each one step on from the last. With `linkGaps` each shape
  * gets a spacing link (see gapLinks), with `linkSize` variables for its
  * sizes (see sizeLinks), with `linkAlign` an align link (see alignLinks);

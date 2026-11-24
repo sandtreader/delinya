@@ -8,7 +8,7 @@ import {
 } from "../src/model";
 import { EditorContext, editorReducer, initialEditor } from "../src/app/editor";
 import { store } from "../src/app/store";
-import { SelectionPanel } from "../src/panels/SelectionPanel";
+import { DuplicateCard } from "../src/panels/ActionCards";
 import { doc } from "./helpers";
 
 /** Predictable IDs: kind prefix and a running number. */
@@ -124,11 +124,11 @@ describe("duplicate settings", () => {
     expect(g.duplicate).toEqual({ direction: "down", spacing: 2.5, count: 4, linkGaps: true, linkSize: false, linkAlign: false });
   });
 
-  it("show in the selection panel: the count beside the Duplicate button", () => {
+  it("show in the Duplicate card: the count beside its button", () => {
     store.replace(emptyState());
     store.commit(addRect("a", { x: 0, y: 0, width: 30, height: 10 }));
     const editor = { ...initialEditor, selection: ["a"], duplicate: { ...initialEditor.duplicate, count: 3 } };
-    const html = renderToStaticMarkup(createElement(EditorContext.Provider, { value: { editor, dispatch: () => {} } }, createElement(SelectionPanel)));
+    const html = renderToStaticMarkup(createElement(EditorContext.Provider, { value: { editor, dispatch: () => {} } }, createElement(DuplicateCard, { shapes: ["a"] })));
     const count = html.match(/<label[^>]*class="count"[^>]*>([\s\S]*?)<\/label>/);
     expect(count).not.toBeNull();
     expect(count![1]).toMatch(/<input[^>]*value="3"/);
@@ -231,12 +231,12 @@ describe("linking the copies", () => {
     for (const id of out.ids) expect(r.shapes[id]!.bounds).toEqual(plain.shapes[id]!.bounds);
   });
 
-  it("show in the panel as three checkboxes, gaps only with two or more copies", () => {
+  it("show in the card as three checkboxes, gaps only with two or more copies", () => {
     store.replace(emptyState());
     store.commit(addRect("a", { x: 0, y: 0, width: 30, height: 10 }));
     const render = (count: number) => renderToStaticMarkup(createElement(EditorContext.Provider, {
       value: { editor: { ...initialEditor, selection: ["a"], duplicate: { ...initialEditor.duplicate, count, linkSize: true } }, dispatch: () => {} },
-    }, createElement(SelectionPanel)));
+    }, createElement(DuplicateCard, { shapes: ["a"] })));
     const box = (html: string, name: string) => html.match(new RegExp(`<label[^>]*class="link-${name}"[^>]*>[\\s\\S]*?<input([^>]*)>`))?.[1];
     expect(box(render(3), "gaps")).toBeDefined();
     expect(box(render(3), "gaps")).not.toContain("disabled");

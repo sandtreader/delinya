@@ -111,6 +111,20 @@ export const DimensionsIcon = ({ off = false }: { off?: boolean }) => (
   </Icon>
 );
 
+/** Rotate…: a square turned a little, with a round arrow over it. */
+export const TurnIcon = () => (
+  <Icon size={BAR}>
+    <rect x="5" y="6.5" width="6" height="6" transform="rotate(20 8 9.5)" />
+    <path d="M3 6.5A5.5 5.5 0 0 1 12.5 4" />
+    <path d="M12.8 1.5 12.6 4.2 10 4" />
+  </Icon>
+);
+
+/** Duplicate…: two squares, one copied beside and over the other. */
+export const DuplicateIcon = () => (
+  <Icon size={BAR}><rect x="2" y="2" width="8.5" height="8.5" rx="1" /><rect x="5.5" y="5.5" width="8.5" height="8.5" rx="1" /></Icon>
+);
+
 /** Drawing adds dimensions: a small rect with its width dimensioned above, struck through when off. */
 export const AutoDimensionIcon = ({ off = false }: { off?: boolean }) => (
   <Icon size={BAR}>
@@ -143,8 +157,8 @@ export const ArrowIcon = ({ direction }: { direction: keyof typeof ARROW_TURN })
 export const RotateIcon = ({ clockwise = false }: { clockwise?: boolean }) => (
   <Icon>
     <g transform={clockwise ? undefined : "matrix(-1 0 0 1 16 0)"}>
-      <path d="M10.5 12.8A5 5 0 1 1 8 3.5" />
-      <path d="M5.5 1 8 3.5 5.5 6" />
+      <path d="M13.1 9.8A5.4 5.4 0 1 1 11.8 4.2L14.6 6.8" />
+      <path d="M14.6 3.2v3.6H11" />
     </g>
   </Icon>
 );

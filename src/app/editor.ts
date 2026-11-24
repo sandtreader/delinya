@@ -16,9 +16,11 @@ import { DEFAULT_LABEL_VIEW, type LabelView } from "./labelView";
 
 export type Tool = "select" | "line" | "rect" | "circle" | "polyline" | "text" | "dimension";
 export type Dialog = "output" | "properties" | "about";
+/** A card dropped from its toolbar button: Rotate or Duplicate. */
+export type ActionCard = "rotate" | "duplicate";
 
 /**
- * The selection panel's Duplicate: which way the copies go, how far apart,
+ * The toolbar's Duplicate card: which way the copies go, how far apart,
  * mm, how many, and whether their gaps, sizes and alignment are linked to
  * the original.
  */
@@ -111,6 +113,12 @@ export interface EditorState {
   /** Kept while the app is open, not saved. */
   duplicate: DuplicateSettings;
   /**
+   * The toolbar card open below its button (Rotate or Duplicate), acting
+   * on the selection: only while there is one, so it goes when the
+   * selection empties.
+   */
+  card: ActionCard | null;
+  /**
    * The text box being typed into on the drawing (a field laid over it).
    * Ends when the selection becomes anything but that box, on any toggle of
    * the selection, and when the tool changes.
@@ -153,6 +161,7 @@ export const initialEditor: EditorState = {
   keepLinked: false,
   linkPopup: null,
   duplicate: { direction: "right", spacing: 10, count: 1, linkGaps: false, linkSize: false, linkAlign: false },
+  card: null,
   editText: null,
   editFresh: false,
 };
@@ -182,6 +191,7 @@ export type EditorAction =
   | { type: "keepLinked"; on: boolean }
   | { type: "linkPopup"; popup: EditorState["linkPopup"] }
   | { type: "duplicate"; settings: Partial<DuplicateSettings> }
+  | { type: "card"; card: ActionCard | null }
   | { type: "editText"; id: EntityId | null; fresh?: boolean };
 
 export function editorReducer(s: EditorState, a: EditorAction): EditorState {
@@ -202,19 +212,21 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "select": {
       const only = a.ids.length === 1 ? a.ids[0] : undefined;
       return {
-        ...s, selection: a.ids, linkPopup: null, label: null,
+        ...s, selection: a.ids, linkPopup: null, label: null, card: a.ids.length ? s.card : null,
         node: only === s.node?.shape ? s.node : null, segment: only === s.segment?.shape ? s.segment : null,
         ...(only !== undefined && only === s.editText ? {} : { editText: null, editFresh: false }),
       };
     }
-    case "toggleSelect":
+    case "toggleSelect": {
+      const selection = s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id];
       return {
         ...s, linkPopup: null, node: null, segment: null, editText: null, editFresh: false, label: null,
-        selection: s.selection.includes(a.id) ? s.selection.filter((i) => i !== a.id) : [...s.selection, a.id],
+        selection, card: selection.length ? s.card : null,
       };
+    }
     // A label instead of any shapes.
     case "selectLabel":
-      return { ...s, label: a.id, selection: [], linkPopup: null, node: null, segment: null, editText: null, editFresh: false };
+      return { ...s, label: a.id, selection: [], card: null, linkPopup: null, node: null, segment: null, editText: null, editFresh: false };
     // A node or a segment, not both.
     case "node": return { ...s, node: a.node, segment: a.node ? null : s.segment };
     case "segment": return { ...s, segment: a.segment, node: a.segment ? null : s.node };
@@ -251,6 +263,8 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "keepLinked": return { ...s, keepLinked: a.on };
     case "linkPopup": return { ...s, linkPopup: a.popup };
     case "duplicate": return { ...s, duplicate: { ...s.duplicate, ...a.settings } };
+    // Nothing to act on, nothing to open.
+    case "card": return { ...s, card: a.card && s.selection.length ? a.card : null };
     case "editText": return { ...s, editText: a.id, editFresh: a.id !== null && !!a.fresh };
   }
 }

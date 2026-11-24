@@ -12,7 +12,8 @@ import { PropertiesDialog } from "./panels/PropertiesDialog";
 import { AboutDialog } from "./panels/AboutDialog";
 import { AskDialog } from "./panels/AskDialog";
 import { Tooltip } from "./panels/Tooltip";
-import { SelectionPanel, deleteSelection, duplicateSelection } from "./panels/SelectionPanel";
+import { SelectionPanel, deleteSelection } from "./panels/SelectionPanel";
+import { duplicateSelection } from "./panels/ActionCards";
 import { LinkButtons } from "./panels/LinkButtons";
 import { NodeCard, deleteNode } from "./panels/NodeCard";
 import { SegmentCard, deleteSegment } from "./panels/SegmentCard";
@@ -101,7 +102,7 @@ function Shell() {
         else file.save();
         return;
       }
-      // ⌘D: one plain copy of the selection, in the panel's Duplicate
+      // ⌘D: one plain copy of the selection, in the Duplicate card's
       // direction and gap whatever its count and links, selected, so
       // pressing again carries on.
       // Never the browser's bookmark.

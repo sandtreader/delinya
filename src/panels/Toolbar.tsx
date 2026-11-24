@@ -6,8 +6,10 @@ import { tell } from "../app/ask";
 import { DEFAULT_VIEW } from "../view/viewport";
 import { LINE_DASHES, LINE_WIDTHS, commonLineStyle, setLineStyle, type LineDash, type LineStyle } from "../model";
 import {
-  AutoDimensionIcon, HistoryIcon, IconButton, LineDashIcon, NewIcon, OpenIcon, PrintIcon, PropertiesIcon, SaveAsIcon, SaveIcon,
+  AutoDimensionIcon, DuplicateIcon, HistoryIcon, IconButton, LineDashIcon, NewIcon, OpenIcon, PrintIcon, PropertiesIcon, SaveAsIcon, SaveIcon,
+  TurnIcon,
 } from "./icons";
+import { CardButton, DuplicateCard, RotateCard } from "./ActionCards";
 import { tip } from "./tip";
 import { quotedTitle } from "../view/format";
 import { discardPathDraft } from "../canvas/Canvas";
@@ -43,9 +45,11 @@ export function useFileCommands() {
 
 export function Toolbar() {
   useDocument();
-  const { dispatch } = useEditor();
+  const { editor, dispatch } = useEditor();
   const file = useFileCommands();
   const name = useFileName();
+  // The selection's shapes, for Rotate and Duplicate.
+  const shapes = editor.selection.filter((id) => Object.hasOwn(store.resolved.shapes, id));
   const dirty = useDirty();
   const title = quotedTitle(store.resolved.document.title, name);
   // Pressing Undo blurs a field first: on the drawing, a box just drawn and
@@ -80,6 +84,15 @@ export function Toolbar() {
           <HistoryIcon />
         </IconButton>
         <IconButton label="Redo" tip="Redo (⇧⌘Z)" disabled={!store.canRedo} onClick={() => store.redo()}><HistoryIcon redo /></IconButton>
+      </div>
+      {/* Acting on the selection: each opens a card below its button. */}
+      <div className="group">
+        <CardButton card="rotate" label="Rotate…" tip="Rotate or flip the selection" icon={<TurnIcon />} shapes={shapes}>
+          <RotateCard shapes={shapes} />
+        </CardButton>
+        <CardButton card="duplicate" label="Duplicate…" tip="Duplicate the selection: how many, which way, how far apart" icon={<DuplicateIcon />} shapes={shapes}>
+          <DuplicateCard shapes={shapes} />
+        </CardButton>
       </div>
       {/* Drawing settings: this viewer's own, remembered per browser. */}
       <div className="group">

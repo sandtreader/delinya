@@ -1,15 +1,13 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-24. Repo `sandtreader/delinya`, branch `main`.
-v0.2.1 is committed, tagged and deployed to delinya.net: on top of
-v0.1.2's text boxes (typed on the drawing or in the panel, aligned, never
-narrower than their longest word; Adobe Core 14 metrics in
-`model/fontMetrics.ts`), fit view to drawing and the Dimension tool,
-radius labels by hand, moving and deleting dimensions and the viewer's
-dimension settings (see Model, Dimensions, and UI). Since then, not yet
-released: line styles, a pen width and dash pattern per shape, set from
-the top toolbar (see Model, Output and UI). Vitest tests, `tsc` and the
-build pass.
+v0.2.2 is committed and deployed to delinya.net: on top of
+v0.2.1 (text boxes, fit view, the Dimension tool and radius labels by
+hand), line styles (a pen width and dash pattern per shape, set from the
+top toolbar), the corner radii "all" switch with "4× R" labels, radius
+labels inside the curve and turned with the rect, and Rotate and
+Duplicate as cards from the top toolbar (see Model, Output and UI).
+Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -727,8 +725,20 @@ through `useSyncExternalStore`.
   conflicting link. "Keep linked" (editor state, off by default)
   switches every action from a one-off move/resize to a live link; equal
   values then go through a named variable.
-- **Rotate** (both selection panels, above Duplicate): "Rotate" by a
-  typed angle (default 15°, panel state, not saved), and icons for 90°
+- **Rotate and Duplicate cards** (`panels/ActionCards.tsx`): toolbar
+  buttons "Rotate…" and "Duplicate…" in a group after Undo/Redo, disabled
+  with no shapes selected, each dropping a small card below it
+  (`CardButton`; editor `card`, one at a time, pressed while open, nudged
+  left to stay in the window). The card acts on the selection's shapes,
+  whatever the tool. It stays open while there is a selection (turn or
+  copy again, or pick other shapes on the drawing: presses on the canvas
+  don't close it) and closes on Escape (from a field, after the field has
+  reverted an edit; from elsewhere, only the card, keeping the selection),
+  its button again, a press anywhere else, or the selection emptying (the
+  reducer: `select []`, toggling the last off, selecting a label). The
+  selection panel keeps the shape fields or Arrange, and Delete.
+- **Rotate** (card): "Rotate" by a
+  typed angle (default 15°, kept while the app is open, not saved), and icons for 90°
   anticlockwise and clockwise, flip horizontally and vertically
   (`rotateShapes`/`flipShapes` about the selection's centre; one undo
   step). The status bar adds "at N°" for a turned rect.
@@ -744,7 +754,7 @@ through `useSyncExternalStore`.
   `turnTo` from the document at the press on each change; one undo step,
   no snapping, a cross at the pivot. The status bar reads "turn N°
   clockwise/anticlockwise" (editor `turn`).
-- **Duplicate** (both selection panels, above Delete): direction toggles
+- **Duplicate** (card): direction toggles
   (→ ↓ ← ↑), a count (× 1–100, under the button) and a gap in mm (editor
   state `duplicate`, default one copy right, 10 mm, unlinked, not saved). The copy
   sits beside the selection's bounds, the gap clear of it
@@ -819,7 +829,7 @@ through `useSyncExternalStore`.
   drawing a path, finishes it;
   else back to select and clear, which deselects a label too), V/L/R/C/P/T/D tools, F fit view to the
   drawing (not with Shift or Alt), ⌘P print/export, ⌘D one copy of the selection in
-  the panel's Duplicate direction and gap (always one, unlinked, whatever
+  the Duplicate card's direction and gap (always one, unlinked, whatever
   its count and links; via `duplicateBeside`), selecting it so repeating
   carries on the row. File keys and ⌘D
   work from inside a field: they blur it first so its value commits.
@@ -1108,7 +1118,7 @@ through `useSyncExternalStore`.
 ## Hosting (st1)
 
 - Live at https://delinya.net (0.1.0 deployed 2026-11-10; 0.1.1, 0.1.2
-  and 0.2.1 2026-11-23). DNS at
+  and 0.2.1 2026-11-23; 0.2.2 2026-11-24). DNS at
   Squarespace points delinya.net and www at st1 (109.123.121.122).
 - Apache: `/etc/apache2/sites-available/delinya.net.conf` (http, redirects
   to https) and `delinya.net-le-ssl.conf` (docroot `/var/www/delinya.net`,

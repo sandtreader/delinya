@@ -1,6 +1,6 @@
 {
   "name": "delinya",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Browser-based 2D drawing tool with real units",
   "type": "module",
