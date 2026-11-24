@@ -349,11 +349,24 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 /* ---- Rotate and Duplicate: cards dropped below their toolbar buttons ---- */
 
 .card-anchor { position: relative; display: flex; }
-.action-card {
-  position: absolute; top: calc(100% + 8px); left: 0; z-index: 6; width: 240px; padding: 8px 10px;
+.pop-card {
+  position: absolute; top: calc(100% + 8px); left: 0; z-index: 6;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); font-size: 12px; cursor: default;
 }
+.action-card { width: 240px; padding: 8px 10px; }
+/* Collaborate: the session panel brings its own padding (MUI). */
+.collab-card { width: 280px; }
+.collab-loading { padding: 16px; color: var(--muted); }
+/* On the Collaborate button while in a session: green connected, amber joining. */
+.session-dot {
+  position: absolute; right: 1px; top: 1px; width: 7px; height: 7px; border-radius: 50%;
+  border: 1.5px solid var(--panel); pointer-events: none;
+}
+.session-dot.connected { background: #2e7d32; }
+.session-dot.joining { background: #e0a000; }
+/* Other people's cursors, over the drawing and clipped to it; under the panels. */
+.session-cursors { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 1; }
 .action-card .hint { color: var(--muted); }
 .action-card .icons { display: flex; flex-wrap: wrap; gap: 4px; }
 .action-card button { padding: 3px 7px; font-size: 12px; }

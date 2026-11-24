@@ -34,6 +34,7 @@ import {
 import { store, useDocument } from "../app/store";
 import { currentLayer, hoverShowsPosition, selectedPathNode, selectedPathSegment, useEditor } from "../app/editor";
 import { currentQuestion } from "../app/ask";
+import { sendCursor } from "../collab";
 import { fitView, gridPitch, toModel, toScreen, wheelZoom, type View } from "../view/viewport";
 import { drawingExtent } from "../view/fit";
 import { pathToSvg } from "../view/svgPath";
@@ -541,6 +542,7 @@ export function Canvas() {
     setHover(sp);   // the rulers' markers, in any tool
     if (e.shiftKey !== shiftHeld) setShiftHeld(e.shiftKey);   // Shift pressed or let go outside the window
     const mp = toModel(view, sp);
+    sendCursor(mp);   // where it is, to others in a session
     let d = dragRef.current;
     if (!d && placeRef.current) { movePlacing(placeRef.current, mp, sp); return; }
     if (!d) {
@@ -809,6 +811,7 @@ export function Canvas() {
         onDoubleClick={onDoubleClick}
         onPointerLeave={() => {
           if (dragRef.current || placeRef.current) return;
+          sendCursor(null);
           dispatch({ type: "pointer", cursor: null, snap: null }); setHover(null); setClosing(false); setDimHover(null);
         }}
         onWheel={onWheel}

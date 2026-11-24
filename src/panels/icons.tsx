@@ -61,6 +61,16 @@ export const PropertiesIcon = () => (
 );
 
 /** A printer. */
+/** Collaborate: two people, one behind the other. */
+export const CollabIcon = () => (
+  <Icon size={BAR}>
+    <circle cx="6" cy="5.5" r="2.5" />
+    <path d="M1.5 14.5c0-2.7 2-4.5 4.5-4.5s4.5 1.8 4.5 4.5" />
+    <path d="M9.9 2.4a2.5 2.5 0 1 1 1.3 4.7" />
+    <path d="M12.2 9.6c1.6.5 2.8 2.1 2.8 4.3" />
+  </Icon>
+);
+
 export const PrintIcon = () => (
   <Icon size={BAR}><path d="M4.5 5.5v-4h7v4" /><path d="M4.5 11.5h-3v-6h13v6h-3" /><path d="M4.5 9.5h7v5h-7z" /></Icon>
 );

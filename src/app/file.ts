@@ -11,6 +11,7 @@
 import { useSyncExternalStore } from "react";
 import { emptyState } from "@sandtreader/collab/protocol";
 import { parseDrawing, serializeDrawing } from "../model";
+import { sessionPeers } from "../collab";
 import { ask, choose, tell } from "./ask";
 import { downloadBlob } from "./download";
 import { store } from "./store";
@@ -65,6 +66,21 @@ export function useDirty(): boolean {
   return useSyncExternalStore((fn) => store.subscribe(fn), () => store.dirty);
 }
 
+/** The current file's display name. */
+export function currentFileName(): string {
+  return current.name;
+}
+
+/**
+ * The drawing is no longer the file it came from: a session's drawing
+ * arrived in its place, so Save mustn't write it over that file. Untitled
+ * and clean, as a new drawing.
+ */
+export function detachFile(): void {
+  setCurrent({ name: UNTITLED });
+  store.markSaved();
+}
+
 // ---- Commands ----
 // Each resolves true if the document was replaced, so the caller can reset
 // editor state (selection, view).
@@ -97,6 +113,49 @@ async function confirmDiscard(): Promise<boolean> {
   return !store.dirty;
 }
 
+/**
+ * True to go ahead and join a session: nothing unsaved, or it is saved, or
+ * the user lets it go. A session that already has a drawing replaces
+ * yours, so this comes before joining, not after. Answering is a click, so
+ * Save as's picker still has the user activation it needs.
+ */
+export async function confirmBeforeJoin(): Promise<boolean> {
+  if (!store.dirty) return true;
+  const untitled = !hasFile();
+  const c = await choose({
+    title: "Unsaved changes",
+    message: `Save changes to “${current.name}” before joining? A session that already has a drawing replaces yours.`,
+    confirm: untitled ? "Save as…" : "Save",
+    alternative: "Join anyway",
+  });
+  if (c === "cancel") return false;
+  if (c === "alternative") return true;
+  try {
+    if (untitled) await saveDrawingAs(); else await saveDrawing();
+  } catch (e) {
+    void tell("Couldn’t save", e instanceof Error ? e.message : String(e));
+    return false;
+  }
+  // Cancelling the picker, or a failed write, leaves it unsaved: stay out.
+  return !store.dirty;
+}
+
+/**
+ * True if the user will replace the drawing for everyone sharing it in the
+ * session (New and Open do). Only asked with others there; checked before
+ * calling, so with no one there nothing waits and the next question comes
+ * at once.
+ */
+function confirmReplaceShared(): Promise<boolean> {
+  const n = sessionPeers();
+  return ask({
+    title: "Shared drawing",
+    message: `This replaces the drawing for everyone in the session (${n} other${n === 1 ? "" : "s"}).`,
+    confirm: "Replace",
+    danger: true,
+  });
+}
+
 /** The drawing came from, or was saved to, a file of its own. */
 function hasFile(): boolean {
   return current.handle !== undefined || current.name !== UNTITLED;
@@ -115,6 +174,7 @@ function load(text: string, file: CurrentFile): boolean {
 }
 
 export async function newDrawing(): Promise<boolean> {
+  if (sessionPeers() > 0 && !(await confirmReplaceShared())) return false;
   if (!(await confirmDiscard())) return false;
   store.replace(emptyState(), { emit: true });
   store.markSaved();
@@ -125,6 +185,7 @@ export async function newDrawing(): Promise<boolean> {
 export async function openDrawing(): Promise<boolean> {
   // Answering is a click or key press, so the picker below still has the
   // user activation it needs.
+  if (sessionPeers() > 0 && !(await confirmReplaceShared())) return false;
   if (!(await confirmDiscard())) return false;
   const { showOpenFilePicker } = pickers();
   if (showOpenFilePicker) {

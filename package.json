@@ -12,10 +12,17 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "clean": "rm -rf dist",
+    "relay": "PORT=2901 collab-relay",
     "publish:web": "pnpm build && rsync -avz --delete dist/ st1:/var/www/delinya.net/"
   },
   "dependencies": {
+    "@emotion/react": "^11.14.0",
+    "@emotion/styled": "^11.14.1",
+    "@mui/icons-material": "^7.3.11",
+    "@mui/material": "^7.3.11",
     "@sandtreader/collab": "^0.1.3",
+    "bad-words": "^4.1.5",
+    "qrcode.react": "^4.2.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

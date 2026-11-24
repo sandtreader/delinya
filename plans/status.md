@@ -7,7 +7,9 @@ hand), line styles (a pen width and dash pattern per shape, set from the
 top toolbar), the corner radii "all" switch with "4× R" labels, radius
 labels inside the curve and turned with the rect, and Rotate and
 Duplicate as cards from the top toolbar (see Model, Output and UI).
-Vitest tests, `tsc` and the build pass.
+Since then, not yet released: collaboration (the Collaborate card,
+share links, other people's cursors; see Collaboration). Vitest tests,
+`tsc` and the build pass.
 
 ## Where we are
 
@@ -17,8 +19,9 @@ paths of straight and curved segments), move, resize, edit path nodes, type exac
 link equal values and equal spacing, put shapes on layers, undo,
 save/load local files, print at
 scale (tiled if needed, with a check ruler and title block) and export PDF,
-SVG and DXF. The collab adapter is wired and tested against the real relay
-but has no UI.
+SVG and DXF. Collaboration is SynFlo's: a Collaborate card from the
+toolbar (the shared session panel), share links and other people's
+cursors, through the relay at /collab.
 
 ## What is built
 
@@ -300,14 +303,48 @@ but has no UI.
   keep them. Point-to-point measurements need no kind of their own: a line
   between snap points with its length dimension.
 
-### Collaboration (`src/collab/index.ts`)
+### Collaboration (`src/collab/`)
 
-`collabDocument(store)` adapts the store to the package's document
-interface; `bindCollab(store, client)` forwards emitted changes.
-`tests/collab.test.ts` runs two stores through the real relay (late joiner
-snapshot, linked edits, drag + undo). The app namespace is `delinya`. There
-is no connect UI, session panel or presence yet, and no relay vhost for
-delinya.net.
+As SynFlo does it, on `@sandtreader/collab`. The app namespace is
+`delinya`; identity (`delinya-userId`, `delinya-displayName`) is per
+browser.
+
+- **Core** (`collab/index.ts`, no MUI): `collabDocument(store, { replaced })`
+  adapts the store (a snapshot or a peer's `state_replaced` goes through
+  `store.replace`, clearing undo history, and calls `replaced("snapshot" |
+  "state_replaced")`; other changes `applyRemote`); `bindCollab(store,
+  client)` forwards emitted changes. `collabConfig(location)`: the relay
+  at `ws(s)://<host>/collab` and share links `<origin>/s/<id>`.
+  `guardConnect(client, confirm)`: a Proxy whose `connect` waits for
+  `confirm()`. `presenceSender(client, ms = 100)`: cursor at most every
+  100 ms (first at once, latest at the end), selection on change, every
+  message both (each replaces what the others hold). The client registers
+  itself (`registerClient`); `sendCursor` (Canvas pointer moves, model mm;
+  null on leaving), `sendSelection` (App, on change; flushed on joining),
+  `sessionPeers()`, `useSessionView()` (status and others' count, for the
+  toolbar) and `onSessionReplaced` work without loading the session.
+- **Session** (`collab/session.tsx`, loaded by dynamic import only when
+  the Collaborate card opens or a share link is followed, as it brings
+  MUI): the client singleton, `SessionCard` (the package's `SessionPanel`
+  with `guardConnect(client, confirmBeforeJoin)`, in an MUI theme of
+  Delinya's font and accent), `SessionCursors` (`RemoteCursors`, absolute
+  in a layer clipped to the drawing area, under the panels) and
+  `autoJoin()`. The build puts it in its own chunk (~250 kB, 80 kB gzip;
+  the main chunk has no MUI).
+- **Joining**: `confirmBeforeJoin()` (file.ts): with unsaved changes,
+  "Save as…" (untitled) or "Save", or "Join anyway", or Cancel; a session
+  that already has a drawing replaces yours. Starting a session is joining
+  a fresh ID, so it asks too. A share link (`/s/<id>`) opens the card and
+  joins at startup. A session's drawing arriving (the joining snapshot, or
+  a peer's New or Open) detaches the file (`detachFile`: Untitled, no
+  handle, clean, so Save can't write someone else's drawing over yours)
+  and resets the editor as Open does (`useDrawingReset`), fitted; a
+  rejoin after a dropped connection (a fresh snapshot without passing
+  through disconnected) keeps the view and file. New and Open with others
+  in the session ask first ("This replaces the drawing for everyone").
+- `tests/collab.test.ts` runs two stores through the real relay (late
+  joiner snapshot, linked edits, drag + undo); `tests/collabUi.test.ts`
+  the core, the guards and the plumbing.
 
 ### UI (`src/canvas/`, `src/panels/`, `src/app/`, `src/view/`)
 
@@ -725,6 +762,16 @@ through `useSyncExternalStore`.
   conflicting link. "Keep linked" (editor state, off by default)
   switches every action from a one-off move/resize to a live link; equal
   values then go through a named variable.
+- **Collaborate** (`panels/CollabButton.tsx`): a toolbar button between
+  Properties and Print opening a card (`PopCard`, as Rotate and Duplicate
+  but needing no selection; editor `collab`) with the session panel:
+  display name, session ID and Join, then the share link (copy, QR code),
+  status, members and Leave session. It loads with the card ("Loading…"
+  meanwhile). A dot on the button while in a session: green connected,
+  amber connecting or joining. Presses in an MUI dialog it opens (the QR
+  code) don't close the card, and Escape there closes only the dialog.
+  Other people's cursors (a dot and their name) show over the drawing
+  while in a session.
 - **Rotate and Duplicate cards** (`panels/ActionCards.tsx`): toolbar
   buttons "Rotate…" and "Duplicate…" in a group after Undo/Redo, disabled
   with no shapes selected, each dropping a small card below it
@@ -1041,8 +1088,11 @@ through `useSyncExternalStore`.
 - Undo is local-only; remote changes bypass history.
 - Derived spacing positions are never written to the document except on
   unlink.
-- No MUI yet. The collab package's React entry needs MUI, so the session
-  panel forces that decision.
+- MUI only for collaboration: the session panel and remote cursors come
+  from the collab package's React entry, which needs MUI, Emotion,
+  qrcode.react and bad-words. They load with the session (dynamic import);
+  the rest of the UI is plain CSS. Nothing in the app's core imports
+  `@mui`, `@emotion` or `@sandtreader/collab/react` (a test checks).
 - **Text boxes**: the font size is never stored. It is derived: the
   largest size at which the text, wrapped to the width, fits the height
   (lines × 1.2 × size ≤ height). Lines never fall as the size grows, so
@@ -1075,26 +1125,26 @@ through `useSyncExternalStore`.
 
 ## Not built yet (in rough priority order)
 
-1. **Collaboration UI**: connect, session panel, presence cursors. Needs
-   the MUI decision. The delinya.net vhost on st1 already proxies
-   `/collab` to the relay (port 2901), so connect with `app: "delinya"`.
-2. Links: resizing one of several gap-spaced items drifts its centre
+1. Links: resizing one of several gap-spaced items drifts its centre
    slightly (the held point is approximated as centre). Spacing a
    selection that includes a containing shape (e.g. the panel with its
    holes) makes the panel an anchor and overflows; it could exclude
    shapes that contain the others.
-3. Print refinements: a date in the title block, dimensions in DXF on
+2. Print refinements: a date in the title block, dimensions in DXF on
    their own layer, a custom scale.
-4. Text box extras: system or embedded fonts beyond the PDF standard
+3. Text box extras: system or embedded fonts beyond the PDF standard
    three, and vertical alignment. Then
    named variables/expressions, woodwork extras (see outline "Later").
-5. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by
+4. Path extras (`plans/polyline.md` "Later"): dimensions, scaling by
    bounds, symmetric (equal-length) handles, converting rects/circles to
    paths; also Shift to constrain a handle's angle, selecting a node or
    segment on the click that selects the path, multi-node/segment
    selection, joining by dropping one end on another (now via the card).
-6. Line style extras: by layer (a layer default, shapes overriding),
+5. Line style extras: by layer (a layer default, shapes overriding),
    line widths in DXF (needs R2000+, group 370).
+6. Collaboration extras: show other people's selections (shapes someone
+   else has selected outlined in their cursor colour; presence already
+   carries `selection`).
 
 ## Gotchas for whoever picks this up
 
@@ -1107,7 +1157,11 @@ through `useSyncExternalStore`.
 - Drag gestures: call `beginGesture()` on the first move of a multi-entity
   drag and `endGesture()` on pointer-up, or undo splits the drag into steps.
 - The relay tests need `ws` installed (it is a devDependency).
-- Dev server: `pnpm dev` on http://localhost:5174/.
+- Dev server: `pnpm dev` on http://localhost:5174/. For collaboration run
+  the relay too, `pnpm relay` (the package's `collab-relay` on 2901); the
+  dev server proxies `/collab` to it, so it works from the LAN as well.
+  Share links are `/s/<id>` on the dev server (Vite serves the app for any
+  path).
 
 ## Working agreements
 
@@ -1122,8 +1176,12 @@ through `useSyncExternalStore`.
   Squarespace points delinya.net and www at st1 (109.123.121.122).
 - Apache: `/etc/apache2/sites-available/delinya.net.conf` (http, redirects
   to https) and `delinya.net-le-ssl.conf` (docroot `/var/www/delinya.net`,
-  `/collab` proxied to the relay on 2901). Let's Encrypt cert via certbot,
-  auto-renewing.
+  `/collab` proxied to the relay on 2901: the shared `synflo-server`
+  container, the collab package's relay, keyed by app). Let's Encrypt
+  cert via certbot, auto-renewing.
+- Share links: `public/.htaccess` (deployed with the app; the vhost has
+  `AllowOverride All`) rewrites `/s/…` to `/index.html`, as SynFlo's vhost
+  does.
 - Deploy: `pnpm publish:web` (build, then rsync `dist/` to the docroot
   with `--delete`, as SynFlo's `publish:ui`).
 - Favicon: `public/favicon.svg` (set square and pencil on graph paper);

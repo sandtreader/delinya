@@ -1,0 +1,4 @@
+# Share links (/s/abc-defg-hij) are the app itself, which joins the session
+# they name. The vhost allows overrides; the relay is proxied at /collab there.
+RewriteEngine On
+RewriteRule ^s/ /index.html [L]

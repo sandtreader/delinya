@@ -1,4 +1,4 @@
-import { useEffect, useReducer, type CSSProperties } from "react";
+import { Suspense, lazy, useEffect, useReducer, type CSSProperties } from "react";
 import {
   EditorContext, editorReducer, initialEditor, selectableOnly, selectedPathNode, selectedPathSegment, useEditor, type Tool,
 } from "./app/editor";
@@ -19,8 +19,9 @@ import { NodeCard, deleteNode } from "./panels/NodeCard";
 import { SegmentCard, deleteSegment } from "./panels/SegmentCard";
 import { ToolPalette } from "./panels/ToolPalette";
 import { LayerPalette } from "./panels/LayerPalette";
-import { Toolbar, useFileCommands } from "./panels/Toolbar";
-import { useDirty, useFileName } from "./app/file";
+import { Toolbar, useDrawingReset, useFileCommands } from "./panels/Toolbar";
+import { detachFile, useDirty, useFileName } from "./app/file";
+import { isJoinPath, onSessionReplaced, sendSelection, useSessionView } from "./collab";
 import { browserStorage } from "./app/floatPosition";
 import { loadGridView, saveGridView } from "./app/gridView";
 import { loadLabelView, saveLabelView } from "./app/labelView";
@@ -32,6 +33,9 @@ import "./styles.css";
 // Dimensions look the same on screen as on paper: one colour, from the output style.
 const APP_COLOURS = { "--dimension": STYLE.colour.dimension } as CSSProperties;
 const RULER_SIZE = { "--ruler": `${RULER_PX}px` } as CSSProperties;
+
+// Other people's cursors: with the session, which brings MUI, so loaded only once there is one.
+const SessionCursors = lazy(() => import("./collab/session").then((m) => ({ default: m.SessionCursors })));
 
 const TOOL_KEYS: Record<string, Tool> = { v: "select", l: "line", r: "rect", c: "circle", p: "polyline", t: "text", d: "dimension" };
 
@@ -75,6 +79,27 @@ function Shell() {
   }, [state, editor.label, editor.layerView, dispatch]);
 
   useEffect(() => { document.title = `${dirty ? "• " : ""}${name} — Delinya`; }, [name, dirty]);
+
+  // Collaboration. A share link (/s/<id>) joins its session at startup,
+  // with the Collaborate card open, as SynFlo does.
+  const session = useSessionView();
+  useEffect(() => {
+    if (!isJoinPath(window.location.pathname)) return;
+    dispatch({ type: "collab", open: true });
+    void import("./collab/session").then((m) => m.autoJoin());
+  }, [dispatch]);
+  // Others see what is selected (sent on change; nothing outside a session).
+  useEffect(() => { sendSelection(editor.selection); }, [editor.selection]);
+  // The session's drawing replaced this one: on joining, or a peer opening
+  // a file or starting a new one. It isn't this browser's file any more,
+  // and the editor starts afresh on it, fitted. A rejoin after a dropped
+  // connection is the same drawing, so carries on as it was.
+  const resetEditor = useDrawingReset();
+  useEffect(() => onSessionReplaced((how, joining) => {
+    if (how === "snapshot" && !joining) return;
+    detachFile();
+    resetEditor(true);
+  }), [resetEditor]);
 
   useEffect(() => {
     const onUnload = (e: BeforeUnloadEvent) => { if (store.dirty) e.preventDefault(); };
@@ -180,6 +205,7 @@ function Shell() {
         <Rulers />
         <div className="canvas-area">
           <Canvas />
+          {session.status !== "disconnected" && <Suspense fallback={null}><SessionCursors view={editor.view} /></Suspense>}
           <SelectionPanel />
           <LinkButtons />
           <NodeCard />

@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { useDocument, store } from "../app/store";
 import { useEditor } from "../app/editor";
 import { newDrawing, openDrawing, saveDrawing, saveDrawingAs, useDirty, useFileName } from "../app/file";
@@ -10,6 +10,7 @@ import {
   TurnIcon,
 } from "./icons";
 import { CardButton, DuplicateCard, RotateCard } from "./ActionCards";
+import { CollabButton } from "./CollabButton";
 import { tip } from "./tip";
 import { quotedTitle } from "../view/format";
 import { discardPathDraft } from "../canvas/Canvas";
@@ -21,18 +22,9 @@ import { discardPathDraft } from "../canvas/Canvas";
  * hidden layers are cleared.
  */
 export function useFileCommands() {
-  const { dispatch } = useEditor();
+  const resetEditor = useDrawingReset();
   return useMemo(() => {
-    const reset = (fit: boolean) => (replaced: boolean) => {
-      if (!replaced) return;
-      // A path half drawn on the old drawing goes with it, rather than being finished onto the new one.
-      discardPathDraft();
-      dispatch({ type: "select", ids: [] });
-      dispatch({ type: "tool", tool: "select" });
-      // Hidden and locked layers are this viewer's choice for the old drawing.
-      dispatch({ type: "resetLayers" });
-      dispatch(fit ? { type: "fit" } : { type: "view", view: DEFAULT_VIEW });
-    };
+    const reset = (fit: boolean) => (replaced: boolean) => { if (replaced) resetEditor(fit); };
     const fail = (e: unknown) => { void tell("Something went wrong", e instanceof Error ? e.message : String(e)); };
     return {
       newFile: () => { newDrawing().then(reset(false), fail); },
@@ -40,6 +32,24 @@ export function useFileCommands() {
       save: () => { saveDrawing().catch(fail); },
       saveAs: () => { saveDrawingAs().catch(fail); },
     };
+  }, [resetEditor]);
+}
+
+/**
+ * Editor state reset for a drawing that replaced the last one (New, Open,
+ * or a session's): nothing selected, the select tool, every layer shown and
+ * unlocked, and the view fitted to it or, with `fit` false, the default.
+ */
+export function useDrawingReset(): (fit: boolean) => void {
+  const { dispatch } = useEditor();
+  return useCallback((fit: boolean) => {
+    // A path half drawn on the old drawing goes with it, rather than being finished onto the new one.
+    discardPathDraft();
+    dispatch({ type: "select", ids: [] });
+    dispatch({ type: "tool", tool: "select" });
+    // Hidden and locked layers are this viewer's choice for the old drawing.
+    dispatch({ type: "resetLayers" });
+    dispatch(fit ? { type: "fit" } : { type: "view", view: DEFAULT_VIEW });
   }, [dispatch]);
 }
 
@@ -71,6 +81,7 @@ export function Toolbar() {
         <IconButton label="Properties…" tip="Properties: title block, grid, variables" onClick={() => dispatch({ type: "dialog", dialog: "properties" })}>
           <PropertiesIcon />
         </IconButton>
+        <CollabButton />
         <IconButton label="Print / Export…" tip="Print / Export… (⌘P)" onClick={() => dispatch({ type: "dialog", dialog: "output" })}>
           <PrintIcon />
         </IconButton>

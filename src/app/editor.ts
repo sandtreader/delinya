@@ -118,6 +118,8 @@ export interface EditorState {
    * selection empties.
    */
   card: ActionCard | null;
+  /** The Collaborate card is open below its toolbar button; it needs no selection. */
+  collab: boolean;
   /**
    * The text box being typed into on the drawing (a field laid over it).
    * Ends when the selection becomes anything but that box, on any toggle of
@@ -162,6 +164,7 @@ export const initialEditor: EditorState = {
   linkPopup: null,
   duplicate: { direction: "right", spacing: 10, count: 1, linkGaps: false, linkSize: false, linkAlign: false },
   card: null,
+  collab: false,
   editText: null,
   editFresh: false,
 };
@@ -192,6 +195,7 @@ export type EditorAction =
   | { type: "linkPopup"; popup: EditorState["linkPopup"] }
   | { type: "duplicate"; settings: Partial<DuplicateSettings> }
   | { type: "card"; card: ActionCard | null }
+  | { type: "collab"; open: boolean }
   | { type: "editText"; id: EntityId | null; fresh?: boolean };
 
 export function editorReducer(s: EditorState, a: EditorAction): EditorState {
@@ -265,6 +269,7 @@ export function editorReducer(s: EditorState, a: EditorAction): EditorState {
     case "duplicate": return { ...s, duplicate: { ...s.duplicate, ...a.settings } };
     // Nothing to act on, nothing to open.
     case "card": return { ...s, card: a.card && s.selection.length ? a.card : null };
+    case "collab": return { ...s, collab: a.open };
     case "editText": return { ...s, editText: a.id, editFresh: a.id !== null && !!a.fresh };
   }
 }

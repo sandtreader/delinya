@@ -21,8 +21,10 @@ handoff: what is built, decisions taken, what is next. Keep it current.
 - UI reads `store.resolved` only and writes only via `store.commit()`.
   Editor state (tool, selection, view) lives in `src/app/editor.ts` and is
   never part of the document.
-- Plain CSS, no component library yet. The collab React entry needs MUI, so
-  adding the session panel later means deciding on MUI then.
+- Plain CSS, no component library. MUI is used only by the collab
+  package's session panel and remote cursors, loaded lazily with the
+  session (`src/collab/session.tsx`); keep `@mui`, `@emotion` and
+  `@sandtreader/collab/react` out of everything else.
 
 ## Working agreements
 
@@ -30,4 +32,6 @@ handoff: what is built, decisions taken, what is next. Keep it current.
 
 ## Commands
 
-`pnpm test`, `pnpm typecheck`, `pnpm build`, `pnpm dev` (port 5174).
+`pnpm test`, `pnpm typecheck`, `pnpm build`, `pnpm dev` (port 5174),
+`pnpm relay` (the collab relay on 2901, which the dev server proxies at
+`/collab`).

@@ -3,6 +3,7 @@
 // stays open while there is a selection, so you can turn or copy again or
 // pick other shapes on the drawing, and closes on Escape, on its button,
 // when the selection empties, or on a press anywhere else but the drawing.
+// PopCard is the button and card alone, which Collaborate shares.
 
 import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type ReactNode } from "react";
 import type { Change } from "@sandtreader/collab/protocol";
@@ -22,14 +23,16 @@ import { tip } from "./tip";
 const EDGE = 8;
 
 /**
- * A toolbar button that opens `card` below it, holding `children`. Disabled
- * with no shapes selected; pressed while its card is open.
+ * A toolbar button that opens a card below it, holding `children`; pressed
+ * while it is open. The card stays inside the window, and closes on its
+ * button, on Escape, and on a press anywhere but the button, the card, the
+ * drawing (picking shapes to act on) or a dialog over it (a question, or an
+ * MUI dialog the card opened). `className` is the card's.
  */
-export function CardButton({ card, label, tip: tipText, icon, shapes, children }: {
-  card: ActionCard; label: string; tip: string; icon: ReactNode; shapes: EntityId[]; children: ReactNode;
+export function PopCard({ open, onOpen, onClose, label, tip: tipText, icon, disabled, badge, className = "action-card", children }: {
+  open: boolean; onOpen: () => void; onClose: () => void; label: string; tip: string; icon: ReactNode;
+  disabled?: boolean; badge?: ReactNode; className?: string; children: ReactNode;
 }) {
-  const { editor, dispatch } = useEditor();
-  const open = editor.card === card && shapes.length > 0;
   const ref = useRef<HTMLDivElement>(null);
   const cardRef = useRef<HTMLDivElement>(null);
   // Left shift that keeps the card inside the window.
@@ -39,7 +42,7 @@ export function CardButton({ card, label, tip: tipText, icon, shapes, children }
     // Fields commit on blur, so blur before the card goes.
     const active = document.activeElement as HTMLElement | null;
     if (active && cardRef.current?.contains(active)) active.blur();
-    dispatch({ type: "card", card: null });
+    onClose();
   };
   const closeRef = useRef(close);
   closeRef.current = close;
@@ -58,13 +61,15 @@ export function CardButton({ card, label, tip: tipText, icon, shapes, children }
   // card: it stops there, so the selection and tool survive.
   useEffect(() => {
     if (!open) return;
+    const over = (target: EventTarget | null) => {
+      const t = target instanceof Element ? target : null;
+      return currentQuestion() || ref.current?.contains(t) || t?.closest("svg.canvas, .MuiModal-root");
+    };
     const onDown = (e: PointerEvent) => {
-      const t = e.target as Element | null;
-      if (currentQuestion() || ref.current?.contains(t) || t?.closest?.("svg.canvas")) return;
-      closeRef.current();
+      if (!over(e.target)) closeRef.current();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && !ref.current?.contains(e.target as Node)) { e.stopPropagation(); closeRef.current(); }
+      if (e.key === "Escape" && !over(e.target)) { e.stopPropagation(); closeRef.current(); }
     };
     document.addEventListener("pointerdown", onDown, true);
     window.addEventListener("keydown", onKey, true);
@@ -72,28 +77,50 @@ export function CardButton({ card, label, tip: tipText, icon, shapes, children }
   }, [open]);
 
   // Keys from inside the card: a field with an edit takes Escape first, to revert it.
+  // (An MUI dialog the card opened is portalled, but its keys still bubble
+  // here through React: it handles its own Escape.)
   const onKeyDown = (e: RKeyboardEvent) => {
-    if (e.key === "Escape") { e.stopPropagation(); close(); }
+    if (e.key === "Escape" && !(e.target as Element).closest?.(".MuiModal-root")) { e.stopPropagation(); close(); }
   };
 
   return (
     <div className="card-anchor" ref={ref}>
       <IconButton
-        label={label} tip={tipText} disabled={shapes.length === 0}
+        label={label} tip={tipText} disabled={disabled}
         className={open ? "icon on" : "icon"} aria-pressed={open} aria-expanded={open} aria-haspopup="dialog"
-        onClick={() => (open ? close() : dispatch({ type: "card", card }))}
+        onClick={() => (open ? close() : onOpen())}
       >
         {icon}
       </IconButton>
+      {badge}
       {open && (
         <div
-          ref={cardRef} className="action-card" role="dialog" aria-label={label.replace(/…$/, "")}
+          ref={cardRef} className={`pop-card ${className}`} role="dialog" aria-label={label.replace(/…$/, "")}
           style={shift ? { left: -shift } : undefined} onKeyDown={onKeyDown}
         >
           {children}
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * A card acting on the selection (Rotate, Duplicate): one at a time
+ * (editor.card), disabled with no shapes selected.
+ */
+export function CardButton({ card, label, tip, icon, shapes, children }: {
+  card: ActionCard; label: string; tip: string; icon: ReactNode; shapes: EntityId[]; children: ReactNode;
+}) {
+  const { editor, dispatch } = useEditor();
+  return (
+    <PopCard
+      open={editor.card === card && shapes.length > 0} disabled={shapes.length === 0}
+      onOpen={() => dispatch({ type: "card", card })} onClose={() => dispatch({ type: "card", card: null })}
+      label={label} tip={tip} icon={icon}
+    >
+      {children}
+    </PopCard>
   );
 }
 

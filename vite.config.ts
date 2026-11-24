@@ -11,7 +11,12 @@ export default defineConfig({
     // One copy of React even when @sandtreader/collab is a local link
     dedupe: ["react", "react-dom"],
   },
-  server: { port: 5174 },
+  server: {
+    port: 5174,
+    // The collab relay (pnpm relay), at /collab as Apache serves it on the
+    // live site, so the app reaches it the same way, from the LAN too.
+    proxy: { "/collab": { target: "ws://localhost:2901", ws: true } },
+  },
   test: {
     include: ["tests/**/*.test.ts"],
     environment: "node",
