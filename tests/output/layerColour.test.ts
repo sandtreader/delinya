@@ -25,7 +25,7 @@ describe("layer colours in output", () => {
     const prims = drawingPrimitives(r, { dimensions: true, textSize: 3, tick: 1 });
     const shapes = prims.filter((p) => p.kind === "path" && p.role === "shape");
     expect(shapes.map((p) => p.colour)).toEqual([undefined, GREEN.hex]);
-    expect(prims.filter((p) => p.role === "dimension").every((p) => p.colour === undefined)).toBe(true);
+    expect(prims.filter((p) => p.kind !== "fill" && p.role === "dimension").every((p) => p.colour === undefined)).toBe(true);
   });
 
   it("SVG strokes the coloured layer's shapes in its colour", () => {

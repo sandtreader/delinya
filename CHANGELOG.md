@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.0 — 2026-11-24
+
+- **Fills.** A layer can fill its rectangles, circles and closed paths
+  with a light pastel, a pattern (dots, grid, 45° lines or crosshatch) in
+  its line colour, or both. Fills are see-through, so lines behind still
+  show and overlaps deepen; patterns stay the same size on paper and line
+  up across neighbouring shapes. They print and export to PDF and SVG;
+  DXF leaves them out.
+- The layer card's colour swatch now shows the layer's whole look and
+  opens one popover for line colour, fill and pattern.
+- A filled shape can be selected by clicking anywhere inside it.
+- **Rename variables** in the shape panel (next to a linked size) and in
+  Properties › Variables, including the ones Duplicate's linked size
+  makes ("width 2").
+
 ## 1.0.0 — 2026-11-24
 
 - **First public release.**

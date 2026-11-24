@@ -19,17 +19,22 @@
 // for a click until the next click; a rounded corner toggles its radius
 // label. With the select tool, dimensions and radius labels are picked by
 // click, and a dimension dragged moves it, across its shape to flip sides.
+//
+// A layer's fill and pattern (see output/primitives.ts) draw under all its
+// lines but over the layers behind, the pattern a fixed size on screen as
+// line widths are. With the select tool, a filled shape is picked anywhere
+// inside it, as a text box is; a link guide under a fill can still be clicked.
 
 import {
-  useCallback, useEffect, useLayoutEffect, useRef, useState,
+  Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState,
   type CSSProperties, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent,
 } from "react";
 import {
-  DIMENSION_OFFSET, KINDS, addCircle, addDimension, addLine, addPolyline, addText, batch, addRect, bendPolySegment, derivedAxes, dimensionOffsetAt,
-  dimensionTargetAt, distance, dragHandle, drawnOffset, entityAs, freeDelta, handlesFor, insertPolyNode, isRef, isSelectable, isVisible, linkLocks,
+  DIMENSION_OFFSET, FILL_OPACITY, KINDS, addCircle, addDimension, addLine, addPolyline, addText, batch, addRect, bendPolySegment, derivedAxes, dimensionOffsetAt,
+  dimensionTargetAt, distance, dragHandle, drawnOffset, entityAs, freeDelta, handlesFor, insertPolyNode, isRef, isSelectable, isVisible, layerRuns, linkLocks,
   moveBy, movePolyNode, newId, placeDimension, setDimensionOffset, setPolyHandle, snapNumber, styleProps, toggleRadiusLabel, turnTo, unionBounds,
-  type Bounds, type LineStyle, type DimensionProp, type DimensionTarget, type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType,
-  type ResolvedDimension, type ResolvedPolyline, type Resolved, type ResolvedRadiusLabel, type ResolvedShape, type ResolvedText, type SnapPoint,
+  type Bounds, type HatchPattern, type LineStyle, type DimensionProp, type DimensionTarget, type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType,
+  type ResolvedDimension, type ResolvedLayer, type ResolvedPolyline, type Resolved, type ResolvedRadiusLabel, type ResolvedShape, type ResolvedText, type SnapPoint,
 } from "../model";
 import { store, useDocument } from "../app/store";
 import { currentLayer, hoverShowsPosition, selectedPathNode, selectedPathSegment, useEditor } from "../app/editor";
@@ -38,7 +43,8 @@ import { sendCursor } from "../collab";
 import { fitView, gridPitch, toModel, toScreen, wheelZoom, type View } from "../view/viewport";
 import { drawingExtent } from "../view/fit";
 import { pathToSvg } from "../view/svgPath";
-import { screenDashArray, screenLineWidth } from "../view/lineScreen";
+import { SCREEN_PX_PER_MM, screenDashArray, screenLineWidth } from "../view/lineScreen";
+import { HATCH_LINE_WIDTH, hatchTile } from "../output/hatch";
 import { formatMm, type DrawTool } from "../view/format";
 import { dimensionText, radiusLabelPlace, radiusLabelText } from "../view/dimensionText";
 import { targetPath } from "../view/dimensionTarget";
@@ -162,6 +168,8 @@ export function Canvas() {
   const setPlacing = useCallback((p: Placing | null) => { placeRef.current = p; setPlacingState(p && { ...p }); }, []);
   // What the Dimension tool would measure under the pointer, and where the pointer is.
   const [dimHover, setDimHover] = useState<{ target: DimensionTarget; at: Point } | null>(null);
+  // The filled shape whose inside the pointer is over: its outline highlights as on hover.
+  const [fillHover, setFillHover] = useState<EntityId | null>(null);
   const labelsShown = editor.labels.show;
 
   useLayoutEffect(() => {
@@ -498,7 +506,7 @@ export function Canvas() {
           return;
         }
       }
-      const target = linkTargetAt(e.target as Element);
+      const target = linkTargetAt(e.target as Element) ?? linkUnderFill(e);
       if (target) { dispatch({ type: "linkPopup", popup: { target, at: sp } }); return; }
       if (editor.linkPopup) dispatch({ type: "linkPopup", popup: null });
       // A dimension or radius label: picked, and a dimension dragged moves it.
@@ -793,6 +801,12 @@ export function Canvas() {
   const guides = linkGuides(store.state, resolved, selection, GUIDE_OVERHANG_PX * hair, hiddenLayers);
   const varName = linkedNames(selection);
   const shown = (id: EntityId) => isVisible(resolved, id, hiddenLayers);
+  // Back layer first; hidden layers not at all.
+  const runs = layerRuns(resolved, hiddenLayers);
+  // Each pattern in use, in each ink, defined once.
+  const hatches = new Map<string, { pattern: HatchPattern; ink: string | null }>();
+  for (const { layer, filled } of runs) if (layer.hatch && filled.length) hatches.set(hatchId(layer.hatch, layer.colour), { pattern: layer.hatch, ink: layer.colour });
+  const hoverFill = (id: EntityId, on: boolean) => setFillHover((h) => (on ? id : h === id ? null : h));
   // With the select tool, dimensions and radius labels of shapes that can be picked can be picked too.
   const pickable = (target: EntityId) => tool === "select" && isSelectable(resolved, target, layerView);
   const hoverTarget = tool === "dimension" && !blocked && !placing ? dimHover : null;
@@ -812,27 +826,34 @@ export function Canvas() {
         onPointerLeave={() => {
           if (dragRef.current || placeRef.current) return;
           sendCursor(null);
-          dispatch({ type: "pointer", cursor: null, snap: null }); setHover(null); setClosing(false); setDimHover(null);
+          dispatch({ type: "pointer", cursor: null, snap: null }); setHover(null); setClosing(false); setDimHover(null); setFillHover(null);
         }}
         onWheel={onWheel}
         onContextMenu={(e) => e.preventDefault()}
       >
         <Grid view={view} size={size} pitch={pitch} show={editor.grid.visible} />
         <g transform={`translate(${view.ox} ${view.oy}) scale(${view.scale})`} fill="none" strokeLinecap="round" strokeLinejoin="round">
+          {hatches.size > 0 && <defs>{[...hatches].map(([id, h]) => <HatchDef key={id} id={id} {...h} hair={hair} />)}</defs>}
           {/* Behind the shapes: live links, screen only. */}
           {guides.map((g) => <LinkGuideView key={g.link} guide={g} fontSize={fontSize} hair={hair} />)}
-          {/* Back layer first; hidden layers not at all; locked ones drawn but not hit-testable. */}
-          {resolved.order.filter(shown).map((id) => {
-            const shape = resolved.shapes[id]!;
+          {/* Layer by layer, its fills under its lines; locked layers drawn but not hit-testable. */}
+          {runs.map(({ layer, shapes, filled }) => {
+            const inert = layerView.locked.has(layer.id);
             return (
-              <ShapeView
-                key={id} shape={shape} hair={hair} colour={layerColours.get(shape.layer) ?? null}
-                selected={selection.includes(id)}
-                reference={selection.length > 1 && selection[0] === id}
-                locked={derivedAxes(resolved, id)}
-                inert={layerView.locked.has(shape.layer)}
-                editing={editText?.id === id}
-              />
+              <Fragment key={layer.id}>
+                {filled.length > 0 && <LayerFills layer={layer} shapes={filled} inert={inert} resolved={resolved} onHover={hoverFill} />}
+                {shapes.map((shape) => (
+                  <ShapeView
+                    key={shape.id} shape={shape} hair={hair} colour={layer.colour}
+                    selected={selection.includes(shape.id)}
+                    reference={selection.length > 1 && selection[0] === shape.id}
+                    locked={derivedAxes(resolved, shape.id)}
+                    inert={inert}
+                    editing={editText?.id === shape.id}
+                    hovered={fillHover === shape.id}
+                  />
+                ))}
+              </Fragment>
             );
           })}
           {/* The selected segment of the path being edited, over its path. */}
@@ -878,6 +899,22 @@ function linkTargetAt(el: Element): LinkTarget | undefined {
   if (!v?.valueShape || !v.valueProp) return undefined;
   const corner = v.valueCorner === undefined ? undefined : (Number(v.valueCorner) as 0 | 1 | 2 | 3);
   return { kind: "value", shape: v.valueShape, prop: v.valueProp, ...(corner === undefined ? {} : { corner }) };
+}
+
+/**
+ * A link guide under the inside of a filled shape: guides draw behind the
+ * shapes, but a fill shouldn't hide them from a click. Not one under a
+ * shape's line, which is in front of it.
+ */
+function linkUnderFill(e: { target: EventTarget; clientX: number; clientY: number }): LinkTarget | undefined {
+  if (!(e.target as Element).closest(".shape-fill")) return undefined;
+  for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
+    if (el.closest(".shape-fill")) continue;
+    if (el.closest("[data-id]")) return undefined;
+    const link = linkTargetAt(el);
+    if (link) return link;
+  }
+  return undefined;
 }
 
 /** The handle in `handles` nearest `point`, within `tolerance` mm; null if none. */
@@ -972,9 +1009,12 @@ function createShape(d: Extract<Drag, { kind: "draw" }>, dimension: boolean, lin
  * `colour`: its layer's, or null for the default ink. Set as --layer-colour,
  * so selection and hover, which stroke in --select, still win.
  */
-/** `editing`: a text box being typed into, whose field shows its text, so only its outline is drawn. */
-function ShapeView({ shape, selected, reference, locked, inert, editing, hair, colour }: {
-  shape: ResolvedShape; selected: boolean; reference: boolean; locked: ReadonlySet<string>; inert: boolean; editing: boolean; hair: number; colour: string | null;
+/**
+ * `editing`: a text box being typed into, whose field shows its text, so only its outline is drawn.
+ * `hovered`: the pointer is over its fill, so it highlights as on hover.
+ */
+function ShapeView({ shape, selected, reference, locked, inert, editing, hovered, hair, colour }: {
+  shape: ResolvedShape; selected: boolean; reference: boolean; locked: ReadonlySet<string>; inert: boolean; editing: boolean; hovered: boolean; hair: number; colour: string | null;
 }) {
   const d = pathToSvg(shape.path);
   const style = colour ? ({ "--layer-colour": colour } as CSSProperties) : undefined;
@@ -986,15 +1026,74 @@ function ShapeView({ shape, selected, reference, locked, inert, editing, hair, c
     if (!text) return <path d={d} className="shape inert" strokeWidth={hair * px} strokeDasharray={dash} style={style} />;
     return <g className="shape inert" style={style}><TextFrame shape={shape} d={d} selected={false} hair={hair} /><TextLines shape={shape} /></g>;
   }
-  const lock = locked.size === 2 ? " locked" : locked.has("x") ? " locked-x" : locked.has("y") ? " locked-y" : "";
   return (
-    <g data-id={shape.id} className={`shape${text ? " text-box" : ""}${selected ? " selected" : ""}${lock}`} style={style}>
+    <g data-id={shape.id} className={`shape${text ? " text-box" : ""}${selected ? " selected" : ""}${hovered ? " hover" : ""}${lockClass(locked)}`} style={style}>
       {reference && <path d={d} className="ref-halo" strokeWidth={hair * (px + 6)} />}
       {/* A text box is hit anywhere inside, not just on its edge. */}
       <path d={d} className={text ? "hit area" : "hit"} strokeWidth={hair * Math.max(12, px + 8)} stroke="transparent" fill={text ? "transparent" : undefined} />
       {text
         ? <><TextFrame shape={shape} d={d} selected={selected || editing} hair={hair} />{!editing && <TextLines shape={shape} />}</>
         : <path d={d} className="stroke" strokeWidth={hair * (selected ? px + 0.8 : px)} strokeDasharray={dash} />}
+    </g>
+  );
+}
+
+/** The cursor class for the axes a link controls: no entry, or only the free direction. */
+function lockClass(locked: ReadonlySet<string>): string {
+  return locked.size === 2 ? " locked" : locked.has("x") ? " locked-x" : locked.has("y") ? " locked-y" : "";
+}
+
+/** A pattern's <pattern> id, for its ink (null: the default). */
+function hatchId(pattern: HatchPattern, ink: string | null): string {
+  return `canvas-hatch-${pattern}-${ink ? ink.replace(/[^0-9a-z]/gi, "") : "default"}`;
+}
+
+/**
+ * A pattern's tile (hatchTile, paper mm), in `ink` (null: the default),
+ * scaled so it is as big on screen as on paper at 96 px to the inch at any
+ * zoom, as line widths are (lineScreen.ts), lines never under a pixel. In
+ * user space, so on the model origin like the output's lattice, and
+ * opaque: a fill fades it as a whole, so crossing marks don't darken.
+ */
+function HatchDef({ id, pattern, ink, hair }: { id: string; pattern: HatchPattern; ink: string | null; hair: number }) {
+  const { size, d, filled } = hatchTile(pattern);
+  const paint = ink ?? "var(--shape)";
+  return (
+    <pattern id={id} patternUnits="userSpaceOnUse" width={size} height={size} patternTransform={`scale(${SCREEN_PX_PER_MM * hair})`}>
+      {filled
+        ? <path d={d} style={{ fill: paint }} />
+        : <path d={d} fill="none" style={{ stroke: paint }} strokeWidth={screenLineWidth(HATCH_LINE_WIDTH) / SCREEN_PX_PER_MM} />}
+    </pattern>
+  );
+}
+
+/**
+ * A layer's fills, drawn under all its lines: see-through colour, then
+ * pattern, as the output draws them. With the select tool, a fill picks its
+ * shape (`data-id`) and highlights it on hover, larger ones behind so a
+ * shape inside another can still be picked; on a locked layer (`inert`) it
+ * is only drawn.
+ */
+function LayerFills({ layer, shapes, inert, resolved, onHover }: {
+  layer: ResolvedLayer; shapes: ResolvedShape[]; inert: boolean; resolved: Resolved; onHover: (id: EntityId, on: boolean) => void;
+}) {
+  const pattern = layer.hatch ? `url(#${hatchId(layer.hatch, layer.colour)})` : null;
+  const area = (b: Bounds) => (b.maxX - b.minX) * (b.maxY - b.minY);
+  const sorted = [...shapes].sort((a, b) => area(b.bounds) - area(a.bounds));
+  return (
+    <g className={`shape-fills${inert ? " inert" : ""}`}>
+      {sorted.map((shape) => {
+        const d = pathToSvg(shape.path);
+        return (
+          <g
+            key={shape.id} className={`shape-fill${lockClass(derivedAxes(resolved, shape.id))}`} data-id={inert ? undefined : shape.id}
+            onPointerEnter={inert ? undefined : () => onHover(shape.id, true)} onPointerLeave={inert ? undefined : () => onHover(shape.id, false)}
+          >
+            {layer.fill && <path d={d} fill={layer.fill} fillOpacity={FILL_OPACITY} />}
+            {pattern && <path d={d} fill={pattern} fillOpacity={FILL_OPACITY} />}
+          </g>
+        );
+      })}
     </g>
   );
 }

@@ -1,5 +1,6 @@
 export * from "./types";
 export * from "./style";
+export * from "./hatch";
 export * from "./text";
 export * from "./paper";
 export * from "./primitives";

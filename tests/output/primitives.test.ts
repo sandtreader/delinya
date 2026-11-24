@@ -41,7 +41,7 @@ describe("drawingPrimitives", () => {
 
   it("leaves out dimensions and labels when asked", () => {
     const prims = drawingPrimitives(sample(), { dimensions: false, textSize: SIZE, tick: TICK });
-    expect(prims.every((p) => p.role === "shape" && p.kind === "path")).toBe(true);
+    expect(prims.every((p) => p.kind === "path" && p.role === "shape")).toBe(true);
     expect(prims.length).toBe(4);
   });
 

@@ -7,12 +7,12 @@
 
 import {
   type Bounds, type EntityId, type Path, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type Resolved, type ResolvedText,
-  DEFAULT_LINE_STYLE, boundsOfPoints, fontMetrics, isVisible, midpoint, pathBounds, pointsNear, polar, segment, textAdvance, unionBounds,
+  DEFAULT_LINE_STYLE, boundsOfPoints, fontMetrics, isVisible, layerRuns, midpoint, pathBounds, pointsNear, polar, segment, textAdvance, unionBounds,
 } from "../model";
 import { dimensionText, radiusLabelPlace, radiusLabelText } from "../view/dimensionText";
 import { formatMm } from "../view/format";
 import { textWidth } from "./text";
-import type { Primitive, TextPrim } from "./types";
+import type { FillPrim, Primitive, TextPrim } from "./types";
 
 export interface PrimitiveOptions {
   /** Include dimensions and radius labels. */
@@ -29,23 +29,27 @@ const NO_LAYERS: ReadonlySet<EntityId> = new Set();
 /**
  * The visible shapes, in their layer's colour if it has one, and with
  * `dimensions` their dimensions and labels; hidden layers are left out. A
- * text box is its lines of text, not its outline.
+ * text box is its lines of text, not its outline. Layer by layer, back to
+ * front: a filled layer's fills for its rectangles, circles and closed
+ * paths come first, under all its own lines but over the layers behind.
  */
 export function drawingPrimitives(resolved: Resolved, o: PrimitiveOptions): Primitive[] {
   const hidden = o.hidden ?? NO_LAYERS;
   const shown = (id: EntityId) => isVisible(resolved, id, hidden);
-  // Map, not object: a layer ID like "__proto__" stays data.
-  const colours = new Map(resolved.layers.map((l) => [l.id, l.colour]));
   const out: Primitive[] = [];
-  for (const id of resolved.order) {
-    if (!shown(id)) continue;
-    const shape = resolved.shapes[id]!;
-    const colour = colours.get(shape.layer);
-    const ink = colour ? { colour } : {};
-    if (shape.kind === "text") out.push(...textBoxPrims(shape, ink));
-    else {
-      const plain = shape.style.width === DEFAULT_LINE_STYLE.width && shape.style.dash === DEFAULT_LINE_STYLE.dash;
-      out.push({ kind: "path", role: "shape", path: shape.path, ...ink, ...(plain ? {} : { line: shape.style }) });
+  for (const { layer, shapes, filled } of layerRuns(resolved, hidden)) {
+    const ink = layer.colour ? { colour: layer.colour } : {};
+    if (filled.length) {
+      // A pattern is in the layer's ink; keys only for what the layer has.
+      const fill: Omit<FillPrim, "path"> = { kind: "fill", ...(layer.fill ? { fill: layer.fill } : {}), ...(layer.hatch ? { hatch: layer.hatch, ...ink } : {}) };
+      for (const shape of filled) out.push({ ...fill, path: shape.path });
+    }
+    for (const shape of shapes) {
+      if (shape.kind === "text") out.push(...textBoxPrims(shape, ink));
+      else {
+        const plain = shape.style.width === DEFAULT_LINE_STYLE.width && shape.style.dash === DEFAULT_LINE_STYLE.dash;
+        out.push({ kind: "path", role: "shape", path: shape.path, ...ink, ...(plain ? {} : { line: shape.style }) });
+      }
     }
   }
   if (!o.dimensions) return out;
@@ -100,7 +104,7 @@ function offset(p: Point, d: Point, angle: number): Point {
 export function primitivesBounds(prims: Primitive[]): Bounds | null {
   const parts: Bounds[] = [];
   for (const p of prims) {
-    if (p.kind === "path") { if (p.path.length) parts.push(pathBounds(p.path)); }
+    if (p.kind === "path" || p.kind === "fill") { if (p.path.length) parts.push(pathBounds(p.path)); }
     else if (p.text) parts.push(textBounds(p));
   }
   return parts.length ? unionBounds(parts) : null;

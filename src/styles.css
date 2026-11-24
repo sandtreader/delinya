@@ -124,6 +124,16 @@ button.danger { color: #9b1c1c; }
 .shape.selected .stroke { stroke: var(--select); }
 .shape .ref-halo { stroke: var(--select); opacity: 0.25; pointer-events: none; }
 .shape:hover .stroke { stroke: var(--select); }
+/* The outline of a filled shape whose inside the pointer is over (canvas state, not :hover). */
+.shape.hover .stroke { stroke: var(--select); }
+/* A layer's fills: with the select tool, a filled shape is picked anywhere
+   inside; with other tools, and on a locked layer, clicks go through. */
+.shape-fill path { pointer-events: none; }
+.canvas.tool-select .shape-fills:not(.inert) .shape-fill path { pointer-events: fill; }
+.canvas.tool-select .shape-fill { cursor: move; }
+.canvas.tool-select .shape-fill.locked { cursor: not-allowed; }
+.canvas.tool-select .shape-fill.locked-x { cursor: ns-resize; }
+.canvas.tool-select .shape-fill.locked-y { cursor: ew-resize; }
 /* On a locked layer: drawn, snapped to, but clicks go through. */
 .shape.inert { stroke: var(--layer-colour, var(--shape)); pointer-events: none; }
 /* A text box's lines: in its ink, never selectable or in the way of its hit area; hover tints them as it does strokes. */
@@ -437,18 +447,29 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .layer-card button.icon { flex: none; padding: 4px; }
 .layer-card button.icon.on { background: #e3f0f6; border-color: var(--accent); color: var(--accent); }
 .layer-card button.danger { margin-left: 4px; }
-/* Line colour: a swatch button, and its grid of colours below it. */
-.colour-control { position: relative; flex: none; display: flex; }
+/* The layer's look: a button with a small preview of it, and below the
+   card, as wide as it, a picker of line colour, fill and pattern, a row each. */
+.look-control { flex: none; display: flex; }
+.look-chip { display: block; }
 .swatch-chip { display: block; width: 16px; height: 16px; border-radius: 3px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.15); }
 .swatch-chip.default { background: var(--shape); }
-.colour-picker {
-  position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%); z-index: 1;
-  display: grid; grid-template-columns: repeat(var(--columns), auto); gap: 4px; padding: 5px;
+/* No fill or pattern: paper with a stroke through it. */
+.swatch-chip.none {
+  background: linear-gradient(to top right, transparent calc(50% - 0.6px), var(--muted) calc(50% - 0.6px), var(--muted) calc(50% + 0.6px), transparent calc(50% + 0.6px)), #fff;
+}
+.swatch-chip.pattern { background: #fff; }
+.look-picker {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 1;
+  display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 8px; padding: 6px 8px;
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
-.layer-card .colour-picker button.swatch { padding: 3px; border-color: transparent; }
-.layer-card .colour-picker button.swatch:hover { border-color: var(--line); }
-.layer-card .colour-picker button.swatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+/* Label, then swatches: the labels share a column. */
+.look-row { display: contents; }
+.look-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.look-row .swatches { display: flex; gap: 2px; }
+.layer-card .look-picker button.swatch { padding: 2px; border-color: transparent; }
+.layer-card .look-picker button.swatch:hover { border-color: var(--line); }
+.layer-card .look-picker button.swatch[aria-pressed="true"] { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .layer-card button.danger:not(:disabled):hover { border-color: #9b1c1c; }
 
 /* A path's selected node or segment: a small card beside it, over the canvas. */

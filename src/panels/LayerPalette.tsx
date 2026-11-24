@@ -1,16 +1,18 @@
 // Floating layer palette: a numbered button per layer, 1 (the back) at the
 // top, with a bar in the layer's colour if it has one. Clicking one makes it
-// the current layer (new shapes go there) and opens its card: name, line
-// colour, hide/show, lock/unlock and delete. Dragging a button reorders, and
-// the numbers follow. "+" adds a layer in front. The colour is part of the
-// drawing (an edit); hiding and locking are this viewer's own choice
-// (editor state), not edits.
+// the current layer (new shapes go there) and opens its card: name, look
+// (line colour, fill and pattern), hide/show, lock/unlock and delete.
+// Dragging a button reorders, and the numbers follow. "+" adds a layer in
+// front. The look is part of the drawing (an edit); hiding and locking are
+// this viewer's own choice (editor state), not edits.
 
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent as RKeyboardEvent, type PointerEvent as RPointerEvent } from "react";
 import type { Change } from "@sandtreader/collab/protocol";
 import {
-  LAYER_COLOURS, addLayer, deleteLayer, moveLayer, newId, setLayerColour, setLayerName, type EntityId, type ResolvedLayer,
+  FILL_OPACITY, HATCH_PATTERNS, LAYER_COLOURS, LAYER_FILLS, addLayer, deleteLayer, moveLayer, newId, setLayerColour, setLayerFill, setLayerHatch, setLayerName,
+  type Bounds, type EntityId, type HatchPattern, type ResolvedLayer,
 } from "../model";
+import { hatchMarks } from "../output/hatch";
 import { store, useDocument } from "../app/store";
 import { currentLayer, useEditor } from "../app/editor";
 import { ask, currentQuestion } from "../app/ask";
@@ -212,7 +214,7 @@ function LayerCard({ layer, only, flip, onDeleted }: { layer: ResolvedLayer; onl
     <div className={`layer-card${flip ? " flip" : ""}`} role="group" aria-label={`Layer ${layer.number}`}>
       <span className="layer-card-number">{layer.number}</span>
       <Text value={layer.name} placeholder={`Layer ${layer.number}`} onCommit={(name) => commit(setLayerName(store.state, layer.id, name))} />
-      <ColourControl colour={layer.colour} onChoose={(hex) => commit(setLayerColour(store.state, layer.id, hex))} />
+      <LookControl layer={layer} />
       <button
         className={`icon${hidden ? " on" : ""}`} data-tip={hideTitle} aria-label={hideTitle} aria-pressed={hidden}
         onClick={() => dispatch({ type: "toggleLayer", id: layer.id, flag: "hidden" })}
@@ -237,30 +239,41 @@ function colourName(hex: string | null): string {
   return LAYER_COLOURS.find((c) => c.hex === hex)?.name ?? hex!;
 }
 
-/** Swatches per row in the colour picker. */
-const PICKER_COLUMNS = 4;
+/** A fill's name, or the colour itself if it isn't one of LAYER_FILLS. */
+function fillName(hex: string): string {
+  return LAYER_FILLS.find((f) => f.hex === hex)?.name ?? hex;
+}
+
+/** What a layer looks like, in words: "Layer look: Navy line, Sky fill, Lines pattern". */
+function lookLabel({ colour, fill, hatch }: Pick<ResolvedLayer, "colour" | "fill" | "hatch">): string {
+  const pattern = HATCH_PATTERNS.find((p) => p.id === hatch)?.name;
+  return `Layer look: ${colourName(colour)} line, ${fill ? `${fillName(fill)} fill` : "no fill"}, ${pattern ? `${pattern} pattern` : "no pattern"}`;
+}
 
 /**
- * The layer's line colour: a swatch button that opens a small grid of the
- * palette's colours. Choosing one sets it and closes the grid; so do Escape
- * (only the grid: the card stays) and a press anywhere else.
+ * The layer's look: a button showing it in small (outline in the line
+ * colour, filled as its shapes are) that opens a picker of line colour,
+ * fill and pattern. A choice takes effect at once and the picker stays, so
+ * all three can be set; Escape (only the picker: the card stays) and a press
+ * anywhere else close it.
  */
-function ColourControl({ colour, onChoose }: { colour: string | null; onChoose: (hex: string | null) => void }) {
+function LookControl({ layer }: { layer: ResolvedLayer }) {
   const [picking, setPicking] = useState(false);
   const ref = useRef<HTMLSpanElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const commit = (c: Change | undefined) => { if (c) store.commit(c); };
 
   const stop = (refocus: boolean) => {
     setPicking(false);
     if (refocus) button.current?.focus();
   };
 
-  // Into the grid at the current colour, so the keyboard can carry on there.
+  // Into the picker at the current line colour, so the keyboard can carry on there.
   useEffect(() => {
     if (picking) ref.current?.querySelector<HTMLElement>(".swatch[aria-pressed=true]")?.focus();
   }, [picking]);
 
-  // A press outside the control closes the grid; outside the palette, the card's own handler closes the card too.
+  // A press outside the control closes the picker; outside the palette, the card's own handler closes the card too.
   useEffect(() => {
     if (!picking) return;
     const onDown = (e: PointerEvent) => { if (!currentQuestion() && !ref.current?.contains(e.target as Node)) setPicking(false); };
@@ -272,29 +285,38 @@ function ColourControl({ colour, onChoose }: { colour: string | null; onChoose: 
     if (e.key === "Escape" && picking) { e.stopPropagation(); stop(true); }
   };
 
-  const label = `Line colour: ${colourName(colour)}`;
+  const label = lookLabel(layer);
   return (
-    <span ref={ref} className="colour-control" onKeyDown={onKeyDown}>
+    <span ref={ref} className="look-control" onKeyDown={onKeyDown}>
       <button
-        ref={button} className="icon colour-button" aria-label={label} aria-haspopup="true" aria-expanded={picking}
-        // Not while the grid is open: it would cover it.
+        ref={button} className="icon look-button" aria-label={label} aria-haspopup="true" aria-expanded={picking}
+        // Not while the picker is open: it would cover it.
         {...(picking ? {} : tip(label, label))}
         onClick={() => setPicking(!picking)}
       >
-        <Swatch colour={colour} />
+        <LookChip colour={layer.colour} fill={layer.fill} hatch={layer.hatch} />
       </button>
       {picking && (
-        <span className="colour-picker" role="group" aria-label="Line colour"
-          style={{ "--columns": PICKER_COLUMNS } as CSSProperties}>
-          {LAYER_COLOURS.map((c, i) => (
-            <button
-              key={c.name} className="icon swatch" aria-label={c.name} aria-pressed={c.hex === colour}
-              {...tip(c.name, c.name)} data-tip-side={i < PICKER_COLUMNS ? "above" : "below"}
-              onClick={() => { onChoose(c.hex); stop(true); }}
-            >
-              <Swatch colour={c.hex} />
-            </button>
-          ))}
+        <span className="look-picker">
+          <span className="look-row">
+            <span className="look-label" aria-hidden="true">Line colour</span>
+            <span className="swatches" role="group" aria-label="Line colour">
+              {LAYER_COLOURS.map((c) => (
+                <button
+                  key={c.name} className="icon swatch" aria-label={c.name} aria-pressed={c.hex === layer.colour}
+                  {...tip(c.name, c.name)} data-tip-side="above"
+                  onClick={() => commit(setLayerColour(store.state, layer.id, c.hex))}
+                >
+                  <Swatch colour={c.hex} />
+                </button>
+              ))}
+            </span>
+          </span>
+          <FillPicker
+            fill={layer.fill} hatch={layer.hatch} ink={layer.colour}
+            onFill={(hex) => commit(setLayerFill(store.state, layer.id, hex))}
+            onHatch={(h) => commit(setLayerHatch(store.state, layer.id, h))}
+          />
         </span>
       )}
     </span>
@@ -304,6 +326,89 @@ function ColourControl({ colour, onChoose }: { colour: string | null; onChoose: 
 /** A small square of a layer colour; the default ink for null. */
 function Swatch({ colour }: { colour: string | null }) {
   return <span className={`swatch-chip${colour ? "" : " default"}`} style={colour ? { background: colour } : undefined} />;
+}
+
+/**
+ * The fill and pattern rows of the layer's look picker: the fills as they
+ * look on paper, and the patterns drawn small in the layer's `ink` (null:
+ * the default), each with none first.
+ */
+export function FillPicker({ fill, hatch, ink = null, onFill, onHatch }: {
+  fill: string | null; hatch: HatchPattern | null; ink?: string | null; onFill: (hex: string | null) => void; onHatch: (h: HatchPattern | null) => void;
+}) {
+  const patterns = [{ id: null, name: "None" }, ...HATCH_PATTERNS];
+  return (
+    <>
+      <span className="look-row">
+        <span className="look-label" aria-hidden="true">Fill</span>
+        <span className="swatches" role="group" aria-label="Fill">
+          {LAYER_FILLS.map((f) => (
+            <button
+              key={f.name} className="icon swatch" aria-label={f.name} aria-pressed={f.hex === fill}
+              {...tip(f.name, f.name)} data-tip-side="below" onClick={() => onFill(f.hex)}
+            >
+              <span className={`swatch-chip${f.hex ? "" : " none"}`} style={f.hex ? { background: onPaper(f.hex) } : undefined} />
+            </button>
+          ))}
+        </span>
+      </span>
+      <span className="look-row">
+        <span className="look-label" aria-hidden="true">Pattern</span>
+        <span className="swatches" role="group" aria-label="Pattern">
+          {patterns.map((p) => (
+            <button
+              key={p.name} className="icon swatch" aria-label={p.name} aria-pressed={p.id === hatch}
+              {...tip(p.name, p.name)} data-tip-side="below" onClick={() => onHatch(p.id)}
+            >
+              {p.id ? <PatternChip pattern={p.id} ink={ink} /> : <span className="swatch-chip none" />}
+            </button>
+          ))}
+        </span>
+      </span>
+    </>
+  );
+}
+
+/** A fill colour as it shows on white paper, drawn at FILL_OPACITY: "rgb(…)". */
+function onPaper(hex: string): string {
+  const [r, g, b] = [1, 3, 5].map((i) => Math.round(parseInt(hex.slice(i, i + 2), 16) * FILL_OPACITY + 255 * (1 - FILL_OPACITY)));
+  return `rgb(${r}, ${g}, ${b})`;
+}
+
+/** Chip size, px, and a pattern's spacing in it. */
+const CHIP = 16, CHIP_SPACING = 4;
+
+/** A pattern's marks over `bounds`, in chip px: lines and dots in `ink` (the default for null). */
+function PatternMarks({ pattern, ink, bounds, opacity }: { pattern: HatchPattern; ink: string | null; bounds: Bounds; opacity: number }) {
+  const { lines, dots } = hatchMarks(bounds, pattern, CHIP_SPACING);
+  const paint = ink ?? "var(--shape)";
+  return (
+    <g opacity={opacity}>
+      {lines.length > 0 && <path d={lines.map(([p, q]) => `M${p[0]} ${p[1]}L${q[0]} ${q[1]}`).join("")} style={{ stroke: paint }} strokeWidth={1} fill="none" />}
+      {dots.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={0.9} style={{ fill: paint }} />)}
+    </g>
+  );
+}
+
+/** A pattern swatch: its marks small, on paper. */
+function PatternChip({ pattern, ink }: { pattern: HatchPattern; ink: string | null }) {
+  return (
+    <svg className="swatch-chip pattern" width={CHIP} height={CHIP} viewBox={`0 0 ${CHIP} ${CHIP}`} aria-hidden="true">
+      <PatternMarks pattern={pattern} ink={ink} bounds={{ minX: 1, minY: 1, maxX: CHIP - 1, maxY: CHIP - 1 }} opacity={0.8} />
+    </svg>
+  );
+}
+
+/** The layer's look in small: a square outlined in its line colour, filled with its fill and pattern. */
+function LookChip({ colour, fill, hatch }: Pick<ResolvedLayer, "colour" | "fill" | "hatch">) {
+  const inner = { minX: 2, minY: 2, maxX: CHIP - 2, maxY: CHIP - 2 };
+  return (
+    <svg className="look-chip" width={CHIP} height={CHIP} viewBox={`0 0 ${CHIP} ${CHIP}`} aria-hidden="true">
+      <rect x={1} y={1} width={CHIP - 2} height={CHIP - 2} rx={2} fill={fill ? onPaper(fill) : "#fff"} />
+      {hatch && <PatternMarks pattern={hatch} ink={colour} bounds={inner} opacity={0.6} />}
+      <rect x={1} y={1} width={CHIP - 2} height={CHIP - 2} rx={2} fill="none" strokeWidth={2} style={{ stroke: colour ?? "var(--shape)" }} />
+    </svg>
+  );
 }
 
 // ---- Icons (see icons.tsx) ----

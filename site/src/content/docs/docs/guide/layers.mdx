@@ -1,6 +1,6 @@
 ---
 title: Layers
-description: Organise a drawing in layers, with line colours, hiding and locking.
+description: Organise a drawing in layers, with line colours, fills, hiding and locking.
 sidebar:
   order: 7
 ---
@@ -21,14 +21,27 @@ Clicking a layer's button makes it current and opens its card (click
 again, or press Escape, to close it):
 
 - a **name**;
-- a **line colour**, from a small palette of inks that print well;
+- its **look**: a **line colour**, from a small palette of inks that
+  print well, a **fill** and a **pattern**, all picked from one button
+  that shows them in small;
 - **hide** or **show**, and **lock** or **unlock**;
 - **delete**, which deletes the layer and its shapes (asking first).
 
-## Colour, hiding and locking
+## Colour, fills, hiding and locking
 
 A layer's **colour** is part of the drawing: everyone sees it, and it
 prints and exports in that colour.
+
+A layer can also **fill** its rectangles, circles and closed paths, with
+a light colour, a **pattern** (dots, a grid, 45° lines or crosshatch) in
+the layer's line colour, or both: to tell solid from hollow, or one
+material from another. Fills are always see-through, so lines behind
+them still show and overlaps look deeper. A layer's fills go under its
+own lines but over the layers behind it. A pattern is a fixed size on
+paper, whatever the print scale (and on screen, whatever the zoom), and
+lines up across neighbouring shapes. Fills print and go in PDF and SVG,
+but not DXF. A filled shape can be selected by clicking anywhere inside
+it, not just on its outline.
 
 **Hidden** and **locked** are your own view, not the drawing's: they
 aren't saved, and in a shared session each person has their own. Opening

@@ -32,13 +32,13 @@ which almost every CAM tool reads:
 - dashed, dotted and dash-dot lines as named linetypes. R12 has no line
   widths, so those are left out.
 
-Dimensions, radius labels and the title block are not included: the DXF
-holds only the shapes.
+Dimensions, radius labels, layer fills and the title block are not
+included: the DXF holds only the shapes.
 
 ## SVG
 
 **Download SVG** writes the whole drawing as one SVG in millimetres at
-1:1, with the layer colours, line widths and dash patterns, and the
-dimensions if **Dimensions** is ticked. Untick it for a clean cutting
-file. Check that your laser software imports SVG at its real size (some
+1:1, with the layer colours, fills, line widths and dash patterns, and the
+dimensions if **Dimensions** is ticked. Untick it, and set any layer
+fills to none, for a clean cutting file. Check that your laser software imports SVG at its real size (some
 assume 72 or 96 dots per inch).

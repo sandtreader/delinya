@@ -37,7 +37,7 @@ describe("layer colours", () => {
 
   it("makes the implicit base layer real to colour it", () => {
     const st = doc(addRect("a", { x: 0, y: 0, width: 1, height: 1 }));
-    expect(resolve(apply(st, setLayerColour(st, BASE_LAYER_ID, GREEN))).layers).toEqual([{ id: BASE_LAYER_ID, name: "", number: 1, colour: GREEN }]);
+    expect(resolve(apply(st, setLayerColour(st, BASE_LAYER_ID, GREEN))).layers).toEqual([{ id: BASE_LAYER_ID, name: "", number: 1, colour: GREEN, fill: null, hatch: null }]);
   });
 
   it("refuses a colour that isn't #rrggbb, and a bad stored one draws in the default, with an issue", () => {

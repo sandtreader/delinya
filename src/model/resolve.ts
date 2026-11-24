@@ -21,9 +21,9 @@ import {
 import {
   type Axis, type DimensionProp, type DimensionProps, type EntityId, type Length,
   type AlignMode, type TextAlign, type PolyNodeType, type RadiusLabelProps, type SpacingMode, type SpacingProps,
-  type LineStyle,
+  type HatchPattern, type LineStyle,
   BASE_LAYER_ID, DEFAULT_GRID_SPACING, DEFAULT_LINE_STYLE, DOCUMENT_FIELDS, DOCUMENT_ID, FONT_FAMILIES, KINDS, LINE_DASHES, TEXT_ALIGNS,
-  entitiesOfKind, isRef,
+  entitiesOfKind, isHatchPattern, isRef,
 } from "./types";
 import { type FontStyle, BASELINE, LINE_SPACING, fitTextSize, fitWidth, textAdvance, wrapText } from "./font";
 
@@ -247,6 +247,10 @@ export interface ResolvedLayer {
   number: number;
   /** Its shapes' ink, "#rrggbb"; null for the default. */
   colour: string | null;
+  /** Its fillable shapes' see-through fill colour, "#rrggbb"; null for none. */
+  fill: string | null;
+  /** Its fillable shapes' pattern, in its ink; null for none. */
+  hatch: HatchPattern | null;
 }
 
 export interface Resolved {
@@ -399,14 +403,18 @@ function layerOrder(v: unknown): number {
 
 function resolveLayers(ctx: Ctx): ResolvedLayer[] {
   const stored = storedLayers(ctx.state);
-  if (stored.length === 0) return [{ id: BASE_LAYER_ID, name: "", number: 1, colour: null }];
+  if (stored.length === 0) return [{ id: BASE_LAYER_ID, name: "", number: 1, colour: null, fill: null, hatch: null }];
   return stored.map(({ id }, i) => {
     const p = ctx.state.entities[id]!.props;
     if (layerOrder(p.order) !== p.order) ctx.issues.push({ entity: id, code: "bad-value", message: "layer order is not a number" });
     if (p.name != null && typeof p.name !== "string") ctx.issues.push({ entity: id, code: "bad-value", message: "layer name is not text" });
     const colour = isLayerColour(p.colour) ? p.colour : null;
     if (p.colour != null && !colour) ctx.issues.push({ entity: id, code: "bad-value", message: "layer colour is not #rrggbb" });
-    return { id, name: typeof p.name === "string" ? p.name : "", number: i + 1, colour };
+    const fill = isLayerColour(p.fill) ? p.fill : null;
+    if (p.fill != null && !fill) ctx.issues.push({ entity: id, code: "bad-value", message: "layer fill is not #rrggbb" });
+    const hatch = isHatchPattern(p.hatch) ? p.hatch : null;
+    if (p.hatch != null && !hatch) ctx.issues.push({ entity: id, code: "bad-value", message: "layer pattern is not one of dots, grid, lines or crosshatch" });
+    return { id, name: typeof p.name === "string" ? p.name : "", number: i + 1, colour, fill, hatch };
   });
 }
 

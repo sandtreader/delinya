@@ -7,17 +7,31 @@
 // Helvetica, always /F1; a text box's lines the Helvetica, Times or Courier
 // its style names, each font used getting a resource of its own. The whole
 // file is ASCII and uncompressed, and the output is deterministic.
+//
+// Fills are see-through through one graphics state, /GS1 (stroke and fill
+// alpha FILL_OPACITY), in the Resources of a page only if it has any: a
+// colour is the shape's path filled (nonzero); a pattern is the path as a
+// clip with hatchMarks over the part of its bounds on the page stroked
+// (lines) or filled (dots) as one path each, so crossings don't darken.
+// Both are drawn inside q…Q, which leaves the tracked graphics state as it
+// was.
 
-import { type Arc, type Path, type Point, type StandardFont, DEFAULT_FONT, STANDARD_FONTS, standardFont, textAdvance } from "../model";
+import {
+  type Arc, type Bounds, type Path, type Point, type StandardFont,
+  DEFAULT_FONT, FILL_OPACITY, STANDARD_FONTS, arc, pathBounds, standardFont, textAdvance,
+} from "../model";
+import { HATCH_DOT_SIZE, HATCH_LINE_WIDTH, hatchMarks } from "./hatch";
 import { STYLE, strokeOf } from "./style";
 import { textWidth, toWinAnsi } from "./text";
-import type { PageDrawing, PathPrim, Primitive, TextPrim } from "./types";
+import type { FillPrim, PageDrawing, PathPrim, Primitive, TextPrim } from "./types";
 
 /** Points per paper millimetre. */
 const PT = 72 / 25.4;
 const DEG = Math.PI / 180;
 /** Used when there are no pages, so the file is still valid. */
 const A4 = { width: 210, height: 297 };
+/** The see-through graphics state fills are drawn in. */
+const FILL_GS = "GS1";
 
 export function exportPdf(pages: PageDrawing[], meta: { title: string; author: string }): Uint8Array<ArrayBuffer> {
   const list: PageDrawing[] = pages.length > 0 ? pages : [blankPage(A4.width, A4.height)];
@@ -46,9 +60,11 @@ export function exportPdf(pages: PageDrawing[], meta: { title: string; author: s
   list.forEach((page, i) => {
     const w = f(page.width * PT);
     const h = f(page.height * PT);
+    const filled = [...page.content, ...page.furniture].some((p) => p.kind === "fill");
+    const states = filled ? ` /ExtGState << /${FILL_GS} << /Type /ExtGState /CA ${f(FILL_OPACITY)} /ca ${f(FILL_OPACITY)} >> >>` : "";
     bodies[pageId(i)] =
       `<< /Type /Page /Parent ${PAGES} 0 R /MediaBox [0 0 ${w} ${h}]` +
-      ` /Resources << /Font << ${fontResources} >> /ProcSet [/PDF /Text] >>` +
+      ` /Resources << /Font << ${fontResources} >>${states} /ProcSet [/PDF /Text] >>` +
       ` /Contents ${contentId(i)} 0 R >>`;
     const stream = pageContent(page, h);
     bodies[contentId(i)] = `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`;
@@ -113,17 +129,51 @@ function pageContent(page: PageDrawing, height: string): string {
   const c = page.clip;
   const saved = { ...state };
   ops.push("q", `${f(c.x)} ${f(c.y)} ${f(c.width)} ${f(c.height)} re`, "W", "n");
-  for (const p of page.content) primitive(p, ops, state);
+  const clip = { minX: c.x, minY: c.y, maxX: c.x + c.width, maxY: c.y + c.height };
+  for (const p of page.content) primitive(p, ops, state, clip);
   ops.push("Q");
   state = saved;
-  for (const p of page.furniture) primitive(p, ops, state);
+  const whole = { minX: 0, minY: 0, maxX: page.width, maxY: page.height };
+  for (const p of page.furniture) primitive(p, ops, state, whole);
 
   return ops.join("\n") + "\n";
 }
 
-function primitive(p: Primitive, ops: string[], state: GState): void {
+/** `area` is where it can show (the drawing area for content), so a pattern needs marks only there. */
+function primitive(p: Primitive, ops: string[], state: GState, area: Bounds): void {
   if (p.kind === "path") pathOps(p, ops, state);
+  else if (p.kind === "fill") fillOps(p, ops, state, area);
   else textOps(p, ops, state);
+}
+
+/** A fill: colour then pattern, each see-through, in its own q…Q so `state` stays true. */
+function fillOps(p: FillPrim, ops: string[], state: GState, area: Bounds): void {
+  const shape = pathDrawOps(p.path);
+  if (shape.length === 0) return;
+  if (p.fill) ops.push("q", `/${FILL_GS} gs`, `${rgb(p.fill)} rg`, ...shape, "f", "Q");
+  if (!p.hatch) return;
+  const b = pathBounds(p.path);
+  const bounds = {
+    minX: Math.max(b.minX, area.minX), minY: Math.max(b.minY, area.minY),
+    maxX: Math.min(b.maxX, area.maxX), maxY: Math.min(b.maxY, area.maxY),
+  };
+  const { lines, dots } = hatchMarks(bounds, p.hatch);
+  if (lines.length === 0 && dots.length === 0) return;
+  const ink = rgb(p.colour ?? STYLE.colour.shape);
+  ops.push("q", ...shape, "W", "n", `/${FILL_GS} gs`);
+  if (lines.length) {
+    ops.push(`${f(HATCH_LINE_WIDTH)} w`);
+    if (state.dash) ops.push("[] 0 d");
+    ops.push(`${ink} RG`);
+    for (const [from, to] of lines) ops.push(`${pt(from)} m`, `${pt(to)} l`);
+    ops.push("S");
+  }
+  if (dots.length) {
+    ops.push(`${ink} rg`);
+    for (const d of dots) ops.push(...pathDrawOps([arc(d, HATCH_DOT_SIZE / 2, 0, 360)]));
+    ops.push("f");
+  }
+  ops.push("Q");
 }
 
 function pathOps(p: PathPrim, ops: string[], state: GState): void {

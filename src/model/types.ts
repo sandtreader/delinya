@@ -244,13 +244,34 @@ export const DEFAULT_GRID_SPACING = 1;
  * A layer: shapes on it draw together, above lower-numbered layers. Position
  * comes from `order` (lowest at the back); ties go by ID. Shapes name their
  * layer in their `layer` prop. `colour` ("#rrggbb", lower case) is the ink
- * its shapes draw and print in; absent means the default ink. Hiding and
- * locking are each viewer's own choice, held in editor state, never here.
+ * its shapes draw and print in; absent means the default ink. `fill`
+ * ("#rrggbb") and `hatch` fill its rectangles, circles and closed paths,
+ * see-through (see layers.ts); absent means none. Hiding and locking are
+ * each viewer's own choice, held in editor state, never here.
  */
 export interface LayerProps {
   name?: string;
   order: number;
   colour?: string;
+  fill?: string;
+  hatch?: HatchPattern;
+}
+
+/**
+ * A layer's fill pattern, drawn in its ink at a fixed spacing on paper:
+ * dots, a square grid, 45° lines, or those crossed (see output/hatch.ts).
+ */
+export type HatchPattern = "dots" | "grid" | "lines" | "crosshatch";
+/** The patterns offered, in order, with their names in the UI. */
+export const HATCH_PATTERNS: readonly { id: HatchPattern; name: string }[] = [
+  { id: "dots", name: "Dots" },
+  { id: "grid", name: "Grid" },
+  { id: "lines", name: "Lines" },
+  { id: "crosshatch", name: "Crosshatch" },
+];
+
+export function isHatchPattern(v: unknown): v is HatchPattern {
+  return HATCH_PATTERNS.some((p) => p.id === v);
 }
 
 /**

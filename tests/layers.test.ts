@@ -20,7 +20,7 @@ const ids = (st: DocState) => resolve(st).layers.map((l) => l.id);
 describe("resolving layers", () => {
   it("gives a drawing with no layers one implicit base layer holding every shape", () => {
     const r = resolve(doc(sq("a")));
-    expect(r.layers).toEqual([{ id: BASE_LAYER_ID, name: "", number: 1, colour: null }]);
+    expect(r.layers).toEqual([{ id: BASE_LAYER_ID, name: "", number: 1, colour: null, fill: null, hatch: null }]);
     expect(r.shapes.a!.layer).toBe(BASE_LAYER_ID);
   });
 
@@ -88,7 +88,7 @@ describe("setLayerName", () => {
 
   it("makes the implicit base layer real to name it", () => {
     const after = apply(doc(sq("a")), setLayerName(doc(sq("a")), BASE_LAYER_ID, "Carcass"));
-    expect(resolve(after).layers).toEqual([{ id: BASE_LAYER_ID, name: "Carcass", number: 1, colour: null }]);
+    expect(resolve(after).layers).toEqual([{ id: BASE_LAYER_ID, name: "Carcass", number: 1, colour: null, fill: null, hatch: null }]);
   });
 });
 

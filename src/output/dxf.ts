@@ -31,6 +31,9 @@
 // named on the entity (group 6); a solid shape names none, so is the
 // layer's CONTINUOUS. R12 has no line widths (group 39 is extrusion
 // thickness, not a pen), so widths are left out; CAM tools ignore them anyway.
+//
+// Layer fills (colour and pattern) are left out entirely: they are
+// indicative, not for cutting, so a filled drawing's DXF is the unfilled one's.
 
 import {
   type Arc, type Path, type PathElement, type Point, type ResolvedLayer, type ResolvedText,

@@ -19,8 +19,8 @@ the first use, not a limit. (*Delinya* is Cornish for "drawing".)
   spacing that follow later edits.
 - Dimensions and radius labels, added automatically or by hand with the
   Dimension tool.
-- Layers with colours, hiding and locking; line styles (ISO pen widths and
-  dashed, dotted and centre lines).
+- Layers with colours, see-through fills and patterns, hiding and locking;
+  line styles (ISO pen widths and dashed, dotted and centre lines).
 - Save and open `.dln` files; print at true scale, tiled across sheets with
   a check ruler and title block; export PDF, SVG and DXF.
 - Drawing together: start a session, share the link, and everyone edits

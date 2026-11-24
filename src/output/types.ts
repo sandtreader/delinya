@@ -1,14 +1,14 @@
 // Output: print, PDF, SVG and DXF.
 //
 // Everything here is pure and derived from resolve(); nothing is stored in
-// the document. The drawing becomes a list of primitives (paths and text)
-// once, and each format renders those. Print and PDF share one page model,
+// the document. The drawing becomes a list of primitives (paths, fills and
+// text) once, and each format renders those. Print and PDF share one page model,
 // so the preview, the printout and the PDF are the same pages.
 //
 // Coordinates as in the model: x right, y down, angles in degrees from +x
 // towards +y. Page units are paper millimetres from the top-left corner.
 
-import type { Bounds, EntityId, FontStyle, LineStyle, Path, Point } from "../model";
+import type { Bounds, EntityId, FontStyle, HatchPattern, LineStyle, Path, Point } from "../model";
 
 /** What a primitive is; each renderer picks stroke width and dash from it. */
 export type Role = "shape" | "dimension" | "furniture" | "guide";
@@ -48,7 +48,24 @@ export interface TextPrim {
   width?: number;
 }
 
-export type Primitive = PathPrim | TextPrim;
+/**
+ * A shape's fill, from its layer, drawn under its outline: see-through
+ * colour, a pattern in the layer's ink, or both (colour first). Fills are
+ * always drawn at FILL_OPACITY; a pattern's marks are fixed in paper mm and
+ * anchored at the origin (see hatch.ts). DXF leaves fills out.
+ */
+export interface FillPrim {
+  kind: "fill";
+  /** The shape's outline; filled nonzero, closed implicitly. */
+  path: Path;
+  /** Fill colour, "#rrggbb". */
+  fill?: string;
+  hatch?: HatchPattern;
+  /** The pattern's ink ("#rrggbb") in place of the default: the layer's colour. */
+  colour?: string;
+}
+
+export type Primitive = PathPrim | TextPrim | FillPrim;
 
 /** A paper size in mm, portrait. */
 export interface Paper {

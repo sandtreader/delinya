@@ -1,9 +1,10 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-24. Repo `sandtreader/delinya`, branch `main`.
-v1.0.0, the first public release, is committed and deployed to
-delinya.net, with its documentation site at delinya.org (`site/`; see
-Documentation site) and `CHANGELOG.md`. It builds on v0.3.0
+v1.1.0 (per-layer fills and patterns, renaming variables) is committed
+and deployed to delinya.net, with its documentation site at delinya.org
+(`site/`; see Documentation site) and `CHANGELOG.md`. It builds on
+v1.0.0, the first public release, v0.3.0
 (collaboration: the Collaborate card with Start and Join session, share
 links, other people's cursors; see Collaboration), v0.2.2 (line styles,
 the corner radii "all" switch with "4× R" labels, radius labels inside
@@ -15,7 +16,8 @@ the Dimension tool). Vitest tests, `tsc` and the build pass.
 The abstract model is complete for the outline's v1 feature set and the
 first visual slice is usable: you can draw (lines, rectangles, circles and
 paths of straight and curved segments), move, resize, edit path nodes, type exact values,
-link equal values and equal spacing, put shapes on layers, undo,
+link equal values and equal spacing, put shapes on layers (with line
+colours, see-through fills and patterns), undo,
 save/load local files, print at
 scale (tiled if needed, with a check ruler and title block) and export PDF,
 SVG and DXF. Collaboration is SynFlo's: a Collaborate card from the
@@ -894,8 +896,8 @@ through `useSyncExternalStore`.
 ### Output (`src/output/`, all pure, fully tested)
 
 - `drawingPrimitives(resolved)` turns the drawing into paths and text with
-  roles (shape, dimension, furniture, guide) once; every format renders
-  those. Labels are measured with Helvetica metrics (`text.ts`, from
+  roles (shape, dimension, furniture, guide), and layer fills (see Layers),
+  once; every format renders those. Labels are measured with Helvetica metrics (`text.ts`, from
   `model/fontMetrics.ts`) everywhere; text boxes with their own font's.
   Ink is per role in `STYLE.colour`: dimensions mid blue (`#3070c0`),
   everything else black, unless a primitive carries its own `colour`
@@ -963,13 +965,13 @@ through `useSyncExternalStore`.
 ### Layers
 
 - **Model** (`model/layers.ts`, layer parts of `resolve.ts`/`types.ts`):
-  `layer` entities `{ name?, order, colour? }`, nothing else. Position comes from
+  `layer` entities `{ name?, order, colour?, fill?, hatch? }`, nothing else. Position comes from
   a fractional `order` (lowest at the back, ties by ID), so
   `moveLayer` changes only the moved layer's order (midway between its new
   neighbours) and concurrent moves don't fight. A drawing with no layer
   entities has one implicit base layer at `BASE_LAYER_ID` (`"layer"`);
   actions that need it real (`addLayer`, `setLayerName`,
-  `setLayerColour`) materialise it
+  `setLayerColour`, `setLayerFill`, `setLayerHatch`) materialise it
   in the same change, so a drawing only grows layer entities once layers
   are used. Shapes carry an optional `layer` prop; missing or dangling
   falls back to the base (else the first) layer. `resolved.layers` is
@@ -991,6 +993,61 @@ through `useSyncExternalStore`.
   canvas strokes shapes via `--layer-colour` on the shape (selection,
   hover and preview still win with `--select`); locked layers' shapes
   keep their colour.
+- **Fills**: like line
+  colour, a layer's, in the document. `fill` (`"#rrggbb"`) and/or `hatch`
+  (`HatchPattern`: `"dots" | "grid" | "lines" | "crosshatch"`,
+  `HATCH_PATTERNS` with names, `isHatchPattern`) on the layer entity;
+  `setLayerFill` / `setLayerHatch` as `setLayerColour` (null clears).
+  `ResolvedLayer.fill` / `.hatch` (null for none; bad values null with a
+  `bad-value` issue). `LAYER_FILLS`: None, Grey `#a0a0a0`, Pink `#ff8fa3`,
+  Sand `#e8c07a`, Lemon `#ffe066`, Mint `#7fd9a8`, Sky `#7fbfff`, Lilac
+  `#b89cf0`, always drawn at `FILL_OPACITY` 0.35, so very light pastels on
+  paper. `isFillable`: rects, circles, closed paths. Output: per layer, back
+  to front, `drawingPrimitives` emits a `FillPrim { path, fill?, hatch?,
+  colour? }` (colour = the layer's ink, with a pattern) per visible
+  fillable shape before the layer's strokes, so a layer's fills cover the
+  layers behind but not its own lines. Patterns (`output/hatch.ts`):
+  `hatchMarks(bounds, pattern)` on a lattice anchored at the origin,
+  `HATCH_SPACING` 2.5, lines 0.18, dots 0.4 (paper mm); `hatchTile` the
+  same as one repeating tile (side, path data, filled or stroked). SVG:
+  colour path with `fill-opacity`, pattern as a `<pattern>` of
+  `hatchTile` (opaque, faded once). PDF: an ExtGState `/GS1` (`/CA` `/ca`
+  0.35, only on pages with fills), colour `f`, pattern clipped (`W n`)
+  with the marks over the part of the shape's bounds on the page. DXF
+  leaves fills out. `layerRuns(r, hidden)` (model) groups the visible
+  shapes by layer, back to front, with each run's `filled` shapes; the
+  output and the canvas both draw from it.
+  **Canvas**: per layer, a `.shape-fills` group (each shape's colour path, then
+  pattern path, at `FILL_OPACITY`) before the layer's ShapeViews. Patterns
+  are `<pattern>`s of `hatchTile` in user space (model origin), one per
+  pattern and ink (`canvas-hatch-<pattern>-<rrggbb|default>`; default ink
+  `var(--shape)`), `patternTransform="scale(SCREEN_PX_PER_MM·hair)"` so
+  they are a fixed size on screen at any zoom, as line widths are (lines
+  never under 1 px). **Picking**: with the select tool a filled shape is
+  picked anywhere inside (each fill `<g class="shape-fill" data-id>`,
+  `pointer-events: fill`; none with other tools or on a locked layer).
+  Within a layer, fills are behind all its lines and sorted largest
+  first, so a shape inside another (a hole in a panel) can still be
+  picked; a front layer's fill beats a back layer's outline. Hovering a
+  fill highlights its outline (`fillHover` state, `.shape.hover`, since
+  CSS `:hover` can't reach a sibling group). A link guide under a fill
+  is still clickable (`linkUnderFill`: `elementsFromPoint` past the
+  fills, stopping at any shape's line). Lasso, the Dimension tool and
+  path editing are geometric, so unaffected.
+  **Layer card**: the line-colour swatch became the layer's look
+  button (`LookControl`): its chip is a square outlined in the line
+  colour, filled with the fill as on paper and the pattern; label and
+  tooltip "Layer look: Navy line, Sky fill, Lines pattern" ("no fill",
+  "no pattern"). It opens a picker under the card, as wide as it, with
+  three labelled rows (a label column, then the swatches in one row
+  each): Line colour (`LAYER_COLOURS`), Fill (`LAYER_FILLS`, shown at
+  `FILL_OPACITY` over white; None a struck-through chip) and Pattern
+  (None, then `HATCH_PATTERNS` drawn small with `hatchMarks` in the
+  layer's ink), groups `aria-label`led, swatches `aria-pressed`
+  (`FillPicker` is the Fill and Pattern rows). A choice commits at once
+  and the picker stays open, so all three can be set; it opens focused on
+  the current line colour; Escape closes just the picker (focus back on
+  the button), a press elsewhere closes it.
 - **Hidden and locked are local to each viewer**: editor state
   (`editor.layerView: { hidden, locked }`, sets of layer IDs; action
   `toggleLayer`), never in the document, so not synced, saved, undoable
@@ -1023,12 +1080,8 @@ through `useSyncExternalStore`.
   ("Layer N" if unnamed) and "· hidden, locked"; not while its card is
   open. Clicking makes the layer current and opens its
   card (click again, Escape or click outside closes it; Escape only
-  closes the card): name field, line colour, hide/show, lock/unlock, and
-  delete. The colour is a swatch button opening a 4 × 2 grid of the
-  palette (each swatch a button with its name as tooltip, the current one
-  `aria-pressed`, focused on open); choosing commits `setLayerColour` and
-  closes the grid. Escape or a press elsewhere in the card closes just the
-  grid; a press outside the palette closes both. Delete
+  closes the card): name field, look (line colour, fill and pattern; see
+  Fills), hide/show, lock/unlock, and delete. Delete
   deletes the layer and its shapes as one undo step (asks first, in the
   in-app dialog, if it has shapes; disabled for the only layer). "+" adds
   a layer in front and makes it current. Dragging a button (after 4 px) reorders, others
@@ -1089,6 +1142,12 @@ reference generator and screenshot scripts.
   "by Paul Clark @sandtreader"); SynFlo's says Greenwave Interactive Ltd.
 
 ## Decisions taken (not in the outline)
+
+- Fills are per layer (like line colour), never per shape; always
+  semi-transparent at one fixed `FILL_OPACITY` (indicative: lines behind
+  show, overlaps deepen; no opacity setting); pattern spacing, angle and
+  marks are fixed in paper mm, anchored at the origin so neighbours line
+  up; DXF leaves them out.
 
 - Licence: AGPL-3.0-or-later (`LICENSE`, both package.json files). The
   docs site's Astroship-derived components stay GPL-3.0
@@ -1198,6 +1257,8 @@ reference generator and screenshot scripts.
 6. Collaboration extras: show other people's selections (shapes someone
    else has selected outlined in their cursor colour; presence already
    carries `selection`).
+7. ⌘A selects every shape (on visible, unlocked layers) instead of the
+   page's text, except while typing in a field.
 
 ## Gotchas for whoever picks this up
 
@@ -1228,7 +1289,7 @@ reference generator and screenshot scripts.
 ## Hosting (st1)
 
 - Live at https://delinya.net (0.1.0 deployed 2026-11-10; 0.1.1, 0.1.2
-  and 0.2.1 2026-11-23; 0.2.2, 0.3.0 and 1.0.0 2026-11-24). DNS at
+  and 0.2.1 2026-11-23; 0.2.2, 0.3.0, 1.0.0 and 1.1.0 2026-11-24). DNS at
   Squarespace points delinya.net and www at st1 (109.123.121.122).
 - Apache: `/etc/apache2/sites-available/delinya.net.conf` (http, redirects
   to https) and `delinya.net-le-ssl.conf` (docroot `/var/www/delinya.net`,

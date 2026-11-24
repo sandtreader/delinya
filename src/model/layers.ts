@@ -7,8 +7,8 @@
 
 import { applyChange, type Change, type DocState, type Props } from "@sandtreader/collab/protocol";
 import { batch, deleteEntity, propsChanged } from "./actions";
-import { type Resolved, type StoredLayer, isLayerColour, resolve, storedLayers } from "./resolve";
-import { type EntityId, BASE_LAYER_ID, KINDS, entityAs } from "./types";
+import { type Resolved, type ResolvedLayer, type ResolvedShape, type StoredLayer, isLayerColour, resolve, storedLayers } from "./resolve";
+import { type EntityId, type HatchPattern, BASE_LAYER_ID, KINDS, entityAs, isHatchPattern } from "./types";
 
 // ---- Colours ----
 
@@ -58,6 +58,36 @@ export function layerColourEntry(hex: string | null): LayerColour {
   return best;
 }
 
+// ---- Fills ----
+
+/**
+ * How opaque every fill is, colour and pattern alike: fills are indicative,
+ * so lines behind them still show and overlaps deepen. Fixed; there is no
+ * setting.
+ */
+export const FILL_OPACITY = 0.35;
+
+/**
+ * The fills offered for layers, none first. Each is drawn at FILL_OPACITY,
+ * so what shows on white paper is a very light pastel; the hex is the
+ * colour at full strength.
+ */
+export const LAYER_FILLS: readonly { name: string; hex: string | null }[] = [
+  { name: "None", hex: null },
+  { name: "Grey", hex: "#a0a0a0" },
+  { name: "Pink", hex: "#ff8fa3" },
+  { name: "Sand", hex: "#e8c07a" },
+  { name: "Lemon", hex: "#ffe066" },
+  { name: "Mint", hex: "#7fd9a8" },
+  { name: "Sky", hex: "#7fbfff" },
+  { name: "Lilac", hex: "#b89cf0" },
+];
+
+/** Whether a shape takes its layer's fill: rectangles, circles and closed paths. */
+export function isFillable(shape: ResolvedShape): boolean {
+  return shape.kind === "rect" || shape.kind === "circle" || (shape.kind === "polyline" && shape.closed);
+}
+
 // ---- Queries ----
 
 /** The ID of a shape's layer; undefined if it is not a shape. */
@@ -78,6 +108,33 @@ export interface LayerView {
 export function isVisible(r: Resolved, id: EntityId, hidden: ReadonlySet<EntityId>): boolean {
   const l = layerOf(r, id);
   return l !== undefined && !hidden.has(l);
+}
+
+/** A layer's shapes to draw, and those of them its fill or pattern fills. */
+export interface LayerRun {
+  layer: ResolvedLayer;
+  /** In draw order. */
+  shapes: ResolvedShape[];
+  /** Its fillable shapes, in draw order, if it has a fill or pattern; else none. */
+  filled: ResolvedShape[];
+}
+
+/**
+ * What to draw, layer by layer, back to front, leaving out the `hidden`
+ * layers and any with nothing on them. Renderers draw a run's fills
+ * first, under all its lines but over the layers behind.
+ */
+export function layerRuns(r: Resolved, hidden: ReadonlySet<EntityId>): LayerRun[] {
+  // Map, not object: a layer ID like "__proto__" stays data.
+  const runs = new Map<EntityId, LayerRun>();
+  for (const layer of r.layers) if (!hidden.has(layer.id)) runs.set(layer.id, { layer, shapes: [], filled: [] });
+  for (const id of r.order) {
+    const shape = r.shapes[id]!, run = runs.get(shape.layer);
+    if (!run) continue;
+    run.shapes.push(shape);
+    if ((run.layer.fill || run.layer.hatch) && isFillable(shape) && shape.path.length) run.filled.push(shape);
+  }
+  return [...runs.values()].filter((run) => run.shapes.length > 0);
 }
 
 /** Whether a shape exists and its layer is neither hidden nor locked in `view`. */
@@ -125,13 +182,38 @@ export function setLayerName(state: DocState, id: EntityId, name: string): Chang
  */
 export function setLayerColour(state: DocState, id: EntityId, hex: string | null): Change | undefined {
   if (hex !== null && !isLayerColour(hex)) return undefined;
+  return setLayerProp(state, id, "colour", hex);
+}
+
+/**
+ * Set a layer's fill colour ("#rrggbb", lower case; drawn at FILL_OPACITY),
+ * or clear it with null. Undefined if unchanged, there is no such layer, or
+ * the colour isn't "#rrggbb"; the implicit base layer is made real to hold it.
+ */
+export function setLayerFill(state: DocState, id: EntityId, hex: string | null): Change | undefined {
+  if (hex !== null && !isLayerColour(hex)) return undefined;
+  return setLayerProp(state, id, "fill", hex);
+}
+
+/**
+ * Set a layer's fill pattern, or clear it with null. Undefined if
+ * unchanged, there is no such layer, or it isn't one of HATCH_PATTERNS; the
+ * implicit base layer is made real to hold it.
+ */
+export function setLayerHatch(state: DocState, id: EntityId, pattern: HatchPattern | null): Change | undefined {
+  if (pattern !== null && !isHatchPattern(pattern)) return undefined;
+  return setLayerProp(state, id, "hatch", pattern);
+}
+
+/** Set one of a layer's own props, materialising the implicit base layer; undefined if unchanged or no such layer. */
+function setLayerProp(state: DocState, id: EntityId, key: "colour" | "fill" | "hatch", value: string | null): Change | undefined {
   const layer = entityAs(state, id, KINDS.layer);
   const implicit = !layer && id === BASE_LAYER_ID && storedLayers(state).length === 0;
   if (!layer && !implicit) return undefined;
   // Raw, so clearing a bad stored value is still a change.
-  if (hex === (state.entities[id]?.props.colour ?? null)) return undefined;
-  if (implicit) return { type: "entity_added", id, kind: KINDS.layer, props: { order: 0, colour: hex } };
-  return propsChanged(id, { colour: hex });
+  if (value === (state.entities[id]?.props[key] ?? null)) return undefined;
+  if (implicit) return { type: "entity_added", id, kind: KINDS.layer, props: { order: 0, [key]: value } };
+  return propsChanged(id, { [key]: value });
 }
 
 /**
