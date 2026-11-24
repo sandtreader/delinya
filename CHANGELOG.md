@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0 — 2026-11-24
+
+- **First public release.**
+- Documentation, how-tos and this changelog at
+  [delinya.org](https://delinya.org).
+- The About box links the home page and the documentation.
+
 ## 0.3.0 — 2026-11-24
 
 - **Draw together.** A Collaborate button in the toolbar opens a session

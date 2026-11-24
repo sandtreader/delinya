@@ -1,14 +1,14 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-24. Repo `sandtreader/delinya`, branch `main`.
-v0.3.0 is committed and deployed to delinya.net: collaboration (the
-Collaborate card with Start and Join session, share links, other
-people's cursors; see Collaboration) on top of v0.2.2 (line styles, the
-corner radii "all" switch with "4× R" labels, radius labels inside the
-curve, Rotate and Duplicate cards) and v0.2.1 (text boxes, fit view,
-the Dimension tool). Vitest tests, `tsc` and the build pass. Since then,
-not yet released: the delinya.org documentation site in `site/` and
-`CHANGELOG.md` (see Documentation site).
+v1.0.0, the first public release, is committed and deployed to
+delinya.net, with its documentation site at delinya.org (`site/`; see
+Documentation site) and `CHANGELOG.md`. It builds on v0.3.0
+(collaboration: the Collaborate card with Start and Join session, share
+links, other people's cursors; see Collaboration), v0.2.2 (line styles,
+the corner radii "all" switch with "4× R" labels, radius labels inside
+the curve, Rotate and Duplicate cards) and v0.2.1 (text boxes, fit view,
+the Dimension tool). Vitest tests, `tsc` and the build pass.
 
 ## Where we are
 
@@ -1217,7 +1217,7 @@ reference generator and screenshot scripts.
 ## Hosting (st1)
 
 - Live at https://delinya.net (0.1.0 deployed 2026-11-10; 0.1.1, 0.1.2
-  and 0.2.1 2026-11-23; 0.2.2 and 0.3.0 2026-11-24). DNS at
+  and 0.2.1 2026-11-23; 0.2.2, 0.3.0 and 1.0.0 2026-11-24). DNS at
   Squarespace points delinya.net and www at st1 (109.123.121.122).
 - Apache: `/etc/apache2/sites-available/delinya.net.conf` (http, redirects
   to https) and `delinya.net-le-ssl.conf` (docroot `/var/www/delinya.net`,
@@ -1235,6 +1235,9 @@ reference generator and screenshot scripts.
 - **delinya.org** (the docs site, `site/`): static files in docroot
   `/var/www/delinya.org`, deployed with `pnpm publish:site` (builds the
   site, then rsyncs `site/dist/` with `--delete`). `site/public/.htaccess`
-  sets `ErrorDocument 404 /404.html`, so the vhost needs `AllowOverride`
-  (at least FileInfo) for its docroot. The vhost, DNS and certificate are
-  for the user to set up on st1, as delinya.net's.
+  sets `ErrorDocument 404 /404.html` (the vhost has `AllowOverride All`).
+  Apache: `delinya.org.conf` (http, redirects to https) and
+  `delinya.org-le-ssl.conf`, copied from delinya.net's without the
+  `/collab` proxy; DNS A records for delinya.org and www point at st1;
+  Let's Encrypt cert for both via certbot, auto-renewing. Live since
+  2026-11-24.
