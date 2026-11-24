@@ -1,7 +1,7 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-24. Repo `sandtreader/delinya`, branch `main`.
-v0.2.2 is committed and deployed to delinya.net: on top of
+v0.2.2 is committed, tagged and deployed to delinya.net: on top of
 v0.2.1 (text boxes, fit view, the Dimension tool and radius labels by
 hand), line styles (a pen width and dash pattern per shape, set from the
 top toolbar), the corner radii "all" switch with "4× R" labels, radius
