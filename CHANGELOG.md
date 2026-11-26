@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.1.1 — 2026-11-26
+
+- **Print options.** The title block and the 100 mm check ruler are
+  checkboxes in Print / Export, remembered in your browser. The title
+  block is on by default; the check ruler is now off by default. With
+  both off, the band along the bottom of each sheet goes and the drawing
+  gets the room.
+- Without the title block, the small "Delinya" under it is left out too,
+  and tiled sheets are labelled A1, A2… at the foot of each sheet.
+
 ## 1.1.0 — 2026-11-24
 
 - **Fills.** A layer can fill its rectangles, circles and closed paths

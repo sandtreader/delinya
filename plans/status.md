@@ -1,10 +1,11 @@
 # Delinya — Status and Handoff
 
-Last updated 2026-11-24. Repo `sandtreader/delinya`, branch `main`.
-v1.1.0 (per-layer fills and patterns, renaming variables) is committed
-and deployed to delinya.net, with its documentation site at delinya.org
+Last updated 2026-11-26. Repo `sandtreader/delinya`, branch `main`.
+v1.1.1 (print: optional title block, default on, and check ruler,
+default off) is committed, with its documentation site at delinya.org
 (`site/`; see Documentation site) and `CHANGELOG.md`. It builds on
-v1.0.0, the first public release, v0.3.0
+v1.1.0 (per-layer fills and patterns, renaming variables), v1.0.0, the
+first public release, v0.3.0
 (collaboration: the Collaborate card with Start and Join session, share
 links, other people's cursors; see Collaboration), v0.2.2 (line styles,
 the corner radii "all" switch with "4× R" labels, radius labels inside
