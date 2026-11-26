@@ -1,6 +1,6 @@
 {
   "name": "delinya",
-  "version": "1.1.1",
+  "version": "1.2.0",
   "license": "AGPL-3.0-or-later",
   "private": true,
   "description": "Browser-based 2D drawing tool with real units",

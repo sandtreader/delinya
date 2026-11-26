@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.2.0 — 2026-11-26
+
+- **Shape names.** Any shape can have a name, typed into the top of the
+  selection panel; until then it goes by its id. Once named, tick **show**
+  to write the name in the middle of the shape, on screen and in print,
+  PDF and SVG. Print / Export's new **Shape names** option (on to start)
+  leaves them out. Text boxes have names but don't show them.
+- **Tiled prints** put the title block and check ruler on the last sheet
+  only, bottom right, where the title block sits on the taped-up drawing.
+  The other sheets are labelled A1, A2… at their foot, and the rows above
+  the bottom one use the sheet's full height, so a tall drawing can need
+  fewer sheets.
+- The selection panel's **Delete** button is now a bin at its top right.
+- **⌘A** (Ctrl+A) selects every shape on a visible, unlocked layer,
+  instead of the page's text.
+- The guide at delinya.org now has screenshots throughout.
+
 ## 1.1.1 — 2026-11-26
 
 - **Print options.** The title block and the 100 mm check ruler are

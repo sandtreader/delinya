@@ -18,7 +18,7 @@ the first use, not a limit. (*Delinya* is Cornish for "to draw".)
 - Links: equal values through shared variables, and alignment and even
   spacing that follow later edits.
 - Dimensions and radius labels, added automatically or by hand with the
-  Dimension tool.
+  Dimension tool; shape names, shown on the drawing where you want them.
 - Layers with colours, see-through fills and patterns, hiding and locking;
   line styles (ISO pen widths and dashed, dotted and centre lines).
 - Save and open `.dln` files; print at true scale, tiled across sheets with

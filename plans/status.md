@@ -1,11 +1,13 @@
 # Delinya — Status and Handoff
 
 Last updated 2026-11-26. Repo `sandtreader/delinya`, branch `main`.
-v1.1.1 (print: optional title block, default on, and check ruler,
-default off) is committed and deployed to delinya.net, with its
-documentation site at delinya.org
-(`site/`; see Documentation site) and `CHANGELOG.md`. It builds on
-v1.1.0 (per-layer fills and patterns, renaming variables), v1.0.0, the
+v1.2.0 (shape names, the title block and check ruler on the last tiled
+sheet only, the selection panel's bin, ⌘A select all; the guide
+illustrated throughout) is committed, with its documentation site at
+delinya.org (`site/`; see Documentation site) and `CHANGELOG.md`. It
+builds on v1.1.1 (print: optional title block, default on, and check
+ruler, default off), v1.1.0 (per-layer fills and patterns, renaming
+variables), v1.0.0, the
 first public release, v0.3.0
 (collaboration: the Collaborate card with Start and Join session, share
 links, other people's cursors; see Collaboration), v0.2.2 (line styles,
