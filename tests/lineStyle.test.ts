@@ -233,7 +233,7 @@ describe("output", () => {
   });
 
   it("keep it, at paper size, on a page printed at any scale", () => {
-    const out = composePages(r, { paper: PAPERS[0]!, orientation: "auto", scale: 0.1, dimensions: false, ruler: false, titleBlock: true }, { title: "", author: "", revision: "", notes: "" })!;
+    const out = composePages(r, { paper: PAPERS[0]!, orientation: "auto", scale: 0.1, dimensions: false, names: true, ruler: false, titleBlock: true }, { title: "", author: "", revision: "", notes: "" })!;
     const lines = out.pages.flatMap((p) => p.content).filter((p) => p.kind === "path" && p.line).map((p) => p.kind === "path" && p.line);
     expect(lines).toContainEqual({ width: 0.5, dash: "dashed" });
     expect(lines).toContainEqual({ width: 1, dash: "solid" });

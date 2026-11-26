@@ -7,7 +7,8 @@
 
 import {
   type Bounds, type EntityId, type Path, type Point, type ResolvedDimension, type ResolvedRadiusLabel, type Resolved, type ResolvedText,
-  DEFAULT_LINE_STYLE, boundsOfPoints, fontMetrics, isVisible, layerRuns, midpoint, pathBounds, pointsNear, polar, segment, textAdvance, unionBounds,
+  DEFAULT_LINE_STYLE, boundsOfPoints, fontMetrics, isVisible, layerRuns, midpoint, namePlace, pathBounds, pointsNear, polar, segment, shapeName,
+  textAdvance, unionBounds,
 } from "../model";
 import { dimensionText, radiusLabelPlace, radiusLabelText } from "../view/dimensionText";
 import { formatMm } from "../view/format";
@@ -17,6 +18,8 @@ import type { FillPrim, Primitive, TextPrim } from "./types";
 export interface PrimitiveOptions {
   /** Include dimensions and radius labels. */
   dimensions: boolean;
+  /** Include the names shapes show; true unless false. */
+  names?: boolean;
   textSize: number;
   /** Half-length of a dimension's end ticks. */
   tick: number;
@@ -32,13 +35,20 @@ const NO_LAYERS: ReadonlySet<EntityId> = new Set();
  * text box is its lines of text, not its outline. Layer by layer, back to
  * front: a filled layer's fills for its rectangles, circles and closed
  * paths come first, under all its own lines but over the layers behind.
+ * Unless `names` is false, shapes that show their names have them over
+ * everything drawn, at the labels' size in their layer's ink.
  */
 export function drawingPrimitives(resolved: Resolved, o: PrimitiveOptions): Primitive[] {
   const hidden = o.hidden ?? NO_LAYERS;
   const shown = (id: EntityId) => isVisible(resolved, id, hidden);
   const out: Primitive[] = [];
+  const names: TextPrim[] = [];
   for (const { layer, shapes, filled } of layerRuns(resolved, hidden)) {
     const ink = layer.colour ? { colour: layer.colour } : {};
+    for (const shape of shapes) {
+      const at = o.names === false ? null : namePlace(shape, o.textSize);
+      if (at) names.push({ kind: "text", role: "shape", text: shapeName(shape), size: o.textSize, anchor: "middle", angle: 0, at, ...ink });
+    }
     if (filled.length) {
       // A pattern is in the layer's ink; keys only for what the layer has.
       const fill: Omit<FillPrim, "path"> = { kind: "fill", ...(layer.fill ? { fill: layer.fill } : {}), ...(layer.hatch ? { hatch: layer.hatch, ...ink } : {}) };
@@ -52,6 +62,7 @@ export function drawingPrimitives(resolved: Resolved, o: PrimitiveOptions): Prim
       }
     }
   }
+  out.push(...names);
   if (!o.dimensions) return out;
   for (const d of resolved.dimensions) if (shown(d.target)) out.push(...dimensionPrims(d, o));
   for (const l of resolved.radiusLabels) if (shown(l.target)) out.push(radiusLabelPrim(l, o.textSize));

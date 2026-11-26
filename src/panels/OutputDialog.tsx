@@ -22,7 +22,7 @@ import { tip } from "./tip";
 const PREVIEW_LIMIT = 24;
 const STORAGE_KEY = "delinya.output";
 
-type Stored = Pick<PrintOptions, "orientation" | "dimensions" | "ruler" | "titleBlock"> & { paper: string };
+type Stored = Pick<PrintOptions, "orientation" | "dimensions" | "names" | "ruler" | "titleBlock"> & { paper: string };
 /** The dialog's own choices; the hidden layers come from the editor. */
 type Choices = Omit<PrintOptions, "hidden">;
 
@@ -35,6 +35,7 @@ function loadStored(): Stored {
     paper: /^en-(US|CA)$/i.test(navigator.language) ? "Letter" : "A4",
     orientation: "auto",
     dimensions: true,
+    names: true,
     ruler: false,
     titleBlock: true,
   };
@@ -48,7 +49,7 @@ function loadStored(): Stored {
 
 function saveStored(o: Choices): void {
   try {
-    const stored: Stored = { paper: o.paper.name, orientation: o.orientation, dimensions: o.dimensions, ruler: o.ruler, titleBlock: o.titleBlock };
+    const stored: Stored = { paper: o.paper.name, orientation: o.orientation, dimensions: o.dimensions, names: o.names, ruler: o.ruler, titleBlock: o.titleBlock };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   } catch { /* private mode: not remembered */ }
 }
@@ -78,7 +79,7 @@ export function OutputDialog() {
     const s = loadStored();
     const base: Choices = {
       paper: PAPERS.find((p) => p.name === s.paper) ?? PAPERS[0]!, orientation: s.orientation, scale: 1,
-      dimensions: s.dimensions, ruler: s.ruler, titleBlock: s.titleBlock,
+      dimensions: s.dimensions, names: s.names, ruler: s.ruler, titleBlock: s.titleBlock,
     };
     return { ...base, scale: sessionScale ?? fitToSheet(resolved, { ...base, hidden }, info) };
   });
@@ -106,7 +107,7 @@ export function OutputDialog() {
 
   const download = {
     pdf: () => composed && downloadBlob(exportPdf(composed.pages, { title: info.title, author: info.author }), `${fileName}.pdf`, "application/pdf"),
-    svg: () => { const s = exportSvg(resolved, { dimensions: options.dimensions, hidden }); if (s) downloadBlob(s, `${fileName}.svg`, "image/svg+xml"); },
+    svg: () => { const s = exportSvg(resolved, { dimensions: options.dimensions, names: options.names, hidden }); if (s) downloadBlob(s, `${fileName}.svg`, "image/svg+xml"); },
     dxf: () => { const s = exportDxf(resolved, hidden); if (s) downloadBlob(s, `${fileName}.dxf`, "application/dxf"); },
   };
 
@@ -151,6 +152,10 @@ export function OutputDialog() {
                 Dimensions and radius labels
               </label>
               <label className="row check">
+                <input type="checkbox" checked={options.names} onChange={(e) => update({ names: e.target.checked })} />
+                Shape names
+              </label>
+              <label className="row check">
                 <input type="checkbox" checked={options.titleBlock} onChange={(e) => update({ titleBlock: e.target.checked })} />
                 Title block
               </label>
@@ -169,7 +174,7 @@ export function OutputDialog() {
             </section>
             <section>
               <h3>Export full size</h3>
-              <p className="hint">In mm at 1:1. SVG follows the dimensions setting; DXF has shapes only, for CNC and laser.</p>
+              <p className="hint">In mm at 1:1. SVG follows the dimensions and names settings; DXF has shapes only, for CNC and laser.</p>
               <div className="buttons">
                 <button disabled={!composed} onClick={download.svg}>Download SVG</button>
                 <button disabled={!composed} onClick={download.dxf}>Download DXF</button>

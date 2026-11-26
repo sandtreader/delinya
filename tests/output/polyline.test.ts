@@ -15,7 +15,7 @@ const triangle = resolve(doc(addPolyline("t", { nodes: [cusp(0, 0), cusp(40, 0),
 const wave = resolve(doc(addPolyline("w", { nodes: [cusp(0, 0), curve(20, 20), curve(40, 0), cusp(60, 20)] })));
 
 const A4 = PAPERS.find((p) => p.name === "A4")!;
-const opts: PrintOptions = { paper: A4, orientation: "portrait", scale: 1, dimensions: false, ruler: false, titleBlock: true };
+const opts: PrintOptions = { paper: A4, orientation: "portrait", scale: 1, dimensions: false, names: true, ruler: false, titleBlock: true };
 const latin1 = (b: Uint8Array) => new TextDecoder("latin1").decode(b);
 
 /** DXF group/value pairs. */

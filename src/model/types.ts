@@ -63,9 +63,19 @@ export interface LineStyle {
 export const DEFAULT_LINE_STYLE: LineStyle = { width: 0.35, dash: "solid" };
 
 /** A stroked shape's line style as stored: absent is the default's. */
-export interface StrokeProps {
+export interface StrokeProps extends NameProps {
   lineWidth?: number;
   lineDash?: LineDash;
+}
+
+/**
+ * Every shape's name as stored: absent or "" goes by its id; `showName`
+ * puts a given name on the drawing (never an id, nor for a text box). See
+ * names.ts.
+ */
+export interface NameProps {
+  name?: string;
+  showName?: boolean;
 }
 
 /** A line from (x, y) at `angle` for `length`. Length can be linked. */
@@ -153,7 +163,7 @@ export const TEXT_ALIGNS: readonly TextAlign[] = ["left", "centre", "right"];
  * right-hand side: a flipped box mirrors its text rather than keeping it
  * readable.
  */
-export interface TextProps {
+export interface TextProps extends NameProps {
   x: number;
   y: number;
   width: Length;

@@ -22,9 +22,9 @@ const FONT = "Helvetica, Arial, sans-serif";
  * on `hidden` layers are left out. Null for nothing.
  */
 export function exportSvg(
-  resolved: Resolved, { dimensions, hidden }: { dimensions: boolean; hidden?: ReadonlySet<EntityId> },
+  resolved: Resolved, { dimensions, names, hidden }: { dimensions: boolean; names?: boolean; hidden?: ReadonlySet<EntityId> },
 ): string | null {
-  const prims = drawingPrimitives(resolved, { dimensions, textSize: STYLE.textSize, tick: STYLE.tick, hidden });
+  const prims = drawingPrimitives(resolved, { dimensions, names, textSize: STYLE.textSize, tick: STYLE.tick, hidden });
   const b = primitivesBounds(prims);
   if (!b) return null;
   const x = num(b.minX - SVG_PADDING), y = num(b.minY - SVG_PADDING);

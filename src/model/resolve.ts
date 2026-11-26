@@ -55,6 +55,10 @@ export interface SnapPoint {
 
 interface ResolvedBase {
   id: EntityId;
+  /** The name it was given, trimmed; absent if none (it goes by its id: see shapeName). */
+  name?: string;
+  /** Its name is shown on the drawing, centred in it: only with a name, never for a text box. */
+  showName?: boolean;
   /** The layer the shape is on: always one of `Resolved.layers`. */
   layer: EntityId;
   path: Path;
@@ -421,14 +425,27 @@ function resolveLayers(ctx: Ctx): ResolvedLayer[] {
 // ---- Shapes ----
 
 function resolveShape(ctx: Ctx, id: EntityId, kind: string, p: Record<string, unknown>, layer: EntityId): ResolvedShape | undefined {
-  switch (kind) {
-    case KINDS.line: return resolveLine(ctx, id, layer, p);
-    case KINDS.rect: return resolveRect(ctx, id, layer, p);
-    case KINDS.circle: return resolveCircle(ctx, id, layer, p);
-    case KINDS.polyline: return resolvePolyline(ctx, id, layer, p);
-    case KINDS.text: return resolveText(ctx, id, layer, p);
-    default: return undefined;
-  }
+  const s = ((): ResolvedShape | undefined => {
+    switch (kind) {
+      case KINDS.line: return resolveLine(ctx, id, layer, p);
+      case KINDS.rect: return resolveRect(ctx, id, layer, p);
+      case KINDS.circle: return resolveCircle(ctx, id, layer, p);
+      case KINDS.polyline: return resolvePolyline(ctx, id, layer, p);
+      case KINDS.text: return resolveText(ctx, id, layer, p);
+      default: return undefined;
+    }
+  })();
+  if (s) nameShape(ctx, s, p);
+  return s;
+}
+
+/** A shape's name and whether it shows it: only with a name, and a text box never does. Bad values are issues, and ignored. */
+function nameShape(ctx: Ctx, s: ResolvedShape, p: Record<string, unknown>): void {
+  if (p.name != null && typeof p.name !== "string") ctx.issues.push({ entity: s.id, code: "bad-value", message: "name is not text" });
+  const name = typeof p.name === "string" ? p.name.trim() : "";
+  if (name) s.name = name;
+  if (p.showName != null && typeof p.showName !== "boolean") ctx.issues.push({ entity: s.id, code: "bad-value", message: "showName is not true or false" });
+  if (p.showName === true && s.kind !== "text" && name) s.showName = true;
 }
 
 function resolveLine(ctx: Ctx, id: EntityId, layer: EntityId, p: Record<string, unknown>): ResolvedLine {

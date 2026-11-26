@@ -15,3 +15,4 @@ export * from "./text";
 export * from "./dimensions";
 export * from "./lineStyle";
 export * from "./corners";
+export * from "./names";

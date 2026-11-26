@@ -83,6 +83,8 @@ export interface PrintOptions {
   scale: number;
   /** Include dimensions and radius labels. */
   dimensions: boolean;
+  /** Include the names shapes show. */
+  names: boolean;
   /** The 100 mm check ruler, bottom left. */
   ruler: boolean;
   /** The title block, bottom right, with "Delinya" under it; without it a tiled sheet is labelled in the margin. */

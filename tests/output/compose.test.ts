@@ -9,7 +9,7 @@ import { doc } from "../helpers";
 
 const A4 = PAPERS.find((p) => p.name === "A4")!;
 const INFO: TitleInfo = { title: "Bench", author: "PRC", revision: "C", notes: "Glue up after dry fit" };
-const opts = (o: Partial<PrintOptions> = {}): PrintOptions => ({ paper: A4, orientation: "portrait", scale: 1, dimensions: false, ruler: true, titleBlock: true, ...o });
+const opts = (o: Partial<PrintOptions> = {}): PrintOptions => ({ paper: A4, orientation: "portrait", scale: 1, dimensions: false, names: true, ruler: true, titleBlock: true, ...o });
 
 const rect = (w: number, h: number) => resolve(doc(addRect("a", { x: 0, y: 0, width: w, height: h })));
 const withDims = (w: number, h: number) => resolve(doc(

@@ -153,6 +153,8 @@ button.danger { color: #9b1c1c; }
    except with the select tool, where their hit areas pick them (.pickable). */
 .dimension { stroke: var(--dimension); pointer-events: none; }
 .dimension text { fill: var(--dimension); stroke: none; font-family: system-ui, sans-serif; }
+/* A shape's name, centred in it: the shape's ink, never in the way of a click. */
+.shape-names text { fill: var(--shape); stroke: none; font-family: system-ui, sans-serif; pointer-events: none; user-select: none; -webkit-user-select: none; }
 .dimension.pickable line.label-hit { pointer-events: stroke; cursor: move; }
 .radius-label.pickable .label-hit, .dimension.pickable rect.label-hit { pointer-events: all; cursor: pointer; }
 .dimension.pickable rect.label-hit { cursor: move; }
@@ -329,7 +331,6 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); padding: 8px 10px; font-size: 12px;
 }
 .selection-panel h2 { font-size: 13px; margin: 2px 0 8px; }
-.selection-panel h2 small { color: var(--muted); font-weight: normal; margin-left: 6px; }
 .selection-panel section + section { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
 /* Narrow rows: a link badge or clamp note wraps below rather than overflowing. */
 .selection-panel .row { flex-wrap: wrap; }

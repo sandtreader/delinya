@@ -8,7 +8,7 @@ import { doc } from "../helpers";
 
 const A4 = PAPERS.find((p) => p.name === "A4")!;
 const INFO: TitleInfo = { title: "Bench", author: "PRC", revision: "C", notes: "" };
-const opts: PrintOptions = { paper: A4, orientation: "portrait", scale: 1, dimensions: false, ruler: false, titleBlock: true };
+const opts: PrintOptions = { paper: A4, orientation: "portrait", scale: 1, dimensions: false, names: true, ruler: false, titleBlock: true };
 
 describe("print watermark", () => {
   it("puts a small \"Delinya\" just below the title block, right-aligned with it, on the sheet that has the block", () => {

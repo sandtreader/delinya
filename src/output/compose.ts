@@ -22,7 +22,7 @@ export function composePages(resolved: Resolved, options: PrintOptions, info: Ti
   const hidden = options.hidden ?? new Set<EntityId>();
   if (!resolved.order.some((id) => isVisible(resolved, id, hidden))) return null;
   const { scale } = options;
-  const prims = drawingPrimitives(resolved, { dimensions: options.dimensions, textSize: STYLE.textSize / scale, tick: STYLE.tick / scale, hidden });
+  const prims = drawingPrimitives(resolved, { dimensions: options.dimensions, names: options.names, textSize: STYLE.textSize / scale, tick: STYLE.tick / scale, hidden });
   const b = primitivesBounds(prims);
   if (!b) return null;
   const footer = options.ruler || options.titleBlock ? FOOTER_HEIGHT : 0;

@@ -4,7 +4,8 @@
 
 import { useState } from "react";
 import {
-  KINDS, cornersAlike, derivedAxes, dimensionProps, dimensionsOf, entitiesOfKind, entityAs, isRef, lengthValue, newId, propsChanged, radiusLabelsOf,
+  KINDS, canShowName, cornersAlike, derivedAxes, dimensionProps, dimensionsOf, entitiesOfKind, entityAs, isRef, lengthValue, newId, propsChanged, radiusLabelsOf,
+  setShapeName, setShowName, showsName, storedName,
   joinCorners, setAllCornerRadii, setCornerRadius, setLength, setPolyClosed, setRotation, setTextSize, setTextStyle, setTextWidth, toggleAllCornersLabel, toggleDimension, toggleRadiusLabel,
   unlinkAlign, unlinkLength, unlinkSpacing,
   type EntityId, type FontFamily, type Length, type ResolvedRect, type ResolvedText, type TextAlign, type TextStyle,
@@ -15,7 +16,7 @@ import { useEditor } from "../app/editor";
 import { useLiveText } from "../app/liveText";
 import { ALIGN_LABELS } from "../view/linkButtons";
 import { formatMm } from "../view/format";
-import { Num, Row, VariableName } from "./fields";
+import { Num, Row, Text, VariableName } from "./fields";
 import { IconButton, TextAlignIcon } from "./icons";
 import { LayerSelect, hasLayerChoice } from "./LayerSelect";
 import { tip } from "./tip";
@@ -40,7 +41,8 @@ export function ShapeFields({ id }: { id: EntityId }) {
 
   return (
     <section>
-      <h2>{kindLabel(e.kind)} <small>{id}</small></h2>
+      <h2>{kindLabel(e.kind)}</h2>
+      <NameRow id={id} />
       {hasLayerChoice() && <Row label="layer"><LayerSelect ids={[id]} /></Row>}
       {e.kind === KINDS.rect && (
         <>
@@ -103,6 +105,34 @@ export function ShapeFields({ id }: { id: EntityId }) {
       <SpacingMembership id={id} />
       <AlignMembership id={id} />
     </section>
+  );
+}
+
+/**
+ * A shape's name: blank goes by its id, which shows as the placeholder.
+ * Once named, any shape but a text box can show its name, centred, on the
+ * drawing and in print; an id is never shown, so "show" waits for a name.
+ */
+function NameRow({ id }: { id: EntityId }) {
+  const state = useDocument();
+  const commit = (c: Change | undefined) => { if (c) store.commit(c); };
+  const text = state.entities[id]?.kind === KINDS.text;
+  const named = canShowName(state, id);
+  return (
+    // A div, not a Row's label: the field and the checkbox each have their own name.
+    <div className="row name-row">
+      <span className="label" aria-hidden="true">name</span>
+      <Text key={id} value={storedName(state, id) ?? ""} placeholder={id} label="Name" onCommit={(v) => commit(setShapeName(store.state, id, v))} />
+      {!text && (
+        <label className="inline-check" {...tip(named ? "Show the name in the middle of the shape, on screen and in print" : "Give the shape a name to show it")}>
+          <input
+            type="checkbox" checked={showsName(state, id)} disabled={!named} aria-label="Show the name on the drawing"
+            onChange={(ev) => commit(setShowName(store.state, id, ev.target.checked))}
+          />
+          show
+        </label>
+      )}
+    </div>
   );
 }
 

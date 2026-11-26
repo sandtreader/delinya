@@ -1104,6 +1104,25 @@ through `useSyncExternalStore`.
 - **Selection panels**: with more than one layer, the shape panel and
   arrange panel have a Layer select ("N · name"); a mixed multi-selection
   shows a disabled "mixed" until a layer is picked (`setShapesLayer`).
+- **Shape names** (`model/names.ts`): any shape may have a `name` and
+  `showName`. Unnamed (absent or blank), it goes by its id (`shapeName`);
+  ids never change, since dimensions, links and labels refer to them. The
+  shape panel's first row is the name (`NameRow`: a text field, the id as
+  its placeholder, `setShapeName` trims and "" clears, unticking show
+  too) with a "show" box (`setShowName`), disabled until the shape has a
+  name: an id is never shown (`canShowName`, `showsName`; not for text
+  boxes either, whose text is already there; resolve ignores a stored
+  flag without a name, or on a text box). A shown name is drawn upright at
+  `namePlace`: centred in a rectangle, circle or path (an open path's
+  bounds), just above a line's middle, baseline 0.35 × size below centre.
+  On screen it's at the labels' size (`.shape-names`, not hit-testable,
+  whatever Show dimensions says); in output a `role: "shape"` text
+  primitive at `textSize` in the layer's ink, over all the shapes, in
+  print, PDF and SVG unless output's **Shape names** option (after
+  Dimensions, default on, remembered with the others; `PrintOptions.names`,
+  `exportSvg`'s and `drawingPrimitives`' `names`, true unless false) is
+  off; never DXF.
+  Duplicate copies the name and the box like every other prop.
 - **Output** follows what you see: layers this viewer has hidden, with
   their dimensions and labels, are left out of print, PDF, SVG and DXF
   (`PrintOptions.hidden`, `exportSvg`'s `hidden`, `exportDxf(r, hidden)`),
@@ -1322,13 +1341,7 @@ reference generator and screenshot scripts.
    carries `selection`).
 7. ⌘A selects every shape (on visible, unlocked layers) instead of the
    page's text, except while typing in a field.
-8. Shape names: a `name` prop on shapes, edited in the selection panel
-   where the id shows now (e.g. `rect_bt5a44hq`), and an option to show
-   names on the drawing. Decided: the name defaults to the id (unset or
-   blank shows the id), and ids themselves never change, since they're
-   the entity map's keys that dimensions, links and other entities
-   reference.
-9. Selection panel: replace the Delete button at the bottom with a bin
+8. Selection panel: replace the Delete button at the bottom with a bin
    icon button at the top right of the panel. Retake the docs screenshots
    that show the panel after (`getting-started`, `drawing-shapes`).
 

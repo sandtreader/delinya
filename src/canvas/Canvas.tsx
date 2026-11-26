@@ -32,7 +32,7 @@ import {
 import {
   DIMENSION_OFFSET, FILL_OPACITY, KINDS, addCircle, addDimension, addLine, addPolyline, addText, batch, addRect, bendPolySegment, derivedAxes, dimensionOffsetAt,
   dimensionTargetAt, distance, dragHandle, drawnOffset, entityAs, freeDelta, handlesFor, insertPolyNode, isRef, isSelectable, isVisible, layerRuns, linkLocks,
-  moveBy, movePolyNode, newId, placeDimension, setDimensionOffset, setPolyHandle, snapNumber, styleProps, toggleRadiusLabel, turnTo, unionBounds,
+  moveBy, movePolyNode, namePlace, newId, placeDimension, setDimensionOffset, setPolyHandle, shapeName, snapNumber, styleProps, toggleRadiusLabel, turnTo, unionBounds,
   type Bounds, type HatchPattern, type LineStyle, type DimensionProp, type DimensionTarget, type EntityId, type HandleSpot, type LinkLocks, type LinkTarget, type Point, type PolyNodeType,
   type ResolvedDimension, type ResolvedLayer, type ResolvedPolyline, type Resolved, type ResolvedRadiusLabel, type ResolvedShape, type ResolvedText, type SnapPoint,
 } from "../model";
@@ -856,6 +856,17 @@ export function Canvas() {
               </Fragment>
             );
           })}
+          {/* Names shapes show, over every shape: part of the drawing, so whatever Show dimensions says. */}
+          <g className="shape-names">
+            {runs.flatMap(({ layer, shapes }) => shapes.map((shape) => {
+              const at = namePlace(shape, fontSize);
+              return at && (
+                <text key={shape.id} x={at[0]} y={at[1]} fontSize={fontSize} textAnchor="middle" style={layer.colour ? { fill: layer.colour } : undefined}>
+                  {shapeName(shape)}
+                </text>
+              );
+            }))}
+          </g>
           {/* The selected segment of the path being edited, over its path. */}
           {editPath && pathSegment && <path className="segment-selected" d={pathToSvg([pathSegment.element])} strokeWidth={hair * 3.5} />}
           {/* What the Dimension tool would measure. */}
