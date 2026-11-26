@@ -1,5 +1,5 @@
 ---
-// Screenshots side by side, wrapping onto new lines when the column is narrow.
+// Screenshots side by side and centred, wrapping onto new lines when the column is narrow.
 ---
 
 <div class="screenshot-row"><slot /></div>
@@ -9,10 +9,15 @@
     display: flex;
     flex-wrap: wrap;
     align-items: flex-start;
+    justify-content: center;
     gap: 1rem;
   }
-  /* Starlight spaces consecutive elements with a top margin; the gap does that here. */
-  .sl-markdown-content .screenshot-row > * {
-    margin-top: 0;
+  /*
+   * Starlight spaces consecutive elements with a top margin, and a lone
+   * screenshot centres itself with auto side margins: here the gap and
+   * justify-content do both.
+   */
+  .sl-markdown-content .screenshot-row > .screenshot {
+    margin: 0;
   }
 </style>
