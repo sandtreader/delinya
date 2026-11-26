@@ -1158,13 +1158,16 @@ reference generator and screenshot scripts.
   tool and layer palettes, rulers, status bar mid-drag, selection panel);
   page scenes save to a folder of their own (`drawing-shapes/`, `paths/`,
   `text/`, `selecting-and-editing/`, `dimensions/`, `links/`, `layers/`,
-  `line-styles/`, `rotate-and-duplicate/`, `files/`).
+  `line-styles/`, `rotate-and-duplicate/`, `files/`,
+  `printing-and-export/`).
   Helpers: `draw` (a tool's key and a drag, then Escape and park the
   pointer so nothing is hovered), `clickPath`/`drawArch` (the Paths
   example), `addText` (types on the drawing, then sets a round size, 10 mm
   unless given: at 2 px/mm snapping is every 5 mm, so a drag can't give one),
   `selectAt` (click, then Shift-click: the first is the reference),
   `setLayer` (a layer's name, look, hidden or locked, through its card),
+  `drawBookcaseSide` and `fillProperties` (the Printing example, drawn
+  through the panel and Duplicate),
   `around` (a region round several elements), `wholeControls` (widens a
   crop to whole toolbar controls),
   `toolbarButton` (a toolbar button hovered till its tooltip shows,
@@ -1178,7 +1181,9 @@ reference generator and screenshot scripts.
   a 2× srcset; `ScreenshotRow.astro` sets several side by side. Getting
   started and Guide › Drawing shapes, Paths, Text, Selecting and
   editing, Dimensions, Links, Layers, Line styles, Rotate and duplicate,
-  and Files use them (Links answers Equal's
+  Files, and Printing and export use them (the footer close-up is the
+  preview's own page SVG drawn large in a second page; the tiled preview
+  lets the dialog grow to its content) (Links answers Equal's
   name prompt with a `dialog` handler; Layers shows the native layer
   select as a list box, since an open native menu is outside the page and
   no screenshot catches it); the Guide pages
@@ -1317,6 +1322,15 @@ reference generator and screenshot scripts.
 9. Selection panel: replace the Delete button at the bottom with a bin
    icon button at the top right of the panel. Retake the docs screenshots
    that show the panel after (`getting-started`, `drawing-shapes`).
+10. Tiled printing: the footer band (title block, check ruler and the
+    "Delinya" under the block) only on the last sheet, bottom right, where
+    it sits on the assembled drawing; every other sheet gets just the
+    "Sheet A1 (1 of 4)" margin label. Rows above the bottom one then use
+    the full sheet height (so a tall drawing may need fewer sheets); the
+    bottom row keeps the band clear on all its sheets, since a row's sheets
+    share one slice of the drawing. Needs rows of uneven height in
+    `planPages`. Update the printing docs and retake the
+    `printing-and-export` screenshots after.
 
 ## Gotchas for whoever picks this up
 

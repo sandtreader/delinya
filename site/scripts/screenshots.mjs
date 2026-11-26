@@ -431,15 +431,8 @@ const SCENES = {
 
     // Properties › Drawing filled in; wide, so the title fits beside the file name after.
     page = await open(WIDE);
-    await page.getByRole("button", { name: "Properties…" }).click();
-    const dialog = page.locator(".properties-dialog");
-    for (const [label, value] of [
-      ["Title", "Bookcase side"], ["Author", "Thomas Chippendale"], ["Revision", "B"],
-      ["Notes", "18 mm birch ply. Shelf-pin holes 5 mm across, 32 mm apart."],
-    ]) await setInput(page, dialog.getByLabel(label, { exact: true }), value);
-    await page.evaluate(() => document.activeElement?.blur());
-    await park(page);
-    await shot(page, "files/properties", dialog);
+    await fillProperties(page);
+    await shot(page, "files/properties", page.locator(".properties-dialog"));
 
     // The file name with its unsaved-changes mark and the title beside it.
     await page.keyboard.press("Escape");
@@ -447,6 +440,50 @@ const SCENES = {
     const name = await page.locator(".toolbar button.filename").boundingBox();
     const [nx, nend] = await wholeControls(page, name.x, name.x + name.width);
     await shot(page, "files/file-name", { x: nx, y: bar.y, width: nend - nx, height: bar.height });
+  },
+
+  async "printing-and-export"(open) {
+    const page = await open(WIDE);
+    await drawBookcaseSide(page);
+    await fillProperties(page);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "Print / Export…" }).click();
+    const dialog = page.locator(".output-dialog");
+    await dialog.locator(".sheet svg").first().waitFor();
+    await park(page);
+    await shot(page, "printing-and-export/dialog", dialog);
+
+    // A sheet's footer band, check ruler on: the preview's own page drawing, drawn large.
+    await dialog.getByLabel("100 mm check ruler").check();
+    await page.waitForTimeout(200);
+    const svg = await dialog.locator(".sheet svg").first().evaluate((el) => el.outerHTML);
+    const sheet = await page.context().newPage();
+    await sheet.setViewportSize({ width: 1100, height: 1600 });
+    await sheet.setContent(`<body style="margin:0;background:#fff">${svg}</body>`);
+    const box = await sheet.locator("svg").evaluate((el) => {
+      el.style.width = "1050px"; el.style.height = "auto";
+      const [, , w, h] = el.getAttribute("viewBox").split(/\s+/).map(Number);
+      return { w, h };
+    });
+    const k = 1050 / box.w;   // px per paper mm
+    // From just above the 30 mm band (it ends at the 10 mm margin) to below "Delinya".
+    await shot(sheet, "printing-and-export/footer", { x: 5 * k, y: (box.h - 44) * k, width: (box.w - 10) * k, height: 40 * k });
+    await sheet.close();
+    await dialog.getByLabel("100 mm check ruler").uncheck();
+
+    // Full size on A3 portrait: tiled two across and two down. The dialog grows to show
+    // all four, the sheets kept small enough to read as a set.
+    await dialog.getByLabel("Paper").selectOption("A3");
+    await dialog.getByLabel("Orientation").selectOption("portrait");
+    await dialog.getByLabel("Scale").selectOption("1");
+    await page.setViewportSize({ width: 1100, height: 2200 });
+    await page.addStyleTag({ content: `
+      .output-dialog { height: auto !important; }
+      .output-preview { overflow: visible !important; }
+      .output-preview .sheets { max-width: 520px; margin: 0 auto; }` });
+    await page.waitForTimeout(300);
+    await park(page);
+    await shot(page, "printing-and-export/tiled", dialog.locator(".output-preview .sheets"), 12);
   },
 };
 
@@ -542,6 +579,56 @@ async function around(page, selectors, pad = PAD) {
   // Not above or left of the page: a toolbar button sits at its top.
   const x = Math.max(0, l - pad), y = Math.max(0, t - pad);
   return { x, y, width: r + pad - x, height: b + pad - y };
+}
+
+/** Opens Properties and fills in the Drawing tab for the bookcase side; leaves it open. */
+async function fillProperties(page) {
+  await page.getByRole("button", { name: "Properties…" }).click();
+  const dialog = page.locator(".properties-dialog");
+  for (const [label, value] of [
+    ["Title", "Bookcase side"], ["Author", "Thomas Chippendale"], ["Revision", "B"],
+    ["Notes", "18 mm birch ply. Shelf-pin holes 5 mm across, 32 mm apart."],
+  ]) await setInput(page, dialog.getByLabel(label, { exact: true }), value);
+  await page.evaluate(() => document.activeElement?.blur());
+  await park(page);
+}
+
+/**
+ * Draws the bookcase side through the panel and Duplicate: a 300 × 600 mm
+ * panel with its dimensions, and two columns of thirteen 5 mm shelf-pin
+ * holes at 32 mm pitch, 37 mm in from each side. Ends fitted to the view.
+ */
+async function drawBookcaseSide(page) {
+  await draw(page, "r", [200, 200], [300, 300], { deselect: false });
+  await setFields(page, { x: "0", y: "0", width: "300", height: "600" });
+  await deselect(page);
+  await noDimensions(page);
+  await draw(page, "c", [250, 250], [260, 250], { deselect: false });
+  await setFields(page, { cx: "37", cy: "110", diameter: "5" });
+  const card = page.locator(".pop-card");
+  await page.getByRole("button", { name: "Duplicate…" }).click();
+  await card.getByRole("button", { name: "Duplicate below" }).click();
+  await setInput(page, card.getByRole("textbox", { name: "copies" }), "12");
+  await setInput(page, card.getByRole("textbox", { name: "gap" }), "27");
+  await card.getByRole("button", { name: "Duplicate", exact: true }).click();
+  await deselect(page);
+  await deselect(page);
+  await page.keyboard.press("f");
+  await page.waitForTimeout(200);
+  // Lasso the column, then copy it across.
+  const holes = await page.locator(".canvas-area svg g.shape").evaluateAll((els) => els.slice(1).map((el) => el.getBoundingClientRect())
+    .reduce((a, b) => ({ l: Math.min(a.l, b.left), t: Math.min(a.t, b.top), r: Math.max(a.r, b.right), b: Math.max(a.b, b.bottom) }), { l: 1e9, t: 1e9, r: -1e9, b: -1e9 }));
+  await page.mouse.move(holes.l - 6, holes.t - 6);
+  await page.mouse.down();
+  await page.mouse.move(holes.r + 6, holes.b + 6, { steps: 10 });
+  await page.mouse.up();
+  await page.getByRole("button", { name: "Duplicate…" }).click();
+  await card.getByRole("button", { name: "Duplicate to the right" }).click();
+  await setInput(page, card.getByRole("textbox", { name: "copies" }), "1");
+  await setInput(page, card.getByRole("textbox", { name: "gap" }), "221");
+  await card.getByRole("button", { name: "Duplicate", exact: true }).click();
+  await deselect(page);
+  await deselect(page);
 }
 
 /** Types a value into a field and leaves it with Tab, which applies it. */
