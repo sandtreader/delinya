@@ -1158,7 +1158,7 @@ reference generator and screenshot scripts.
   tool and layer palettes, rulers, status bar mid-drag, selection panel);
   page scenes save to a folder of their own (`drawing-shapes/`, `paths/`,
   `text/`, `selecting-and-editing/`, `dimensions/`, `links/`, `layers/`,
-  `line-styles/`, `rotate-and-duplicate/`).
+  `line-styles/`, `rotate-and-duplicate/`, `files/`).
   Helpers: `draw` (a tool's key and a drag, then Escape and park the
   pointer so nothing is hovered), `clickPath`/`drawArch` (the Paths
   example), `addText` (types on the drawing, then sets a round size, 10 mm
@@ -1177,8 +1177,8 @@ reference generator and screenshot scripts.
   `src/components/Screenshot.astro` shows one at half its pixel size with
   a 2× srcset; `ScreenshotRow.astro` sets several side by side. Getting
   started and Guide › Drawing shapes, Paths, Text, Selecting and
-  editing, Dimensions, Links, Layers, Line styles, and Rotate and
-  duplicate use them (Links answers Equal's
+  editing, Dimensions, Links, Layers, Line styles, Rotate and duplicate,
+  and Files use them (Links answers Equal's
   name prompt with a `dialog` handler; Layers shows the native layer
   select as a list box, since an open native menu is outside the page and
   no screenshot catches it); the Guide pages

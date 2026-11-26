@@ -420,6 +420,34 @@ const SCENES = {
     await deselect(page);
     await shot(page, "rotate-and-duplicate/linked-row", await drawingBox(page));
   },
+
+  async files(open) {
+    // The start of the toolbar: Delinya and the four file buttons.
+    let page = await open(NARROW);
+    const bar = await page.locator(".toolbar").boundingBox();
+    const start = await around(page, [".toolbar button.brand", '.toolbar button[aria-label="Save as…"]']);
+    const [x, end] = await wholeControls(page, start.x + PAD, start.x + start.width - PAD);
+    await shot(page, "files/toolbar", { x, y: bar.y, width: end - x, height: bar.height });
+
+    // Properties › Drawing filled in; wide, so the title fits beside the file name after.
+    page = await open(WIDE);
+    await page.getByRole("button", { name: "Properties…" }).click();
+    const dialog = page.locator(".properties-dialog");
+    for (const [label, value] of [
+      ["Title", "Bookcase side"], ["Author", "Thomas Chippendale"], ["Revision", "B"],
+      ["Notes", "18 mm birch ply. Shelf-pin holes 5 mm across, 32 mm apart."],
+    ]) await setInput(page, dialog.getByLabel(label, { exact: true }), value);
+    await page.evaluate(() => document.activeElement?.blur());
+    await park(page);
+    await shot(page, "files/properties", dialog);
+
+    // The file name with its unsaved-changes mark and the title beside it.
+    await page.keyboard.press("Escape");
+    await park(page);
+    const name = await page.locator(".toolbar button.filename").boundingBox();
+    const [nx, nend] = await wholeControls(page, name.x, name.x + name.width);
+    await shot(page, "files/file-name", { x: nx, y: bar.y, width: nend - nx, height: bar.height });
+  },
 };
 
 /**

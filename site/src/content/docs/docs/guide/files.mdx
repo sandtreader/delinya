@@ -5,6 +5,11 @@ sidebar:
   order: 10
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import toolbar from "@/assets/screenshots/files/toolbar.png";
+import fileName from "@/assets/screenshots/files/file-name.png";
+import properties from "@/assets/screenshots/files/properties.png";
+
 Delinya keeps your drawings in files on your own computer, never on a
 server. A drawing is a `.dln` file (see the
 [file format](/docs/reference/file-format/)).
@@ -18,6 +23,8 @@ The first four toolbar buttons:
 - **Save** (⌘S) saves the drawing. The first time, it asks where.
 - **Save as…** (⇧⌘S) saves a copy under a new name.
 
+<Screenshot src={toolbar} alt="The start of the toolbar: Delinya, then the New, Open, Save and Save as buttons" />
+
 In Chrome, Edge and other Chromium browsers, Save writes straight back to
 the file you opened or last saved. Other browsers can't do that, so Save
 downloads the drawing to your downloads folder instead, and Open picks a
@@ -28,6 +35,8 @@ file to load.
 The file name at the right of the toolbar has a • after it while there are
 unsaved changes. New and Open ask before throwing them away (offering to
 save first), and the browser warns if you close the tab.
+
+<Screenshot src={fileName} alt="The right-hand end of the toolbar: Untitled with an orange • for unsaved changes, and the drawing's title, Bookcase side, in quotes" />
 
 ## The drawing's properties
 
@@ -40,3 +49,5 @@ drawing's properties:
   grid settings.
 - **Variables**: the shared values that linked sizes use (see
   [Links](/docs/guide/links/)).
+
+<Screenshot src={properties} alt="Properties on the Drawing tab: Title Bookcase side, Author Thomas Chippendale, Revision B, and Notes: 18 mm birch ply. Shelf-pin holes 5 mm across, 32 mm apart." />
