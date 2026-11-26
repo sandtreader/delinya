@@ -1149,12 +1149,20 @@ reference generator and screenshot scripts.
   starts the app's dev server on port 5199, drives it in headless
   Chromium (Playwright 1.59.1, a site devDependency; `pnpm exec playwright
   install chromium` once per machine) with real keys, drags and typing,
-  and saves 2× PNGs to `site/src/assets/screenshots/`: the whole app as it
-  opens (1100 × 720), then at 840 wide (as narrow as the toolbar goes) the
-  toolbar, tool and layer palettes, rulers, the status bar mid-drag and
-  the selection panel. `src/components/Screenshot.astro` shows one at half
-  its pixel size with a 2× srcset. Getting started uses them; rerun after
-  UI changes.
+  and saves 2× PNGs to `site/src/assets/screenshots/`. One scene per docs
+  page, each in a fresh browser (empty drawing, nothing remembered); name
+  scenes to run only those (`pnpm --dir site screenshots drawing-shapes`),
+  since every run changes the random shape ids in panel shots.
+  `getting-started` keeps the app's parts at the top level (the whole app
+  at 1100 × 720, then at 840 wide, as narrow as the toolbar goes: toolbar,
+  tool and layer palettes, rulers, status bar mid-drag, selection panel);
+  page scenes save to a folder of their own (`drawing-shapes/`). Helpers:
+  `draw` (a tool's key and a drag, then Escape and park the pointer so
+  nothing is hovered), `setFields`, and `drawingBox`, which crops to
+  what's drawn. `src/components/Screenshot.astro` shows one at half its
+  pixel size with a 2× srcset; `ScreenshotRow.astro` sets several side by
+  side. Getting started and Guide › Drawing shapes use them; the Guide
+  pages are being illustrated one at a time. Rerun after UI changes.
 - **Changelog**: `CHANGELOG.md` at the repo root, `## <version> — <date>`
   per release, newest first, user-facing bullets; the site's
   `/changelog` renders it (`marked`). A test checks its first entry is
@@ -1286,6 +1294,9 @@ reference generator and screenshot scripts.
    blank shows the id), and ids themselves never change, since they're
    the entity map's keys that dimensions, links and other entities
    reference.
+9. Selection panel: replace the Delete button at the bottom with a bin
+   icon button at the top right of the panel. Retake the docs screenshots
+   that show the panel after (`getting-started`, `drawing-shapes`).
 
 ## Gotchas for whoever picks this up
 

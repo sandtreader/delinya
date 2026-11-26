@@ -1,0 +1,18 @@
+---
+// Screenshots side by side, wrapping onto new lines when the column is narrow.
+---
+
+<div class="screenshot-row"><slot /></div>
+
+<style is:global>
+  .sl-markdown-content .screenshot-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+  /* Starlight spaces consecutive elements with a top margin; the gap does that here. */
+  .sl-markdown-content .screenshot-row > * {
+    margin-top: 0;
+  }
+</style>

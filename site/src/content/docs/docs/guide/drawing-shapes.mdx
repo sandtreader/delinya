@@ -5,6 +5,14 @@ sidebar:
   order: 1
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import ScreenshotRow from "@/components/ScreenshotRow.astro";
+import shapes from "@/assets/screenshots/drawing-shapes/shapes.png";
+import snap from "@/assets/screenshots/drawing-shapes/snap.png";
+import gridSettings from "@/assets/screenshots/drawing-shapes/grid-settings.png";
+import linePanel from "@/assets/screenshots/drawing-shapes/line-panel.png";
+import circlePanel from "@/assets/screenshots/drawing-shapes/circle-panel.png";
+
 Pick a tool in the tool palette, or press its key:
 
 | Tool | Key | Draw by |
@@ -22,6 +30,8 @@ shape, so you can type its exact size in the panel straight away. Hold
 Holding **Shift** while dragging keeps a rectangle square and a line at
 multiples of 45°.
 
+<Screenshot src={shapes} alt="A line, a 100 × 70 mm rectangle and a 50 mm circle, each with its dimensions in blue: the line's length, the rectangle's width and height, and the circle's diameter" />
+
 ## Snapping
 
 The pointer snaps to other shapes' key points (ends, corners, midpoints,
@@ -29,11 +39,15 @@ centres and a circle's quarter points) within a few pixels, and otherwise
 to the grid. The status bar
 says what it snapped to.
 
+<Screenshot src={snap} alt="A line being drawn towards a rectangle, its end snapped to the middle of the rectangle's top edge, which is marked with a small orange square" />
+
 The grid's spacing belongs to the drawing (1 mm unless you change it in
 **Properties… → Grid**). Showing the grid and snapping to it are your own
 settings, also in Properties: with grid snap off, points round to
 0.01 mm, but still snap to other shapes. Zoomed out, the grid shows every
 2nd, 5th or 10th line so it never gets too dense.
+
+<Screenshot src={gridSettings} alt="Properties, on the Grid tab: Spacing 1 mm, with Show grid and Snap to grid both ticked" />
 
 ## Exact sizes
 
@@ -43,6 +57,11 @@ then width and height for a rectangle, length and angle for a line, and
 for a circle cx and cy (its centre) and its diameter. Type a value and press
 Enter or Tab. Angles are in degrees, clockwise on screen from pointing
 right.
+
+<ScreenshotRow>
+  <Screenshot src={linePanel} alt="The selection panel for a line: x and y, length 100 mm, angle −36.87° (pointing up and to the right), and its length dimension ticked" />
+  <Screenshot src={circlePanel} alt="The selection panel for a circle: cx and cy, diameter 50 mm, and its diameter dimension ticked" />
+</ScreenshotRow>
 
 A rectangle also has a **rotation** and **corner radii**: see
 [Rotate and duplicate](/docs/guide/rotate-and-duplicate/) and
