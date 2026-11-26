@@ -252,6 +252,52 @@ const SCENES = {
     await deselect(page);
     await shot(page, "dimensions/radius-each", await drawingBox(page));
   },
+
+  async links(open) {
+    const page = await open(NARROW);
+    await noDimensions(page);
+    for (const [i, [centre, edge]] of HOLES.entries()) {
+      await draw(page, "c", centre, edge, { deselect: i > 0 });
+      // Only the first, the reference, gets a dimension: its "= hole" shows the link.
+      if (i === 0) {
+        await page.locator(".selection-panel").getByRole("checkbox", { name: "diameter" }).click();
+        await deselect(page);
+      }
+    }
+
+    // All five selected, the first as reference: the arrange panel.
+    await selectAt(page, HOLES.map(([, edge]) => edge));
+    await shot(page, "links/arrange-panel", page.locator(".selection-panel"), PAD);
+
+    // Linked: middles aligned, gaps equal, diameters through a variable named "hole".
+    await page.getByLabel("Keep linked").check();
+    await page.getByRole("button", { name: "Align centres vertically" }).click();
+    await page.getByRole("button", { name: "Gaps ↔" }).click();
+    page.once("dialog", (d) => d.accept("hole"));
+    await page.locator(".selection-panel").getByRole("button", { name: "Diameter", exact: true }).click();
+    await deselect(page);
+    await shot(page, "links/linked", await drawingBox(page));
+
+    // Properties › Variables.
+    await page.getByRole("button", { name: "Properties…" }).click();
+    await page.getByRole("tab", { name: "Variables" }).click();
+    await park(page);
+    await shot(page, "links/variables", page.locator(".properties-dialog"));
+    await page.keyboard.press("Escape");
+
+    // The reference's panel: its diameter linked to hole.
+    const first = await page.locator(".canvas-area svg g.shape").first().boundingBox();
+    await page.mouse.click(first.x + first.width - 1, first.y + first.height / 2);
+    await park(page);
+    await shot(page, "links/linked-panel", page.locator(".selection-panel"), PAD);
+    await deselect(page);
+
+    // The guide clicked between the middle holes, clear of the dimension: its remove-link button.
+    const [third, fourth] = await Promise.all([2, 3].map((i) => page.locator(".canvas-area svg g.shape").nth(i).boundingBox()));
+    await page.mouse.click((third.x + third.width + fourth.x) / 2, first.y + first.height / 2);
+    await park(page);
+    await shot(page, "links/remove", await drawingBox(page));
+  },
 };
 
 /**
@@ -284,6 +330,25 @@ async function toolbarButton(page, name, label, around = 2) {
   const after = Math.min(bar.x + bar.width, ...boxes.filter((b) => b.l >= right).map((b) => b.l));
   const x = left - Math.min(8, (left - before) / 2), end = right + Math.min(8, (after - right) / 2);
   await shot(page, name, { x, y: bar.y, width: end - x, height: t.y + t.height + 8 - bar.y });
+}
+
+/**
+ * Holes for the Links page: centre and a point on the edge, drawing-area
+ * px. Drawn unevenly (heights, sizes, gaps) so linking has work to do.
+ */
+const HOLES = [
+  [[140, 300], [160, 300]], [[230, 290], [260, 290]], [[320, 310], [340, 310]],
+  [[400, 290], [430, 290]], [[480, 300], [500, 300]],
+];
+
+/** Clicks shapes at these points in turn, Shift-clicking all but the first: the first is the reference. */
+async function selectAt(page, points) {
+  for (const [i, point] of points.entries()) {
+    if (i) await page.keyboard.down("Shift");
+    await clickAt(page, point);
+    if (i) await page.keyboard.up("Shift");
+  }
+  await park(page);
 }
 
 /** Types a value into a field and leaves it with Tab, which applies it. */
@@ -429,7 +494,7 @@ async function park(page) {
 /** What a crop of the drawing takes in: drawn things, and the cards that float by them. */
 const DRAWN = [
   "svg g.shape", "svg g.dimension", "svg g.radius-label", "svg g.link-guide", "svg g.snap", "svg .preview",
-  "svg g.draft-nodes", "svg g.path-nodes", "svg g.handles", "svg g.rotate", "svg .lasso", ".path-card", ".text-editor",
+  "svg g.draft-nodes", "svg g.path-nodes", "svg g.handles", "svg g.rotate", "svg .lasso", ".path-card", ".text-editor", ".delink",
 ].join(", ");
 
 /**

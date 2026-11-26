@@ -5,6 +5,13 @@ sidebar:
   order: 6
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import arrangePanel from "@/assets/screenshots/links/arrange-panel.png";
+import linked from "@/assets/screenshots/links/linked.png";
+import variables from "@/assets/screenshots/links/variables.png";
+import linkedPanel from "@/assets/screenshots/links/linked-panel.png";
+import remove from "@/assets/screenshots/links/remove.png";
+
 Links keep shapes in step: equal sizes, aligned edges, even spacing. You
 can make each arrangement once, or keep it as a live link that follows
 later edits.
@@ -24,6 +31,8 @@ The panel then offers:
 - **Equal** (shapes of one kind): give them the reference's width or
   height, diameter, or length.
 
+<Screenshot src={arrangePanel} alt="The panel for five selected circles, the reference a circle: Across and Down rows of align buttons, Centre On reference, Space Gaps and Centres both ways, Equal Diameter, and Keep linked, unticked" />
+
 ## Once, or kept linked
 
 With **Keep linked** off (the default), each action moves or resizes the
@@ -40,6 +49,8 @@ edges, "=" marks across equal gaps, and "= name" after a linked size's
 dimension. A link that can't apply (it clashes with another, or goes
 round in a circle) shows in red.
 
+<Screenshot src={linked} alt="Five circles linked into a row of equal holes: a purple dashed guide through their centres, an = mark in each equal gap, and the first circle's dimension reading 20 = hole" />
+
 ## Variables
 
 Shared sizes are named variables. **Properties… → Variables** lists them
@@ -48,14 +59,19 @@ size in the panel has a badge showing its variable, and an unlink button.
 Rename a variable (say Duplicate's "width 2" to "rail") by typing over its
 name, there or in the badge; its links stay as they are.
 
+<Screenshot src={variables} alt="Properties, on the Variables tab: one variable, hole, 20 mm" />
+
 ## Removing links
 
 - Click a link's guide, or a "= name" on a dimension, to get a small
   broken-chain button that removes that link.
+  <Screenshot src={remove} alt="The row of linked holes with the guide clicked in the middle gap, showing a button with a broken chain: Equal spacing: gaps" />
 - With the shapes selected, each link joining them shows a broken-chain
   button.
 - A shape's panel lists the spacing and alignment links it belongs to,
   with a button to take it out of each.
+
+<Screenshot src={linkedPanel} alt="The first circle's panel: diameter 20 mm with a badge = hole and an unlink button, then equal spacing (x, gaps, 3 items) and aligned (centres down, reference for 4), each with a remove button" />
 
 Removing a link leaves everything where it is.
 
