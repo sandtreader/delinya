@@ -2,7 +2,7 @@
 
 Collaborative 2D drawing with real units, in the browser. Everything is
 stored in millimetres; scale is a display and print setting. Woodwork was
-the first use, not a limit. (*Delinya* is Cornish for "drawing".)
+the first use, not a limit. (*Delinya* is Cornish for "to draw".)
 
 - **Use it:** <https://delinya.net>
 - **Docs and how-tos:** <https://delinya.org>

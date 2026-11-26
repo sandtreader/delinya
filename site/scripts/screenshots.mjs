@@ -130,7 +130,78 @@ const SCENES = {
     await park(page);
     await shot(page, "paths/segment", await drawingBox(page));
   },
+
+  async text(open) {
+    // Typing on the drawing, straight after dragging out the box.
+    let page = await open(NARROW);
+    await addText(page, ...textBox(200), MEANING, { finish: false });
+    await shot(page, "text/typing", await drawingBox(page));
+
+    // The finished box's panel.
+    await finishText(page);
+    await shot(page, "text/panel", page.locator(".selection-panel"), PAD);
+
+    // The same text in each font.
+    page = await open(NARROW);
+    for (const [i, font] of ["Sans", "Serif", "Mono"].entries()) {
+      await addText(page, ...textBox(120 + i * 90), MEANING);
+      await panelButton(page, font);
+      await deselect(page);
+    }
+    await shot(page, "text/fonts", await drawingBox(page));
+
+    // Plain, then mirrored.
+    page = await open(NARROW);
+    await addText(page, ...textBox(160), MEANING);
+    await deselect(page);
+    await addText(page, ...textBox(260), MEANING);
+    await field(page, "mirrored").click();
+    await deselect(page);
+    await shot(page, "text/mirrored", await drawingBox(page));
+  },
 };
+
+/** The text for the Text page's boxes: the name, and what it means. */
+const MEANING = ["Delinya (Cornish / Kernewek):", "vi/vt. to draw or represent"];
+
+/**
+ * A text box's drag at `top`: 180 × 10 mm (at 2 px/mm the grid, and so
+ * snapping, is every 5 mm), wide enough for MEANING's lines in Mono at
+ * 10 mm, and left of where the selection panel sits.
+ */
+const textBox = (top) => [[120, top], [480, top + 20]];
+
+/**
+ * Draws a text box with the Text tool and types `lines` into it on the
+ * drawing; `finish: false` leaves it being typed into. Finishing (Escape)
+ * sets a round 10 mm size in the panel and leaves the box selected.
+ */
+async function addText(page, from, to, lines, { finish = true } = {}) {
+  await page.keyboard.press("t");
+  await drag(page, from, to);
+  for (const [i, line] of lines.entries()) {
+    if (i) await page.keyboard.press("Enter");
+    await page.keyboard.type(line);
+  }
+  if (finish) await finishText(page);
+  await park(page);
+}
+
+/** Finishes typing on the drawing, then sets the box's size to 10 mm. */
+async function finishText(page) {
+  await page.keyboard.press("Escape");
+  await setFields(page, { size: "10" });
+}
+
+/** Deselects: out of any field first, since a focused field keeps Escape to itself. */
+async function deselect(page) {
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("Escape");
+  await park(page);
+}
+
+/** Presses a button in the selection panel by its name. */
+const panelButton = (page, name) => page.locator(".selection-panel").getByRole("button", { name, exact: true }).click();
 
 /**
  * An arch: square bottom corners, a smooth node at the top of a curved
@@ -220,7 +291,7 @@ async function park(page) {
 /** What a crop of the drawing takes in: drawn things, and the cards that float by them. */
 const DRAWN = [
   "svg g.shape", "svg g.dimension", "svg g.radius-label", "svg g.link-guide", "svg g.snap", "svg .preview",
-  "svg g.draft-nodes", "svg g.path-nodes", "svg g.handles", "svg g.rotate", ".path-card",
+  "svg g.draft-nodes", "svg g.path-nodes", "svg g.handles", "svg g.rotate", ".path-card", ".text-editor",
 ].join(", ");
 
 /**

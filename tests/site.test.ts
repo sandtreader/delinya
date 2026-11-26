@@ -102,7 +102,7 @@ describe("the landing pages", () => {
 
   it("says where the name comes from", () => {
     const hero = read("site/src/components/hero.astro");
-    expect(hero).toMatch(/Cornish for .drawing./);
+    expect(hero).toMatch(/Cornish for .to draw./);
     expect(hero).toContain('href="https://en.wiktionary.org/wiki/delinya"');
   });
 

@@ -5,6 +5,12 @@ sidebar:
   order: 3
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import typing from "@/assets/screenshots/text/typing.png";
+import panel from "@/assets/screenshots/text/panel.png";
+import fonts from "@/assets/screenshots/text/fonts.png";
+import mirrored from "@/assets/screenshots/text/mirrored.png";
+
 Text goes in boxes. A box's **height sets the font size** and its
 **width sets where lines wrap**; the text is never stretched.
 
@@ -15,11 +21,15 @@ drawing; the box grows downwards as lines are added. To finish, press
 **Escape** or **⌘Enter** (Ctrl+Enter), or click somewhere else. A new box
 left empty disappears without trace.
 
+<Screenshot src={typing} alt="A text box just dragged out and being typed into on the drawing, with two lines: Delinya (Cornish / Kernewek): and vi/vt. to draw or represent" />
+
 To edit a box later, **double-click** it, or select it and press **Enter**
 or **F2**. Emptying a box and finishing deletes it (one Undo brings it
 back).
 
 ## The text panel
+
+<Screenshot src={panel} alt="The selection panel for a text box: the text, font Sans (with Serif and Mono), size 10 mm, Bold and Italic, align left, centre or right, x, y, width 180 and height 24 mm, rotation, mirrored, and Delete" />
 
 With a text box selected, the panel has:
 
@@ -33,6 +43,7 @@ With a text box selected, the panel has:
 - x, y, width, height and **rotation**, as for a rectangle.
 - **mirrored**: reads backwards, as flipping does, but in place. Useful
   for text seen from the other side, or transferred face down.
+  <Screenshot src={mirrored} alt="The same two lines twice: as typed, and below them mirrored, reading backwards from the right" />
 
 A box is never narrower than its longest word, so aligned lines line up
 on the word's end rather than spilling out of the box.
@@ -45,3 +56,5 @@ Liberation Sans and so on) and stretches the spacing to fit, and DXF
 writes each line as text. While you type on the drawing, your browser's
 own font is used, so a line may wrap slightly differently until you
 finish.
+
+<Screenshot src={fonts} alt="The same two lines in each font: Sans (Helvetica), Serif (Times) and Mono (Courier)" />
