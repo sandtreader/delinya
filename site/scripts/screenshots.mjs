@@ -13,6 +13,7 @@
 
 import { spawn } from "node:child_process";
 import { mkdir } from "node:fs/promises";
+import net from "node:net";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -21,7 +22,9 @@ const SITE = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const REPO = path.resolve(SITE, "..");
 const OUT = path.join(SITE, "src/assets/screenshots");
 const PORT = 5199;
-const URL = `http://localhost:${PORT}/`;
+/** The collab relay's port: the dev server proxies /collab to it (vite.config.ts). */
+const RELAY_PORT = 2901;
+const APP_URL = `http://localhost:${PORT}/`;
 const WIDE = { width: 1100, height: 720 };
 /**
  * The window for everything but the full view: as narrow as the toolbar
@@ -375,14 +378,6 @@ const SCENES = {
 
   async "rotate-and-duplicate"(open) {
     const card = (page) => page.locator(".pop-card");
-    /** A card under its toolbar button, toolbar controls whole, the selection panel hidden. */
-    const cardShot = async (page, name, button) => {
-      const hide = await page.addStyleTag({ content: ".selection-panel { visibility: hidden; }" });
-      const r = await around(page, [`.toolbar button[aria-label="${button}"]`, ".pop-card"]);
-      const [x, end] = await wholeControls(page, r.x + PAD, r.x + r.width - PAD);
-      await shot(page, name, { ...r, x, width: end - x });
-      await hide.evaluate((el) => el.remove());
-    };
 
     // The Rotate card, under its button, for a selected rectangle kept clear of it.
     let page = await open(NARROW);
@@ -485,7 +480,73 @@ const SCENES = {
     await park(page);
     await shot(page, "printing-and-export/tiled", dialog.locator(".output-preview .sheets"), 12);
   },
+
+  async collaboration(open) {
+    await withRelay(async () => {
+      const name = (displayName) => ({ storage: { "delinya-displayName": displayName } });
+
+      // Chippendale draws, then opens Collaborate: a new session code ready to start.
+      const host = await open(NARROW, name("Thomas Chippendale"));
+      await noDimensions(host);
+      await draw(host, "r", [160, 200], [400, 360]);
+      await draw(host, "c", [220, 280], [240, 280]);
+      await draw(host, "c", [340, 280], [360, 280]);
+      await host.getByRole("button", { name: "Collaborate…" }).click();
+      const card = host.locator(".pop-card");
+      await card.getByRole("button", { name: "Start session" }).waitFor();
+      await park(host);
+      await cardShot(host, "collaboration/start-card", "Collaborate…");
+
+      // Started; Hepplewhite joins by the share link.
+      await card.getByRole("button", { name: "Start session" }).click();
+      await card.getByText("Connected").waitFor();
+      const link = await card.getByText(/\/s\//).textContent();
+      const guest = await open(NARROW, { ...name("George Hepplewhite"), path: new URL(link).pathname });
+      await guest.locator(".canvas-area svg g.shape").nth(2).waitFor();
+      await card.getByText("George Hepplewhite").waitFor();
+      // The link shows this server's address; show delinya.net's, as the docs do. The code is the real one.
+      await card.getByText(/\/s\//).evaluate((el, from) => { el.textContent = el.textContent.replace(from, "https://delinya.net"); }, APP_URL.replace(/\/$/, ""));
+      await park(host);
+      await cardShot(host, "collaboration/session-card", "Collaborate…");
+
+      // Hepplewhite closes the card a share link opens, and points at the panel's top edge;
+      // Chippendale sees his cursor.
+      await guest.keyboard.press("Escape");
+      const panel = await guest.locator(".canvas-area svg g.shape").first().boundingBox();
+      await guest.mouse.move(panel.x + panel.width * 0.6, panel.y + panel.height * 0.2, { steps: 8 });
+      await host.keyboard.press("Escape");
+      // The cursor's own div has no size; its dot and label do.
+      await host.locator(".session-cursors > div > div").first().waitFor();
+      await park(host);
+      await shot(host, "collaboration/cursor", await drawingBox(host));
+
+      // The Collaborate button's dot, with its tooltip.
+      await toolbarButton(host, "collaboration/button", "Collaborate…", 1);
+    });
+  },
 };
+
+/** Whether something is listening on a local port. */
+const listening = (port) => new Promise((resolve) => {
+  const s = net.connect(port, "127.0.0.1");
+  s.on("error", () => { s.destroy(); resolve(false); });
+  s.once("connect", () => { s.destroy(); resolve(true); });
+});
+
+/** Runs `fn` with the collab relay up: one already running (`pnpm relay`) is used, else one is started for it. */
+async function withRelay(fn) {
+  let relay = null;
+  if (!(await listening(RELAY_PORT))) {
+    relay = spawn("pnpm", ["exec", "collab-relay"], { cwd: REPO, stdio: "ignore", env: { ...process.env, PORT: String(RELAY_PORT) } });
+    for (let i = 0; i < 100 && !(await listening(RELAY_PORT)); i++) await new Promise((r) => setTimeout(r, 100));
+    if (!(await listening(RELAY_PORT))) { relay.kill("SIGTERM"); throw new Error(`The collab relay didn't start on ${RELAY_PORT}`); }
+  }
+  try {
+    await fn();
+  } finally {
+    relay?.kill("SIGTERM");
+  }
+}
 
 /**
  * Saves a toolbar button in context: hovered until its tooltip shows,
@@ -579,6 +640,15 @@ async function around(page, selectors, pad = PAD) {
   // Not above or left of the page: a toolbar button sits at its top.
   const x = Math.max(0, l - pad), y = Math.max(0, t - pad);
   return { x, y, width: r + pad - x, height: b + pad - y };
+}
+
+/** A card under its toolbar button, toolbar controls whole, the selection panel hidden. */
+async function cardShot(page, name, button) {
+  const hide = await page.addStyleTag({ content: ".selection-panel { visibility: hidden; }" });
+  const r = await around(page, [`.toolbar button[aria-label="${button}"]`, ".pop-card"]);
+  const [x, end] = await wholeControls(page, r.x + PAD, r.x + r.width - PAD);
+  await shot(page, name, { ...r, x, width: end - x });
+  await hide.evaluate((el) => el.remove());
 }
 
 /** Opens Properties and fills in the Drawing tab for the bookcase side; leaves it open. */
@@ -776,6 +846,8 @@ async function park(page) {
 const DRAWN = [
   "svg g.shape", "svg g.dimension", "svg g.radius-label", "svg g.link-guide", "svg g.snap", "svg .preview",
   "svg g.draft-nodes", "svg g.path-nodes", "svg g.handles", "svg g.rotate", "svg .lasso", ".path-card", ".text-editor", ".delink",
+  // Someone else's cursor: its dot and name label.
+  ".session-cursors > div > div",
 ].join(", ");
 
 /**
@@ -858,11 +930,16 @@ async function main() {
   const app = await startApp();
   const browser = await chromium.launch();
   try {
-    /** A fresh page on the app in its own context: an empty drawing, nothing remembered. */
-    const open = async (viewport) => {
+    /**
+     * A fresh page on the app in its own context: an empty drawing, nothing
+     * remembered but `storage` (localStorage items, set before the app
+     * loads), at `path` (a share link's, say).
+     */
+    const open = async (viewport, { storage = {}, path = "/" } = {}) => {
       const context = await browser.newContext({ viewport, deviceScaleFactor: 2, locale: "en-GB", colorScheme: "light" });
+      await context.addInitScript((items) => { for (const [k, v] of Object.entries(items)) localStorage.setItem(k, v); }, storage);
       const page = await context.newPage();
-      await page.goto(URL);
+      await page.goto(new URL(path, APP_URL).href);
       await page.locator(".tool-palette").waitFor();
       await page.evaluate(() => document.fonts.ready);
       await park(page);

@@ -1149,45 +1149,49 @@ reference generator and screenshot scripts.
   starts the app's dev server on port 5199, drives it in headless
   Chromium (Playwright 1.59.1, a site devDependency; `pnpm exec playwright
   install chromium` once per machine) with real keys, drags and typing,
-  and saves 2× PNGs to `site/src/assets/screenshots/`. One scene per docs
-  page, each in a fresh browser (empty drawing, nothing remembered); name
-  scenes to run only those (`pnpm --dir site screenshots drawing-shapes`),
-  since every run changes the random shape ids in panel shots.
-  `getting-started` keeps the app's parts at the top level (the whole app
-  at 1100 × 720, then at 840 wide, as narrow as the toolbar goes: toolbar,
-  tool and layer palettes, rulers, status bar mid-drag, selection panel);
-  page scenes save to a folder of their own (`drawing-shapes/`, `paths/`,
-  `text/`, `selecting-and-editing/`, `dimensions/`, `links/`, `layers/`,
-  `line-styles/`, `rotate-and-duplicate/`, `files/`,
-  `printing-and-export/`).
-  Helpers: `draw` (a tool's key and a drag, then Escape and park the
-  pointer so nothing is hovered), `clickPath`/`drawArch` (the Paths
-  example), `addText` (types on the drawing, then sets a round size, 10 mm
-  unless given: at 2 px/mm snapping is every 5 mm, so a drag can't give one),
-  `selectAt` (click, then Shift-click: the first is the reference),
-  `setLayer` (a layer's name, look, hidden or locked, through its card),
-  `drawBookcaseSide` and `fillProperties` (the Printing example, drawn
-  through the panel and Duplicate),
-  `around` (a region round several elements), `wholeControls` (widens a
-  crop to whole toolbar controls),
-  `toolbarButton` (a toolbar button hovered till its tooltip shows,
-  cropped with its neighbours), `setFields`, `setInput` (a field found by
-  its label), `deselect`
-  (blurs a field first: a focused field keeps
-  Escape), `noDimensions` (turns off Dimension new shapes), and
-  `drawingBox`, which crops to what's drawn, with handles, a lasso, the
-  path cards and the text editor.
-  `src/components/Screenshot.astro` shows one at half its pixel size with
-  a 2× srcset; `ScreenshotRow.astro` sets several side by side. Getting
-  started and Guide › Drawing shapes, Paths, Text, Selecting and
-  editing, Dimensions, Links, Layers, Line styles, Rotate and duplicate,
-  Files, and Printing and export use them (the footer close-up is the
-  preview's own page SVG drawn large in a second page; the tiled preview
-  lets the dialog grow to its content) (Links answers Equal's
-  name prompt with a `dialog` handler; Layers shows the native layer
-  select as a list box, since an open native menu is outside the page and
-  no screenshot catches it); the Guide pages
-  are being illustrated one at a time. Rerun after UI changes.
+  and saves 2× PNGs to `site/src/assets/screenshots/`. Rerun after UI
+  changes.
+  - **Scenes**: one per docs page, each in a fresh browser (empty
+    drawing, nothing remembered but any localStorage items it's given).
+    Name scenes to run only those (`pnpm --dir site screenshots
+    drawing-shapes`), since every run changes the random shape ids in
+    panel shots. `getting-started` keeps the app's parts at the top level
+    (the whole app at 1100 × 720, then at 840 wide, as narrow as the
+    toolbar goes: toolbar, palettes, rulers, status bar mid-drag,
+    selection panel); every Guide page has a scene saving to a folder of
+    its own name. Getting started and all twelve Guide pages are
+    illustrated.
+  - **Helpers**: `draw` (a tool's key and a drag, then Escape and park
+    the pointer so nothing is hovered), `clickPath`/`drawArch` (Paths),
+    `addText` (types on the drawing, then sets a round size, 10 mm unless
+    given: at 2 px/mm snapping is every 5 mm, so a drag can't give one),
+    `selectAt` (click, then Shift-click: the first is the reference),
+    `setLayer` (a layer's name, look, hidden or locked, through its card),
+    `drawBookcaseSide` and `fillProperties` (Printing's example, through
+    the panel and Duplicate), `setFields` and `setInput` (fields by label),
+    `deselect` (blurs a field first: a focused field keeps Escape),
+    `noDimensions`, `drawingBox` (crops to what's drawn: shapes,
+    dimensions, handles, a lasso, path cards, the text editor, remote
+    cursors), `around` (a region round several elements, kept on the
+    page), `wholeControls` (widens a crop to whole toolbar controls),
+    `toolbarButton` (a button and its neighbours, hovered till its tooltip
+    shows), `cardShot` (a toolbar card under its button, the selection
+    panel hidden), `withRelay` (the collab relay, started unless one is
+    running).
+  - **Liberties**, all for legibility, none changing what the app does:
+    palettes or the selection panel hidden where they'd cover the subject;
+    the native layer select shown as a list box (an open native menu is
+    outside the page, where no screenshot reaches); Printing's footer
+    close-up is the preview's own page SVG drawn large in a second page,
+    and its tiled preview lets the dialog grow to its content;
+    Collaboration's share link shows delinya.net's address in place of
+    the screenshot server's (the code is the real one). Links answers
+    Equal's name prompt with a `dialog` handler; Collaboration runs two
+    browsers joined by the share link, and the guest closes the card the
+    link opens before pointing.
+  - **Components**: `src/components/Screenshot.astro` shows one at half
+    its pixel size with a 2× srcset, centred; `ScreenshotRow.astro` sets
+    several side by side.
 - **Changelog**: `CHANGELOG.md` at the repo root, `## <version> — <date>`
   per release, newest first, user-facing bullets; the site's
   `/changelog` renders it (`marked`). A test checks its first entry is

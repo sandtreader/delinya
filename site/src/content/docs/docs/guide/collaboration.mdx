@@ -5,9 +5,17 @@ sidebar:
   order: 12
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import cursor from "@/assets/screenshots/collaboration/cursor.png";
+import startCard from "@/assets/screenshots/collaboration/start-card.png";
+import sessionCard from "@/assets/screenshots/collaboration/session-card.png";
+import button from "@/assets/screenshots/collaboration/button.png";
+
 Several people can work on one drawing at once, each in their own
 browser. Changes appear for everyone as they're made, and each person
 sees the others' cursors.
+
+<Screenshot src={cursor} alt="A drawing as Thomas Chippendale sees it in a session: a panel with two holes, and George Hepplewhite's cursor over it, a blue dot with his name beside it" />
 
 ## Starting a session
 
@@ -16,9 +24,13 @@ sees the others' cursors.
 3. The **Session ID** field already holds a new code. Click **Start
    session**.
 
+<Screenshot src={startCard} alt="The Collaborate card open under its toolbar button: Display name Thomas Chippendale, a Session ID already filled in with a new code, and a Start session button" />
+
 Your drawing becomes the session's drawing. The card then shows the
 session's **link**, with buttons to copy it or show it as a **QR code**,
 and the list of people in the session.
+
+<Screenshot src={sessionCard} alt="The Collaborate card in a session: its delinya.net link with copy and QR code buttons, Connected, the users Thomas Chippendale (you) and George Hepplewhite, and Leave session; the toolbar button has a green dot" />
 
 ## Joining a session
 
@@ -39,6 +51,7 @@ if you want to keep a copy.
 
 - The Collaborate button shows a dot: green when connected, amber while
   connecting.
+  <Screenshot src={button} alt="Part of the toolbar: the Collaborate button with a green dot, and its tooltip: Collaborate: share this drawing live with others (in a session with 1 other)" />
 - Everything in the drawing is shared: shapes, links, layers and their
   colours, the title block, the grid spacing.
 - Your view is your own: zoom and pan, the selection, hidden and locked
