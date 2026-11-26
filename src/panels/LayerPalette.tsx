@@ -20,7 +20,7 @@ import type { Point } from "../app/floatPosition";
 import { dropIndex } from "../view/reorder";
 import { Grip, useFloating } from "./floating";
 import { Text } from "./fields";
-import { Icon } from "./icons";
+import { BinIcon, Icon } from "./icons";
 import { tip } from "./tip";
 
 const STORAGE_KEY = "delinya.layerPalette";
@@ -228,7 +228,7 @@ function LayerCard({ layer, only, flip, onDeleted }: { layer: ResolvedLayer; onl
         <Icon size={16}>{locked ? <LockShape /> : <UnlockShape />}</Icon>
       </button>
       <button className="icon danger" data-tip={deleteTitle} aria-label={deleteTitle} disabled={only} onClick={remove}>
-        <Icon size={16}><path d="M2.5 4.5h11M6 4.5V2.8h4v1.7M3.8 4.5l.8 9h6.8l.8-9M6.6 7v4.5M9.4 7v4.5" /></Icon>
+        <BinIcon />
       </button>
     </div>
   );

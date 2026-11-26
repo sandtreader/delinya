@@ -3,8 +3,9 @@
 // (select tool): align, centre, space and equalise. The first-selected
 // shape is the reference the others move to. "Keep linked" makes each
 // action a live link instead of a one-off move, so the result follows
-// later edits to the reference. Either way, Delete. Rotate and Duplicate
-// are cards from the toolbar (ActionCards.tsx).
+// later edits to the reference. Either way, a bin at the top right
+// deletes it. Rotate and Duplicate are cards from the toolbar
+// (ActionCards.tsx).
 
 import { applyChange, type Change } from "@sandtreader/collab/protocol";
 import {
@@ -15,6 +16,7 @@ import {
 import { store, useDocument } from "../app/store";
 import { panelFor, useEditor } from "../app/editor";
 import { ShapeFields } from "./ShapeFields";
+import { BinIcon, IconButton } from "./icons";
 import { LayerSelect, hasLayerChoice } from "./LayerSelect";
 import { tip } from "./tip";
 
@@ -45,9 +47,10 @@ export function SelectionPanel() {
       aria-label={panel === "shape" ? "Selected shape" : "Arrange selection"}
     >
       {panel === "shape" ? <ShapeFields id={ids[0]!} /> : <Arrange shapes={ids} />}
-      <div className="actions">
-        <button className="danger" onClick={remove} {...tip("Delete (Del)")}>Delete</button>
-      </div>
+      {/* After the fields, so it's tabbed to last; drawn top right. */}
+      <IconButton label="Delete" tip="Delete (Del)" className="icon danger panel-delete" onClick={remove}>
+        <BinIcon />
+      </IconButton>
     </div>
   );
 }

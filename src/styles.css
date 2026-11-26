@@ -330,7 +330,8 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12); padding: 8px 10px; font-size: 12px;
 }
-.selection-panel h2 { font-size: 13px; margin: 2px 0 8px; }
+/* The heading leaves room for the bin, top right. */
+.selection-panel h2 { font-size: 13px; margin: 2px 30px 8px 0; }
 .selection-panel section + section { margin-top: 12px; border-top: 1px solid var(--line); padding-top: 8px; }
 /* Narrow rows: a link badge or clamp note wraps below rather than overflowing. */
 .selection-panel .row { flex-wrap: wrap; }
@@ -342,8 +343,9 @@ button.danger-primary:hover { background: #7f1616; border-color: #7f1616; }
 .selection-panel .corners .num input { width: 52px; }
 .corners legend { display: flex; align-items: center; gap: 8px; }
 .corners-all { margin-right: 0; color: var(--muted); font-size: 11px; }
-.selection-panel .actions { display: flex; margin-top: 8px; }
-.selection-panel header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+.selection-panel .panel-delete { position: absolute; top: 6px; right: 6px; }
+.selection-panel .panel-delete:hover { border-color: #9b1c1c; }
+.selection-panel header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; padding-right: 30px; }
 .selection-panel .hint { color: var(--muted); }
 .selection-panel .group { display: flex; align-items: flex-start; gap: 8px; margin: 6px 0; }
 .selection-panel .group > .label { width: 46px; flex: none; color: var(--muted); padding-top: 4px; }

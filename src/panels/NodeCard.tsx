@@ -13,8 +13,8 @@ import { selectedPathNode, useEditor, type EditorAction } from "../app/editor";
 import { joinTarget } from "../canvas/polyEdit";
 import { toScreen } from "../view/viewport";
 import { Num } from "./fields";
-import { Icon, IconButton } from "./icons";
-import { BinIcon, PathCard } from "./PathCard";
+import { BinIcon, Icon, IconButton } from "./icons";
+import { PathCard } from "./PathCard";
 
 /**
  * Delete a path's node (the card's bin and the Delete key). A path left

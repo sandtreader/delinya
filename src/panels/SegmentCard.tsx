@@ -7,8 +7,8 @@ import { arcMid, cubicPoint, deletePolySegment, midpoint, newId, setPolySegmentC
 import { store, useDocument } from "../app/store";
 import { selectedPathSegment, useEditor, type EditorAction } from "../app/editor";
 import { toScreen } from "../view/viewport";
-import { Icon, IconButton } from "./icons";
-import { BinIcon, PathCard } from "./PathCard";
+import { BinIcon, Icon, IconButton } from "./icons";
+import { PathCard } from "./PathCard";
 
 /**
  * Delete a path's segment (the card's bin and the Delete key): a closed

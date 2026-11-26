@@ -5,7 +5,6 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import type { Point } from "../model";
 import { placeNear } from "../view/placeNear";
-import { Icon } from "./icons";
 
 export function PathCard({ at, name, children }: { at: Point; name: string; children: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -31,7 +30,3 @@ export function PathCard({ at, name, children }: { at: Point; name: string; chil
   );
 }
 
-/** The cards' delete button icon: a bin. */
-export const BinIcon = () => (
-  <Icon size={16}><path d="M2.5 4.5h11M6 4.5V2.8h4v1.7M3.8 4.5l.8 9h6.8l.8-9M6.6 7v4.5M9.4 7v4.5" /></Icon>
-);

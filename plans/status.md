@@ -1103,7 +1103,11 @@ through `useSyncExternalStore`.
   with `moveLayer`, and numbers follow the new order.
 - **Selection panels**: with more than one layer, the shape panel and
   arrange panel have a Layer select ("N · name"); a mixed multi-selection
-  shows a disabled "mixed" until a layer is picked (`setShapesLayer`).
+  shows a disabled "mixed" until a layer is picked (`setShapesLayer`). Both
+  panels delete the selection with a bin at their top right (`BinIcon`,
+  now in `icons.tsx` and shared with the path and layer cards; the
+  heading and arrange header leave it 30 px), after the fields in tab
+  order.
 - **Shape names** (`model/names.ts`): any shape may have a `name` and
   `showName`. Unnamed (absent or blank), it goes by its id (`shapeName`);
   ids never change, since dimensions, links and labels refer to them. The
@@ -1341,9 +1345,6 @@ reference generator and screenshot scripts.
    carries `selection`).
 7. ⌘A selects every shape (on visible, unlocked layers) instead of the
    page's text, except while typing in a field.
-8. Selection panel: replace the Delete button at the bottom with a bin
-   icon button at the top right of the panel. Retake the docs screenshots
-   that show the panel after (`getting-started`, `drawing-shapes`).
 
 ## Gotchas for whoever picks this up
 

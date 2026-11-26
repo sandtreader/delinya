@@ -23,6 +23,11 @@ export function Icon({ size = 16, className, children }: { size?: number; classN
  * (see tip.ts). Pass
  * data-tip-side to put the tooltip somewhere other than below.
  */
+/** Delete: a bin, in the selection panel, the path cards and the layer card. */
+export const BinIcon = () => (
+  <Icon size={16}><path d="M2.5 4.5h11M6 4.5V2.8h4v1.7M3.8 4.5l.8 9h6.8l.8-9M6.6 7v4.5M9.4 7v4.5" /></Icon>
+);
+
 export function IconButton({ label, tip = label, children, ...rest }:
   { label: string; tip?: string; children: ReactNode } & ButtonHTMLAttributes<HTMLButtonElement>) {
   return <button type="button" className="icon" aria-label={label} {...tipProps(tip, label)} {...rest}>{children}</button>;
