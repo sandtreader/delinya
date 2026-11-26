@@ -5,6 +5,12 @@ sidebar:
   order: 7
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import palette from "@/assets/screenshots/layers/palette.png";
+import look from "@/assets/screenshots/layers/look.png";
+import fills from "@/assets/screenshots/layers/fills.png";
+import layerMenu from "@/assets/screenshots/layers/layer-menu.png";
+
 Every shape is on a layer. A new drawing has one; add more to keep parts
 of a drawing apart: the parts, the holes, the cut lines, the notes.
 
@@ -17,6 +23,8 @@ button per layer, **1** at the top. Layer 1 is drawn at the back.
 - **+** adds a layer in front and makes it current.
 - **Drag** a button up or down to reorder the layers.
 
+<Screenshot src={palette} alt="The layer palette with three layers: 1 with a lock mark, 2 highlighted as current with a navy chip, 3 greyed with a hidden mark, and +; beside it layer 2's card: its name Holes, the look button, hide, lock and delete" />
+
 Clicking a layer's button makes it current and opens its card (click
 again, or press Escape, to close it):
 
@@ -24,6 +32,7 @@ again, or press Escape, to close it):
 - its **look**: a **line colour**, from a small palette of inks that
   print well, a **fill** and a **pattern**, all picked from one button
   that shows them in small;
+  <Screenshot src={look} alt="Layer 2's look open below its card: a row of line colours with navy chosen, a row of light fills, and patterns: none, dots, grid, lines and crosshatch" />
 - **hide** or **show**, and **lock** or **unlock**;
 - **delete**, which deletes the layer and its shapes (asking first).
 
@@ -43,6 +52,8 @@ lines up across neighbouring shapes. Fills print and go in PDF and SVG,
 but not DXF. A filled shape can be selected by clicking anywhere inside
 it, not just on its outline.
 
+<Screenshot src={fills} alt="A board on layer 1 filled sand, and three holes on layer 2 in navy with a sky fill and diagonal lines; the hole over the board's edge shows the edge through it, and is deeper where it overlaps" />
+
 **Hidden** and **locked** are your own view, not the drawing's: they
 aren't saved, and in a shared session each person has their own. Opening
 a drawing shows every layer, unlocked.
@@ -57,5 +68,7 @@ a drawing shows every layer, unlocked.
 
 With more than one layer, the selection panel has a **Layer** menu: pick
 a layer to move the selected shapes onto it.
+
+<Screenshot src={layerMenu} alt="A circle's panel with its layer menu open, listing 1 · Board and 2 · Holes, the circle's layer, highlighted" />
 
 In DXF export, each layer becomes a DXF layer with its name and colour.

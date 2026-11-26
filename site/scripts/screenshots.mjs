@@ -298,6 +298,50 @@ const SCENES = {
     await park(page);
     await shot(page, "links/remove", await drawingBox(page));
   },
+
+  async layers(open) {
+    // Three layers: 1 locked, 3 hidden, 2 current with a colour and its card open.
+    let page = await open(NARROW);
+    await page.getByRole("button", { name: "Add a layer" }).click();
+    await page.getByRole("button", { name: "Add a layer" }).click();
+    await setLayer(page, 0, { name: "Board", lock: true });
+    await setLayer(page, 2, { name: "Notes", hide: true });
+    await setLayer(page, 1, { name: "Holes", colour: "Navy" });
+    await page.locator(".layer-button").nth(1).click();
+    await park(page);
+    await shot(page, "layers/palette", await around(page, [".layer-palette", ".layer-card"]));
+
+    // Its look picked from the one button.
+    await page.locator(".layer-card .look-button").click();
+    await park(page);
+    await shot(page, "layers/look", await around(page, [".layer-palette", ".layer-card", ".look-picker"]));
+
+    // A sand-filled board on layer 1, holes on layer 2 in navy with a sky fill and lines,
+    // one over the board's edge.
+    page = await open(NARROW);
+    await noDimensions(page);
+    await setLayer(page, 0, { fill: "Sand" });
+    await draw(page, "r", [140, 200], [460, 360]);
+    await page.getByRole("button", { name: "Add a layer" }).click();
+    await setLayer(page, 1, { colour: "Navy", fill: "Sky", pattern: "Lines" });
+    for (const [centre, edge] of [[[220, 280], [250, 280]], [[330, 280], [360, 280]], [[460, 300], [490, 300]]]) {
+      await draw(page, "c", centre, edge);
+    }
+    await shot(page, "layers/fills", await drawingBox(page));
+
+    // Moving a shape between layers: the selection panel's Layer menu, open.
+    page = await open(NARROW);
+    await noDimensions(page);
+    await setLayer(page, 0, { name: "Board" });
+    await draw(page, "r", [140, 200], [460, 360]);
+    await page.getByRole("button", { name: "Add a layer" }).click();
+    await setLayer(page, 1, { name: "Holes" });
+    await draw(page, "c", [300, 280], [330, 280], { deselect: false });
+    // A native menu opens outside the page, where no screenshot reaches; as a list box it's in the page.
+    await page.locator(".selection-panel .layer-select").evaluate((el) => { el.size = el.options.length; });
+    await park(page);
+    await shot(page, "layers/layer-menu", page.locator(".selection-panel"), PAD);
+  },
 };
 
 /**
@@ -349,6 +393,39 @@ async function selectAt(page, points) {
     if (i) await page.keyboard.up("Shift");
   }
   await park(page);
+}
+
+/**
+ * Sets up layer `i` (0-based) through its card: name, look (Line colour,
+ * Fill and Pattern swatches by name), and hidden or locked. Leaves the
+ * card closed and the layer current.
+ */
+async function setLayer(page, i, { name, colour, fill, pattern, hide, lock } = {}) {
+  await deselect(page);
+  await page.locator(".layer-button").nth(i).click();
+  const card = page.locator(".layer-card");
+  if (name) {
+    await setInput(page, card.getByPlaceholder(`Layer ${i + 1}`), name);
+  }
+  const look = Object.entries({ "Line colour": colour, Fill: fill, Pattern: pattern }).filter(([, v]) => v);
+  if (look.length) {
+    await card.locator(".look-button").click();
+    for (const [group, swatch] of look) {
+      await page.locator(".look-picker").getByRole("group", { name: group }).getByRole("button", { name: swatch, exact: true }).click();
+    }
+    await page.keyboard.press("Escape");
+  }
+  if (lock) await card.getByRole("button", { name: /^Lock layer/ }).click();
+  if (hide) await card.getByRole("button", { name: "Hide layer" }).click();
+  await deselect(page);
+}
+
+/** A region round several elements, with `pad` px: for a palette and the card beside it. */
+async function around(page, selectors, pad = PAD) {
+  const boxes = await Promise.all(selectors.map((s) => page.locator(s).boundingBox()));
+  const l = Math.min(...boxes.map((b) => b.x)), t = Math.min(...boxes.map((b) => b.y));
+  const r = Math.max(...boxes.map((b) => b.x + b.width)), b = Math.max(...boxes.map((b) => b.y + b.height));
+  return { x: l - pad, y: t - pad, width: r - l + 2 * pad, height: b - t + 2 * pad };
 }
 
 /** Types a value into a field and leaves it with Tab, which applies it. */
