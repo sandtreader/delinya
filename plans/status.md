@@ -3,8 +3,8 @@
 Last updated 2026-11-26. Repo `sandtreader/delinya`, branch `main`.
 v1.2.0 (shape names, the title block and check ruler on the last tiled
 sheet only, the selection panel's bin, ⌘A select all; the guide
-illustrated throughout) is committed, with its documentation site at
-delinya.org (`site/`; see Documentation site) and `CHANGELOG.md`. It
+illustrated throughout) is committed and deployed to delinya.net, with
+its documentation site at delinya.org (`site/`; see Documentation site) and `CHANGELOG.md`. It
 builds on v1.1.1 (print: optional title block, default on, and check
 ruler, default off), v1.1.0 (per-layer fills and patterns, renaming
 variables), v1.0.0, the
@@ -1378,7 +1378,7 @@ reference generator and screenshot scripts.
 
 - Live at https://delinya.net (0.1.0 deployed 2026-11-10; 0.1.1, 0.1.2
   and 0.2.1 2026-11-23; 0.2.2, 0.3.0, 1.0.0 and 1.1.0 2026-11-24; 1.1.1
-  2026-11-26). DNS at
+  and 1.2.0 2026-11-26). DNS at
   Squarespace points delinya.net and www at st1 (109.123.121.122).
 - Apache: `/etc/apache2/sites-available/delinya.net.conf` (http, redirects
   to https) and `delinya.net-le-ssl.conf` (docroot `/var/www/delinya.net`,
