@@ -372,6 +372,54 @@ const SCENES = {
     }
     await shot(page, "line-styles/widths", await drawingBox(page));
   },
+
+  async "rotate-and-duplicate"(open) {
+    const card = (page) => page.locator(".pop-card");
+    /** A card under its toolbar button, toolbar controls whole, the selection panel hidden. */
+    const cardShot = async (page, name, button) => {
+      const hide = await page.addStyleTag({ content: ".selection-panel { visibility: hidden; }" });
+      const r = await around(page, [`.toolbar button[aria-label="${button}"]`, ".pop-card"]);
+      const [x, end] = await wholeControls(page, r.x + PAD, r.x + r.width - PAD);
+      await shot(page, name, { ...r, x, width: end - x });
+      await hide.evaluate((el) => el.remove());
+    };
+
+    // The Rotate card, under its button, for a selected rectangle kept clear of it.
+    let page = await open(NARROW);
+    await noDimensions(page);
+    await draw(page, "r", [150, 380], [300, 460], { deselect: false });
+    await page.getByRole("button", { name: "Rotate…" }).click();
+    await park(page);
+    await cardShot(page, "rotate-and-duplicate/rotate-card", "Rotate…");
+
+    // A 100 × 50 rectangle turned 30°: its dimensions run along its own sides.
+    page = await open(NARROW);
+    await draw(page, "r", [240, 240], [440, 340], { deselect: false });
+    await page.getByRole("button", { name: "Rotate…" }).click();
+    await setInput(page, card(page).getByLabel("by"), "30");
+    await card(page).getByRole("button", { name: "Rotate", exact: true }).click();
+    await deselect(page);
+    await deselect(page);
+    await shot(page, "rotate-and-duplicate/turned", await drawingBox(page));
+
+    // The Duplicate card set for three linked copies to the right, 20 mm apart, then the
+    // row it makes. Only the width is dimensioned, so the gaps' marks stay clear.
+    page = await open(NARROW);
+    await noDimensions(page);
+    await draw(page, "r", [100, 300], [180, 360], { deselect: false });
+    await page.locator(".selection-panel").getByRole("checkbox", { name: "width" }).check();
+    await page.getByRole("button", { name: "Duplicate…" }).click();
+    await setInput(page, card(page).getByRole("textbox", { name: "copies" }), "3");
+    await setInput(page, card(page).getByRole("textbox", { name: "gap" }), "20");
+    for (const link of ["link gaps", "link size", "link align"]) await card(page).getByLabel(link).check();
+    await page.evaluate(() => document.activeElement?.blur());
+    await park(page);
+    await cardShot(page, "rotate-and-duplicate/duplicate-card", "Duplicate…");
+    await card(page).getByRole("button", { name: "Duplicate", exact: true }).click();
+    await deselect(page);
+    await deselect(page);
+    await shot(page, "rotate-and-duplicate/linked-row", await drawingBox(page));
+  },
 };
 
 /**
@@ -386,24 +434,32 @@ async function toolbarButton(page, name, label, around = 2) {
   const button = controls.nth(i);
   const first = await controls.nth(Math.max(0, i - around)).boundingBox();
   const last = await controls.nth(Math.min(labels.length - 1, i + around)).boundingBox();
-  const bar = await page.locator(".toolbar").boundingBox();
   await button.hover();
   const tip = page.locator(".tooltip");
   await tip.waitFor({ state: "visible" });
   await page.waitForTimeout(200);
   const t = await tip.boundingBox();
-  // Take in the tooltip, then whole controls wherever an edge would cut one.
-  // The margin is 8 px, or half the gap to the next control if that's less.
-  const boxes = await controls.evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right }; }));
-  let left = Math.min(first.x, t.x), right = Math.max(last.x + last.width, t.x + t.width);
+  const bar = await page.locator(".toolbar").boundingBox();
+  const [x, end] = await wholeControls(page, Math.min(first.x, t.x), Math.max(last.x + last.width, t.x + t.width));
+  await shot(page, name, { x, y: bar.y, width: end - x, height: t.y + t.height + 8 - bar.y });
+}
+
+/**
+ * Widens [left, right] to whole toolbar controls wherever an edge would cut
+ * one, then adds a margin: 8 px, or half the gap to the next control if
+ * that's less.
+ */
+async function wholeControls(page, left, right) {
+  const bar = await page.locator(".toolbar").boundingBox();
+  const boxes = await page.locator(".toolbar").locator("button, select")
+    .evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right }; }));
   for (const b of boxes) {
     if (b.l < left && b.r > left) left = b.l;
     if (b.l < right && b.r > right) right = b.r;
   }
   const before = Math.max(bar.x, ...boxes.filter((b) => b.r <= left).map((b) => b.r));
   const after = Math.min(bar.x + bar.width, ...boxes.filter((b) => b.l >= right).map((b) => b.l));
-  const x = left - Math.min(8, (left - before) / 2), end = right + Math.min(8, (after - right) / 2);
-  await shot(page, name, { x, y: bar.y, width: end - x, height: t.y + t.height + 8 - bar.y });
+  return [left - Math.min(8, (left - before) / 2), right + Math.min(8, (after - right) / 2)];
 }
 
 /**
@@ -455,7 +511,9 @@ async function around(page, selectors, pad = PAD) {
   const boxes = await Promise.all(selectors.map((s) => page.locator(s).boundingBox()));
   const l = Math.min(...boxes.map((b) => b.x)), t = Math.min(...boxes.map((b) => b.y));
   const r = Math.max(...boxes.map((b) => b.x + b.width)), b = Math.max(...boxes.map((b) => b.y + b.height));
-  return { x: l - pad, y: t - pad, width: r - l + 2 * pad, height: b - t + 2 * pad };
+  // Not above or left of the page: a toolbar button sits at its top.
+  const x = Math.max(0, l - pad), y = Math.max(0, t - pad);
+  return { x, y, width: r + pad - x, height: b + pad - y };
 }
 
 /** Types a value into a field and leaves it with Tab, which applies it. */

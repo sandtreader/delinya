@@ -5,6 +5,12 @@ sidebar:
   order: 9
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import rotateCard from "@/assets/screenshots/rotate-and-duplicate/rotate-card.png";
+import turned from "@/assets/screenshots/rotate-and-duplicate/turned.png";
+import duplicateCard from "@/assets/screenshots/rotate-and-duplicate/duplicate-card.png";
+import linkedRow from "@/assets/screenshots/rotate-and-duplicate/linked-row.png";
+
 **Rotate…** and **Duplicate…** are toolbar buttons, after Undo and Redo.
 Each opens a small card that acts on the selected shapes. The card stays
 open while you work, so you can turn or copy again, or pick other shapes;
@@ -20,6 +26,8 @@ The Rotate card has:
 - **Flip horizontally** (mirror left to right) and **Flip vertically**
   (mirror top to bottom).
 
+<Screenshot src={rotateCard} alt="The Rotate card open under the toolbar's Rotate button: Rotate by 15°, then Rotate 90° anticlockwise and clockwise, Flip horizontally and Flip vertically" />
+
 The selection turns about its own centre. You can also drag the
 **rotate handle** above a selection (Shift for 15° steps), or type a
 rectangle's or text box's **rotation** in the panel, which spins it about
@@ -27,6 +35,8 @@ its centre.
 
 A turned rectangle keeps its own width, height and corners, and resizes
 along its own sides.
+
+<Screenshot src={turned} alt="A rectangle turned 30° clockwise, its width and height dimensions running along its own sides and still reading 100 and 50" />
 
 ## Duplicate
 
@@ -36,6 +46,8 @@ The Duplicate card sets:
 - **×**, the number of copies (1 to 100);
 - **gap**: the clear space between the selection and its copy, and
   between copies.
+
+<Screenshot src={duplicateCard} alt="The Duplicate card open under the toolbar's Duplicate button: the Duplicate button, direction right (chosen), down, left and up, × 3, gap 20 mm, and link gaps, size and align all ticked" />
 
 **Duplicate** makes the copies in a row and selects them, so pressing it
 again carries the row on. **⌘D** (Ctrl+D) makes one more copy the same
@@ -53,5 +65,7 @@ Three **link** checkboxes tie the row together:
   **Properties… → Variables**.
 - **align**: keeps the copies lined up with the original (tops for a row
   across, left edges for a column down).
+
+<Screenshot src={linkedRow} alt="A rectangle and three linked copies in a row: each width dimension reads 40 = width, = marks sit in the equal gaps, and a purple dashed guide runs along their tops" />
 
 ⌘D always makes a plain, unlinked copy.
