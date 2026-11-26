@@ -113,6 +113,11 @@ export interface PageTile {
   label: string;
   /** The model-space region this page shows in its drawing area. */
   window: Bounds;
+  /**
+   * This page's drawing area, paper mm from the top-left corner: the whole
+   * printable height above the bottom row, short of the footer band in it.
+   */
+  area: Rect;
 }
 
 export interface PagePlan {
@@ -123,9 +128,7 @@ export interface PagePlan {
   scale: number;
   rows: number;
   cols: number;
-  /** Drawing area on every page, paper mm from the top-left corner. */
-  area: Rect;
-  /** Row-major: A1, A2, …, B1, … */
+  /** Row-major: A1, A2, …, B1, …; the last, bottom right, carries the footer band. */
   tiles: PageTile[];
 }
 

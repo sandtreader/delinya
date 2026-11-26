@@ -47,7 +47,7 @@ describe("composePages", () => {
     expect(out.pages.length).toBe(1);
     const page = out.pages[0]!;
     expect([page.width, page.height]).toEqual([210, 297]);
-    expect(page.clip).toEqual(out.plan.area);
+    expect(page.clip).toEqual(out.plan.tiles[0]!.area);
     expect(page.clip).toEqual({ x: 10, y: 10, width: 190, height: 297 - 20 - FOOTER_HEIGHT });
   });
 
@@ -124,9 +124,28 @@ describe("composePages", () => {
     expect(guideXs[0]).toEqual([10 + 190 - 10]);
     expect(guideXs[1]).toEqual([10 + 190 - 10]);
     expect(guideXs[2]).toEqual([]);
-    const sheet2 = blockTexts(out.pages[1]!).map((t) => t.text).join("\n");
-    expect(sheet2).toContain("A2");
-    expect(sheet2).toContain("2 of 3");
+    // The title block is on the last sheet only, carrying its label.
+    const last = blockTexts(out.pages[2]!).map((t) => t.text).join("\n");
+    expect(last).toContain("A3 (3 of 3)");
+    expect(blockTexts(out.pages[1]!)).toHaveLength(0);
+  });
+
+  it("puts the footer band on the last sheet only, the others labelled in the margin", () => {
+    const out = composePages(rect(400, 600), opts(), INFO)!;
+    const n = out.pages.length;
+    expect(n).toBeGreaterThan(3);
+    out.pages.forEach((page, i) => {
+      const texts = textsOf(page.furniture).map((t) => t.text);
+      const last = i === n - 1;
+      expect(texts.includes("TITLE"), `sheet ${i + 1}`).toBe(last);
+      expect(texts.some((t) => /100 mm/.test(t)), `sheet ${i + 1}`).toBe(last);
+      expect(texts.includes("Delinya"), `sheet ${i + 1}`).toBe(last);
+      expect(texts.some((t) => t.startsWith("Sheet ")), `sheet ${i + 1}`).toBe(!last);
+    });
+    // Above the bottom row the drawing area runs down to the margin; in it, it stops above the band.
+    const { rows, cols } = out.plan;
+    expect(out.pages[0]!.clip.height).toBe(297 - 20);
+    expect(out.pages[(rows - 1) * cols]!.clip.height).toBe(297 - 20 - FOOTER_HEIGHT);
   });
 
   describe("optional ruler and title block", () => {
@@ -175,8 +194,10 @@ describe("composePages", () => {
         expect(label!.at[1] - 0.75 * label!.size).toBeGreaterThan(page.height - PAGE_MARGIN);
         expect(label!.at[1]).toBeLessThan(page.height);
       });
-      // With the block, the label is in the block instead.
-      expect(sheetLabels(composePages(rect(400, 100), opts(), INFO)!.pages[1]!)).toHaveLength(0);
+      // With the block, the last sheet's label is in the block instead.
+      const pages = composePages(rect(400, 100), opts(), INFO)!.pages;
+      expect(sheetLabels(pages[1]!)).toHaveLength(1);
+      expect(sheetLabels(pages[2]!)).toHaveLength(0);
     });
   });
 

@@ -11,9 +11,9 @@ const box = (w: number, h: number, x = 0, y = 0): Bounds => ({ minX: x, minY: y,
 function expectCovers(plan: PagePlan, b: Bounds) {
   expect(plan.tiles.length).toBe(plan.rows * plan.cols);
   for (const t of plan.tiles) {
-    // Every window fills the drawing area exactly at this scale.
-    expect((t.window.maxX - t.window.minX) * plan.scale).toBeCloseTo(plan.area.width);
-    expect((t.window.maxY - t.window.minY) * plan.scale).toBeCloseTo(plan.area.height);
+    // Every window fills its page's drawing area exactly at this scale.
+    expect((t.window.maxX - t.window.minX) * plan.scale).toBeCloseTo(t.area.width);
+    expect((t.window.maxY - t.window.minY) * plan.scale).toBeCloseTo(t.area.height);
   }
   expect(Math.min(...plan.tiles.map((t) => t.window.minX))).toBeLessThanOrEqual(b.minX + 1e-9);
   expect(Math.min(...plan.tiles.map((t) => t.window.minY))).toBeLessThanOrEqual(b.minY + 1e-9);
@@ -48,10 +48,10 @@ describe("planPages", () => {
   it("leaves the margins and the footer band out of the drawing area", () => {
     const portrait = planPages(box(10, 10), { paper: A4, orientation: "portrait", scale: 1 });
     expect(portrait).toMatchObject({ width: 210, height: 297, orientation: "portrait" });
-    expect(portrait.area).toEqual({ x: PAGE_MARGIN, y: PAGE_MARGIN, width: 190, height: 297 - 2 * PAGE_MARGIN - FOOTER_HEIGHT });
+    expect(portrait.tiles[0]!.area).toEqual({ x: PAGE_MARGIN, y: PAGE_MARGIN, width: 190, height: 297 - 2 * PAGE_MARGIN - FOOTER_HEIGHT });
     const landscape = planPages(box(10, 10), { paper: A4, orientation: "landscape", scale: 1 });
     expect(landscape).toMatchObject({ width: 297, height: 210, orientation: "landscape" });
-    expect(landscape.area).toEqual({ x: PAGE_MARGIN, y: PAGE_MARGIN, width: 277, height: 210 - 2 * PAGE_MARGIN - FOOTER_HEIGHT });
+    expect(landscape.tiles[0]!.area).toEqual({ x: PAGE_MARGIN, y: PAGE_MARGIN, width: 277, height: 210 - 2 * PAGE_MARGIN - FOOTER_HEIGHT });
   });
 
   it("centres a drawing that fits on one page", () => {
@@ -81,9 +81,28 @@ describe("planPages", () => {
     const plan = planPages(b, { paper: A4, orientation: "portrait", scale: 1 });
     expect([plan.rows, plan.cols]).toEqual([3, 3]);
     expect(plan.tiles[3]).toMatchObject({ row: 1, col: 0, label: "B1" });
-    expect(plan.tiles[3]!.window.minY).toBeCloseTo(237);
+    // Rows above the bottom are the full 277 mm high, so the next starts 267 mm on.
+    expect(plan.tiles[3]!.window.minY).toBeCloseTo(267);
     expect(plan.tiles[8]!.label).toBe("C3");
     expectCovers(plan, b);
+  });
+
+  it("keeps the footer band in the bottom row only: the rows above get the full height", () => {
+    const plan = planPages(box(400, 600), { paper: A4, orientation: "portrait", scale: 1 });
+    const full = 297 - 2 * PAGE_MARGIN;
+    for (const t of plan.tiles) expect(t.area.height).toBe(t.row < plan.rows - 1 ? full : full - FOOTER_HEIGHT);
+    // Consecutive rows still overlap by 10 mm.
+    const ys = [0, 3, 6].map((i) => plan.tiles[i]!.window);
+    expect(ys[0]!.maxY - ys[1]!.minY).toBeCloseTo(10);
+    expect(ys[1]!.maxY - ys[2]!.minY).toBeCloseTo(10);
+  });
+
+  it("needs fewer sheets when only the bottom row keeps the band clear", () => {
+    // 500 mm tall: three rows if every row lost 30 mm to the band (247 + 2 × 237 ≥ 500), two now (247 + 267 ≥ 500).
+    expect(planPages(box(100, 500), { paper: A4, orientation: "portrait", scale: 1 }).rows).toBe(2);
+    // Without a band every row is full height.
+    const bare = planPages(box(100, 500), { paper: A4, orientation: "portrait", scale: 1, footer: 0 });
+    for (const t of bare.tiles) expect(t.area.height).toBe(297 - 2 * PAGE_MARGIN);
   });
 
   it("scales the drawing onto the paper", () => {

@@ -53,6 +53,13 @@ function saveStored(o: Choices): void {
   } catch { /* private mode: not remembered */ }
 }
 
+/** What a tiled print comes to: sheets, overlap, labels, and what goes on the last sheet alone. */
+function tiledHint(rows: number, cols: number, o: Choices): string {
+  const band = [o.titleBlock && "title block", o.ruler && "check ruler"].filter(Boolean).join(" and ");
+  const last = band ? `; the ${band} ${o.titleBlock && o.ruler ? "go" : "goes"} on the last` : "";
+  return `${rows * cols} sheets (${rows} × ${cols}), labelled A1, A2… and overlapping 10 mm for taping${last}.`;
+}
+
 /** The largest standard scale that puts the whole drawing on one sheet. */
 function fitToSheet(resolved: Resolved, o: PrintOptions, info: TitleInfo): number {
   return SCALES.find((scale) => composePages(resolved, { ...o, scale }, info)?.pages.length === 1) ?? SCALES[SCALES.length - 1]!;
@@ -152,9 +159,7 @@ export function OutputDialog() {
                 100 mm check ruler
               </label>
               <p className="hint">
-                {plan
-                  ? sheets === 1 ? "One sheet." : `${sheets} sheets (${plan.rows} × ${plan.cols}), overlapping 10 mm for taping. Labels A1, A2… ${options.titleBlock ? "in each title block" : "at the foot of each sheet"}.`
-                  : "Nothing to print yet."}
+                {plan ? sheets === 1 ? "One sheet." : tiledHint(plan.rows, plan.cols, options) : "Nothing to print yet."}
               </p>
               <p className="hint">Print at 100% / “Actual size”{options.ruler ? ", then check the ruler measures 100 mm." : "."}</p>
               <div className="buttons">

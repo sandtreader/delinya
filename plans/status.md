@@ -909,7 +909,9 @@ through `useSyncExternalStore`.
   `--dimension` colour from the same constant, so screen and paper match.
 - `planPages` lays the drawing onto sheets at a scale: margins 10 mm, a
   footer band (`footer`, 30 mm by default), tiles overlapping 10 mm and
-  labelled A1, A2, … B1.
+  labelled A1, A2, … B1. Each tile has its own drawing `area`: the band is
+  kept clear only in the bottom row (the rows above get the whole
+  printable height), since tiled the band goes on the last sheet alone.
 - `composePages` gives each sheet in paper mm: the drawing (clipped to
   the area), overlap guides, and in the 30 mm footer band an optional
   100 mm check ruler bottom left (`PrintOptions.ruler`) and an optional
@@ -917,8 +919,11 @@ through `useSyncExternalStore`.
   revision, scale, sheet, notes; title falls back to the file name).
   With both off there is no band and the drawing area reaches the bottom
   margin. With the block, a small 2 mm "Delinya" sits right-aligned just
-  below it, in the page margin; without the block there's no "Delinya",
-  and tiled sheets get "Sheet A2 (2 of 3)" at the bottom left of the margin.
+  below it, in the page margin; without the block there's no "Delinya".
+  Tiled, the band (block, ruler, "Delinya") is on the last sheet only,
+  bottom right, where it sits on the assembled drawing; every other sheet,
+  and the last without a block, has "Sheet A2 (2 of 3)" at the bottom
+  left of the margin.
 - `pageToSvg` (preview and print), `exportPdf` (hand-written PDF 1.4,
   standard Helvetica, no dependencies), `exportSvg` (1:1 mm) and
   `exportDxf` (R12, mm, y flipped, shapes only; rects become closed
@@ -1326,15 +1331,6 @@ reference generator and screenshot scripts.
 9. Selection panel: replace the Delete button at the bottom with a bin
    icon button at the top right of the panel. Retake the docs screenshots
    that show the panel after (`getting-started`, `drawing-shapes`).
-10. Tiled printing: the footer band (title block, check ruler and the
-    "Delinya" under the block) only on the last sheet, bottom right, where
-    it sits on the assembled drawing; every other sheet gets just the
-    "Sheet A1 (1 of 4)" margin label. Rows above the bottom one then use
-    the full sheet height (so a tall drawing may need fewer sheets); the
-    bottom row keeps the band clear on all its sheets, since a row's sheets
-    share one slice of the drawing. Needs rows of uneven height in
-    `planPages`. Update the printing docs and retake the
-    `printing-and-export` screenshots after.
 
 ## Gotchas for whoever picks this up
 

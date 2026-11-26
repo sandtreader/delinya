@@ -11,12 +11,15 @@ const INFO: TitleInfo = { title: "Bench", author: "PRC", revision: "C", notes: "
 const opts: PrintOptions = { paper: A4, orientation: "portrait", scale: 1, dimensions: false, ruler: false, titleBlock: true };
 
 describe("print watermark", () => {
-  it("puts a small \"Delinya\" just below the title block, right-aligned with it, on every page", () => {
-    // Big enough to tile onto several sheets.
+  it("puts a small \"Delinya\" just below the title block, right-aligned with it, on the sheet that has the block", () => {
+    // Big enough to tile onto several sheets: the block, and so the mark, is on the last.
     const r = resolve(doc(addRect("a", { x: 0, y: 0, width: 500, height: 300 })));
     const { pages } = composePages(r, opts, INFO)!;
     expect(pages.length).toBeGreaterThan(1);
-    for (const page of pages) {
+    for (const page of pages.slice(0, -1)) {
+      expect(page.furniture.some((p) => p.kind === "text" && p.text === "Delinya")).toBe(false);
+    }
+    for (const page of pages.slice(-1)) {
       const right = page.width - PAGE_MARGIN, bottom = page.height - PAGE_MARGIN;
       const marks = page.furniture.filter((p): p is TextPrim => p.kind === "text" && p.text === "Delinya");
       expect(marks).toHaveLength(1);
@@ -36,7 +39,7 @@ describe("print watermark", () => {
     const r = resolve(doc(addRect("a", { x: 0, y: 0, width: 500, height: 300 })));
     const marks = (o: PrintOptions) => composePages(r, o, INFO)!.pages
       .flatMap((page) => page.furniture.filter((p): p is TextPrim => p.kind === "text" && p.text === "Delinya"));
-    expect(marks(opts).length).toBeGreaterThan(1);
+    expect(marks(opts)).toHaveLength(1);
     expect(marks({ ...opts, titleBlock: false })).toHaveLength(0);
     expect(marks({ ...opts, titleBlock: false, ruler: true })).toHaveLength(0);
   });

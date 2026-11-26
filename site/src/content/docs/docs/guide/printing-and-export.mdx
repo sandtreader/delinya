@@ -30,7 +30,7 @@ Paper, orientation and the checkboxes are remembered in your browser.
 
 ## The sheets
 
-Each sheet has:
+A sheet has:
 
 - the drawing, at the scale chosen;
 - a **title block** with the drawing's title, author, revision, scale,
@@ -45,12 +45,16 @@ With both off the band goes, leaving more room for the drawing.
 <Screenshot src={footer} alt="The band along the bottom of a sheet, drawn large: on the left the 100 mm check ruler, marked 0, 50 and 100 mm, with Check: should measure 100 mm; on the right the title block: Title Bookcase side, Author Thomas Chippendale, Rev B, Scale 1:5, Sheet 1 of 1, and the notes; Delinya small beneath it" />
 
 A drawing bigger than one sheet is **tiled** across several, labelled
-A1, A2… across and B1, B2… down: in the title block, or at the foot of
-the sheet without one. Neighbouring tiles overlap by 10 mm,
-with dashed guides where the next one starts, so you can line them up and
-tape them together.
+A1, A2… across and B1, B2… down at the foot of each sheet. Neighbouring
+tiles overlap by 10 mm, with dashed guides where the next one starts, so
+you can line them up and tape them together.
 
-<Screenshot src={tiled} alt="The bookcase side at 1:1 on A3, tiled across four sheets, two across and two down; dashed guides near the right and bottom edges of the sheets mark where the next ones start, and each title block names its sheet, A1 to B2" />
+The title block and check ruler go on the **last sheet** only, bottom
+right, which is where the title block sits on the taped-up drawing; there
+it carries that sheet's label. Sheets above the bottom row use their full
+height for the drawing; the bottom row leaves the band clear.
+
+<Screenshot src={tiled} alt="The bookcase side at 1:1 on A3, tiled across four sheets, two across and two down; dashed guides near the right and bottom edges of the sheets mark where the next ones start; A1, A2 and B1 are labelled small at their feet, and the title block is on the last sheet, B2, bottom right" />
 
 Line widths print at their pen width whatever the scale, and layers print
 in their colours, with their [fills](/docs/guide/layers/) (patterns, like

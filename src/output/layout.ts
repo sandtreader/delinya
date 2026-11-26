@@ -2,8 +2,11 @@
 //
 // A drawing that fits is centred on one page. A bigger one is tiled into
 // a grid of pages whose windows overlap by TILE_OVERLAP on paper, so the
-// sheets can be lined up and taped. Everything here is pure arithmetic on
-// bounds; compose.ts draws the pages.
+// sheets can be lined up and taped. The footer band (title block, check
+// ruler) goes on the last sheet only, so the rows above the bottom one get
+// the whole printable height; the bottom row keeps the band clear on all
+// its sheets, since a row's sheets share one slice of the drawing.
+// Everything here is pure arithmetic on bounds; compose.ts draws the pages.
 
 import type { Bounds } from "../model";
 import { SCALES } from "./paper";
@@ -33,32 +36,34 @@ export function fitScale(bounds: Bounds, paper: Paper, orientation: Orientation 
 
 function planOriented(bounds: Bounds, paper: Paper, orientation: Orientation, scale: number, footer: number): PagePlan {
   const [width, height] = orientation === "portrait" ? [paper.width, paper.height] : [paper.height, paper.width];
-  const area: Rect = {
-    x: PAGE_MARGIN, y: PAGE_MARGIN,
-    width: width - 2 * PAGE_MARGIN, height: height - 2 * PAGE_MARGIN - footer,
-  };
-  const xs = windows(bounds.minX, bounds.maxX, area.width, scale);
-  const ys = windows(bounds.minY, bounds.maxY, area.height, scale);
+  const areaWidth = width - 2 * PAGE_MARGIN, full = height - 2 * PAGE_MARGIN;
+  const xs = windows(bounds.minX, bounds.maxX, areaWidth, areaWidth, scale);
+  const ys = windows(bounds.minY, bounds.maxY, full, full - footer, scale);
   const tiles: PageTile[] = [];
   ys.forEach(([minY, maxY], row) => xs.forEach(([minX, maxX], col) => {
-    tiles.push({ row, col, label: `${rowLetters(row)}${col + 1}`, window: { minX, minY, maxX, maxY } });
+    const area: Rect = { x: PAGE_MARGIN, y: PAGE_MARGIN, width: areaWidth, height: row < ys.length - 1 ? full : full - footer };
+    tiles.push({ row, col, label: `${rowLetters(row)}${col + 1}`, window: { minX, minY, maxX, maxY }, area });
   }));
-  return { width, height, orientation, scale, rows: ys.length, cols: xs.length, area, tiles };
+  return { width, height, orientation, scale, rows: ys.length, cols: xs.length, tiles };
 }
 
-/** Model-space windows along one axis, each `size` paper mm long. */
-function windows(min: number, max: number, size: number, scale: number): [number, number][] {
+/**
+ * Model-space windows along one axis: `size` paper mm long, but the last
+ * `last` long (the bottom row, which keeps the footer band clear). One
+ * window is centred on the drawing; several start at its edge and overlap
+ * by TILE_OVERLAP.
+ */
+function windows(min: number, max: number, size: number, last: number, scale: number): [number, number][] {
   const needed = (max - min) * scale;
-  const span = size / scale;
-  if (needed <= size + 1e-9) {
-    const c = (min + max) / 2;
-    return [[c - span / 2, c + span / 2]];
+  if (needed <= last + 1e-9) {
+    const c = (min + max) / 2, half = last / scale / 2;
+    return [[c - half, c + half]];
   }
   const step = size - TILE_OVERLAP;
-  const count = 1 + Math.ceil((needed - size) / step);
+  const count = 1 + Math.ceil((needed - last) / step - 1e-9);
   return Array.from({ length: count }, (_, i) => {
     const start = min + (i * step) / scale;
-    return [start, start + span];
+    return [start, start + (i === count - 1 ? last : size) / scale];
   });
 }
 
