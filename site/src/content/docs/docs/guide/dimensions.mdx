@@ -5,6 +5,15 @@ sidebar:
   order: 5
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import ScreenshotRow from "@/components/ScreenshotRow.astro";
+import toolbarButton from "@/assets/screenshots/dimensions/toolbar-button.png";
+import placing from "@/assets/screenshots/dimensions/placing.png";
+import selected from "@/assets/screenshots/dimensions/selected.png";
+import radiusAll from "@/assets/screenshots/dimensions/radius-all.png";
+import radiusEach from "@/assets/screenshots/dimensions/radius-each.png";
+import cornersPanel from "@/assets/screenshots/dimensions/corners-panel.png";
+
 Dimensions show a shape's size on the drawing: a rectangle's width and
 height, a circle's diameter, a line's length. They're drawn in blue, on
 screen and on paper, and they always show the shape's current size.
@@ -15,12 +24,15 @@ screen and on paper, and they always show the shape's current size.
   by default), a new rectangle, circle or line gets its dimensions as you
   draw it. Turn it off to draw without them. It's your own setting,
   remembered in your browser.
+  <Screenshot src={toolbarButton} alt="Part of the toolbar: Redo, Rotate and Duplicate, then Dimension new shapes, pressed, then the line styles; its tooltip reads: Dimension new shapes: on. Drawing a rectangle, circle or line adds its dimensions" />
 - **From the panel**: the **dimensions** row has a checkbox for each size
   the shape has; tick it to add that dimension, untick to remove it.
 - **With the Dimension tool** (**D**): point at a rectangle's edge (top or
   bottom for its width, a side for its height), a circle's outline or a
   line, then click where the dimension should go. Or press, drag and
   release. The tool stays selected for the next one; Escape cancels.
+
+<Screenshot src={placing} alt="The Dimension tool placing a rectangle's width: after a click on its top edge, the dimension, dashed and reading 100, follows the pointer above the rectangle" />
 
 To measure between two points that aren't one shape's size, draw a line
 between them (it snaps to both) and dimension its length.
@@ -33,11 +45,18 @@ With the Select tool, click a dimension to select it, then:
   the other side;
 - press **Delete** to remove it.
 
+<Screenshot src={selected} alt="A rectangle's height dimension, 50, selected in orange and dragged further out to the left; the width dimension above stays blue" />
+
 ## Radius labels
 
 A rounded corner can carry a radius label, "R10", inside its curve. Click
 a rounded corner with the Dimension tool to add or remove one, or tick
 **label** beside the corner in the panel.
+
+<ScreenshotRow>
+  <Screenshot src={radiusAll} alt="A rectangle with all four corners rounded alike and one label, 4× R10" />
+  <Screenshot src={radiusEach} alt="A rectangle with its corners set separately: R20 top left, R10 top right and bottom right, each labelled, and a sharp bottom-left corner" />
+</ScreenshotRow>
 
 A rectangle's **corner radii** have an **all** switch, on by default: one
 radius and one label checkbox for all four corners. With all four corners
@@ -45,6 +64,8 @@ equal, a single label reads "4× R10". Switch **all** off to set each
 corner on its own; switching it back on gives every corner the largest
 radius. Radii too big for the rectangle are reduced to fit, and the panel
 says so.
+
+<Screenshot src={cornersPanel} alt="The rectangle's panel with all switched off under corner radii: top-left 20, top-right 10 and bottom-right 10 mm, each with label ticked, and bottom-left 0 with its label greyed out" />
 
 ## Showing and printing
 

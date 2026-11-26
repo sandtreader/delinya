@@ -198,7 +198,100 @@ const SCENES = {
     await shot(page, "selecting-and-editing/turning", await drawingBox(page));
     await page.mouse.up();
   },
+
+  async dimensions(open) {
+    // Dimension new shapes in the toolbar, on as it starts, with its tooltip.
+    let page = await open(NARROW);
+    await toolbarButton(page, "dimensions/toolbar-button", "Dimension new shapes");
+
+    // The Dimension tool: the top edge clicked, the width dimension following the pointer up.
+    page = await open(NARROW);
+    await noDimensions(page);
+    await draw(page, "r", [200, 240], [400, 340]);
+    await page.keyboard.press("d");
+    await clickAt(page, [300, 240]);
+    const up = await at(page, [300, 196]);
+    await page.mouse.move(up.x, up.y, { steps: 8 });
+    await page.waitForTimeout(150);
+    await shot(page, "dimensions/placing", await drawingBox(page));
+
+    // A rectangle's height dimension selected and dragged further out.
+    page = await open(NARROW);
+    await draw(page, "r", [260, 240], [460, 340]);
+    const label = page.locator(".canvas-area svg g.dimension text", { hasText: /^50$/ });
+    const b = await label.boundingBox();
+    const grip = { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+    await page.mouse.click(grip.x, grip.y);
+    await page.mouse.move(grip.x, grip.y);
+    await page.mouse.down();
+    await page.mouse.move(grip.x - 40, grip.y, { steps: 10 });
+    await page.mouse.up();
+    await park(page);
+    await shot(page, "dimensions/selected", await drawingBox(page));
+
+    // Radius labels: all four corners alike ("4× R10"), then each on its own.
+    page = await open(NARROW);
+    await noDimensions(page);
+    await draw(page, "r", [140, 220], [340, 340], { deselect: false });
+    await setInput(page, page.getByLabel("Radius of all corners"), "10");
+    await page.getByLabel("Label the radius").click();
+    await deselect(page);
+    await shot(page, "dimensions/radius-all", await drawingBox(page));
+
+    page = await open(NARROW);
+    await noDimensions(page);
+    await draw(page, "r", [140, 220], [340, 340], { deselect: false });
+    await page.getByLabel("Same radius on all corners").click();
+    for (const [corner, r] of [["top-left", "20"], ["top-right", "10"], ["bottom-right", "10"], ["bottom-left", "0"]]) {
+      await setInput(page, page.getByLabel(`${corner} radius`, { exact: true }), r);
+      if (r !== "0") await page.getByLabel(`Label the ${corner} radius`).click();
+    }
+    await page.evaluate(() => document.activeElement?.blur());
+    await park(page);
+    await shot(page, "dimensions/corners-panel", page.locator(".selection-panel"), PAD);
+    await deselect(page);
+    await shot(page, "dimensions/radius-each", await drawingBox(page));
+  },
 };
+
+/**
+ * Saves a toolbar button in context: hovered until its tooltip shows,
+ * cropped to it and `around` controls either side, with the tooltip.
+ */
+async function toolbarButton(page, name, label, around = 2) {
+  const controls = page.locator(".toolbar").locator("button, select");
+  const labels = await controls.evaluateAll((els) => els.map((el) => el.getAttribute("aria-label")));
+  const i = labels.indexOf(label);
+  if (i < 0) throw new Error(`No toolbar button "${label}"`);
+  const button = controls.nth(i);
+  const first = await controls.nth(Math.max(0, i - around)).boundingBox();
+  const last = await controls.nth(Math.min(labels.length - 1, i + around)).boundingBox();
+  const bar = await page.locator(".toolbar").boundingBox();
+  await button.hover();
+  const tip = page.locator(".tooltip");
+  await tip.waitFor({ state: "visible" });
+  await page.waitForTimeout(200);
+  const t = await tip.boundingBox();
+  // Take in the tooltip, then whole controls wherever an edge would cut one.
+  // The margin is 8 px, or half the gap to the next control if that's less.
+  const boxes = await controls.evaluateAll((els) => els.map((el) => { const r = el.getBoundingClientRect(); return { l: r.left, r: r.right }; }));
+  let left = Math.min(first.x, t.x), right = Math.max(last.x + last.width, t.x + t.width);
+  for (const b of boxes) {
+    if (b.l < left && b.r > left) left = b.l;
+    if (b.l < right && b.r > right) right = b.r;
+  }
+  const before = Math.max(bar.x, ...boxes.filter((b) => b.r <= left).map((b) => b.r));
+  const after = Math.min(bar.x + bar.width, ...boxes.filter((b) => b.l >= right).map((b) => b.l));
+  const x = left - Math.min(8, (left - before) / 2), end = right + Math.min(8, (after - right) / 2);
+  await shot(page, name, { x, y: bar.y, width: end - x, height: t.y + t.height + 8 - bar.y });
+}
+
+/** Types a value into a field and leaves it with Tab, which applies it. */
+async function setInput(page, input, value) {
+  await input.click({ clickCount: 3 });
+  await page.keyboard.type(value);
+  await page.keyboard.press("Tab");
+}
 
 /** Turns off Dimension new shapes, for pictures about the shapes themselves. */
 async function noDimensions(page) {
