@@ -335,6 +335,11 @@ export function selectableOnly(r: Resolved, ids: EntityId[], view: LayerView): E
   return ids.filter((id) => isSelectable(r, id, view));
 }
 
+/** Every shape that can be selected (on a visible, unlocked layer), in draw order: what ⌘A selects. */
+export function allSelectable(r: Resolved, view: LayerView): EntityId[] {
+  return selectableOnly(r, r.order, view);
+}
+
 export const EditorContext = createContext<{ editor: EditorState; dispatch: Dispatch<EditorAction> } | null>(null);
 
 export function useEditor() {

@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useReducer, type CSSProperties } from "react";
 import {
-  EditorContext, editorReducer, initialEditor, selectableOnly, selectedPathNode, selectedPathSegment, useEditor, type Tool,
+  EditorContext, allSelectable, editorReducer, initialEditor, selectableOnly, selectedPathNode, selectedPathSegment, useEditor, type Tool,
 } from "./app/editor";
 import { store, useDocument } from "./app/store";
 import { deleteEntity, isSelectable } from "./model";
@@ -148,6 +148,15 @@ function Shell() {
         return;
       }
       if (mod && e.key.toLowerCase() === "y") { e.preventDefault(); store.redo(); return; }
+      // ⌘A selects every shape on a visible, unlocked layer, with the
+      // Select tool, never the page's text. (In a field, above, it's the
+      // field's own select-all.)
+      if (mod && e.key.toLowerCase() === "a" && !e.shiftKey && !e.altKey) {
+        e.preventDefault();
+        dispatch({ type: "tool", tool: "select" });
+        dispatch({ type: "select", ids: allSelectable(store.resolved, editor.layerView) });
+        return;
+      }
       if (mod) return;
       // A path's selected node or segment comes first: Delete takes it, not
       // the path, and Escape lets go of it. (While a path is being drawn, the
@@ -194,7 +203,7 @@ function Shell() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [editor.selection, editor.label, editor.dialog, editor.duplicate, editor.tool, editor.node, editor.segment, dispatch, file]);
+  }, [editor.selection, editor.label, editor.dialog, editor.duplicate, editor.tool, editor.node, editor.segment, editor.layerView, dispatch, file]);
 
   return (
     <div className="app" style={APP_COLOURS}>

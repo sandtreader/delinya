@@ -894,7 +894,9 @@ through `useSyncExternalStore`.
   drawing (not with Shift or Alt), ⌘P print/export, ⌘D one copy of the selection in
   the Duplicate card's direction and gap (always one, unlinked, whatever
   its count and links; via `duplicateBeside`), selecting it so repeating
-  carries on the row. File keys and ⌘D
+  carries on the row, ⌘A every shape on a visible, unlocked layer
+  (`allSelectable`, with the Select tool; never the page's text, but a
+  field's own select-all in a field). File keys and ⌘D
   work from inside a field: they blur it first so its value commits.
 
 ### Output (`src/output/`, all pure, fully tested)
@@ -1343,8 +1345,6 @@ reference generator and screenshot scripts.
 6. Collaboration extras: show other people's selections (shapes someone
    else has selected outlined in their cursor colour; presence already
    carries `selection`).
-7. ⌘A selects every shape (on visible, unlocked layers) instead of the
-   page's text, except while typing in a field.
 
 ## Gotchas for whoever picks this up
 

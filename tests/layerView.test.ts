@@ -4,7 +4,7 @@ import { BASE_LAYER_ID, KINDS, addRect, linkAlign, resolve } from "../src/model"
 import { snapPoint } from "../src/canvas/snap";
 import { linkGuides } from "../src/view/linkGuides";
 import { dropIndex } from "../src/view/reorder";
-import { currentLayer, editorReducer, initialEditor, selectableOnly } from "../src/app/editor";
+import { allSelectable, currentLayer, editorReducer, initialEditor, selectableOnly } from "../src/app/editor";
 import { doc } from "./helpers";
 
 const layer = (id: string, order: number, props: Record<string, unknown> = {}): Change =>
@@ -97,5 +97,13 @@ describe("dropIndex", () => {
     expect(dropIndex(centres, 2, 5)).toBe(0);
     expect(dropIndex(centres, 2, 25)).toBe(1);
     expect(dropIndex(centres, 1, 41)).toBe(1);
+  });
+});
+
+describe("select all (⌘A)", () => {
+  it("takes every shape on visible, unlocked layers, in draw order", () => {
+    expect(allSelectable(r, view)).toEqual(["base"]);
+    expect(allSelectable(r, { hidden: new Set(), locked: new Set() })).toEqual(["base", "h", "l"]);
+    expect(allSelectable(resolve(doc()), view)).toEqual([]);
   });
 });
