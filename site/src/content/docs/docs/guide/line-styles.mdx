@@ -5,6 +5,11 @@ sidebar:
   order: 8
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import toolbar from "@/assets/screenshots/line-styles/toolbar.png";
+import patterns from "@/assets/screenshots/line-styles/patterns.png";
+import widths from "@/assets/screenshots/line-styles/widths.png";
+
 Lines, rectangles, circles and paths each have a line style: a pattern
 and a pen width. Text has none.
 
@@ -14,11 +19,15 @@ The **line style** group in the toolbar has four pattern buttons, **Solid**,
 **Dashed**, **Dotted** and **Dash-dot** (a centre line), and a **width**
 menu.
 
+<Screenshot src={toolbar} alt="The line style group from the toolbar: Solid (pressed), Dashed, Dotted and Dash-dot buttons, and the width menu showing 0.35 mm" />
+
 - With nothing selected, it shows and sets the style for the shapes you
   draw next. Your choice is remembered in your browser.
 - With shapes selected, it shows theirs ("mixed" where they differ), and
   a choice restyles them as well as setting the style for what you draw
   next.
+
+<Screenshot src={patterns} alt="Four lines at 0.35 mm, top to bottom: solid, dashed, dotted and dash-dot" />
 
 ## Widths are pen widths
 
@@ -26,6 +35,8 @@ The widths are the standard technical pen sizes: 0.13, 0.18, 0.25, 0.35
 (the default), 0.5, 0.7, 1, 1.4 and 2 mm. They are widths **on paper**: a
 0.5 mm line prints 0.5 mm wide at 1:1 or at 1:10, and looks the same
 thickness on screen at any zoom.
+
+<Screenshot src={widths} alt="Five solid lines, each labelled with its width: 0.18, 0.35, 0.7, 1.4 and 2 mm, from hairline to bold" />
 
 The dash lengths follow the ISO standard, in proportion to the width,
 but no shorter than for 0.35 mm, so thin lines still look dashed.

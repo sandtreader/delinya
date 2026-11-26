@@ -342,6 +342,36 @@ const SCENES = {
     await park(page);
     await shot(page, "layers/layer-menu", page.locator(".selection-panel"), PAD);
   },
+
+  async "line-styles"(open) {
+    // The toolbar's line style group, as it starts: Solid, 0.35 mm.
+    let page = await open(NARROW);
+    const group = await around(page, ['.toolbar button[aria-label="Solid line"]', ".toolbar select.line-width"]);
+    const bar = await page.locator(".toolbar").boundingBox();
+    await shot(page, "line-styles/toolbar", { ...group, y: bar.y, height: bar.height });
+
+    // The four patterns at the default width, top to bottom in the buttons' order.
+    page = await open(NARROW);
+    await noDimensions(page);
+    for (const [i, dash] of ["Solid line", "Dashed line", "Dotted line", "Dash-dot (centre) line"].entries()) {
+      await page.locator(".toolbar").getByRole("button", { name: dash, exact: true }).click();
+      await draw(page, "l", [160, 180 + i * 50], [440, 180 + i * 50]);
+    }
+    await shot(page, "line-styles/patterns", await drawingBox(page));
+
+    // A ladder of pen widths, each labelled.
+    page = await open(NARROW);
+    await noDimensions(page);
+    for (const [i, width] of ["0.18", "0.35", "0.7", "1.4", "2"].entries()) {
+      const y = 170 + i * 40;
+      await page.locator(".toolbar select.line-width").selectOption(width);
+      await deselect(page);
+      await draw(page, "l", [160, y], [400, y]);
+      await addText(page, [420, y - 10], [540, y], [`${width} mm`], { size: "6" });
+      await deselect(page);
+    }
+    await shot(page, "line-styles/widths", await drawingBox(page));
+  },
 };
 
 /**
@@ -454,23 +484,24 @@ const textBox = (top) => [[120, top], [480, top + 20]];
 /**
  * Draws a text box with the Text tool and types `lines` into it on the
  * drawing; `finish: false` leaves it being typed into. Finishing (Escape)
- * sets a round 10 mm size in the panel and leaves the box selected.
+ * sets a round size in the panel (10 mm unless given) and leaves the box
+ * selected.
  */
-async function addText(page, from, to, lines, { finish = true } = {}) {
+async function addText(page, from, to, lines, { finish = true, size = "10" } = {}) {
   await page.keyboard.press("t");
   await drag(page, from, to);
   for (const [i, line] of lines.entries()) {
     if (i) await page.keyboard.press("Enter");
     await page.keyboard.type(line);
   }
-  if (finish) await finishText(page);
+  if (finish) await finishText(page, size);
   await park(page);
 }
 
-/** Finishes typing on the drawing, then sets the box's size to 10 mm. */
-async function finishText(page) {
+/** Finishes typing on the drawing, then sets the box's size (10 mm unless given). */
+async function finishText(page, size = "10") {
   await page.keyboard.press("Escape");
-  await setFields(page, { size: "10" });
+  await setFields(page, { size });
 }
 
 /** Deselects: out of any field first, since a focused field keeps Escape to itself. */
