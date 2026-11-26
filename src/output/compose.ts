@@ -3,14 +3,16 @@
 // The drawing becomes primitives once, sized so text and ticks come out
 // at STYLE sizes on paper, then each tile maps them into its drawing area.
 // Every page also gets furniture: a check ruler and title block in the
-// footer band, a small "Delinya" under the block, and dashed guides where
-// it overlaps its neighbours.
+// footer band (each optional; no band when both are off), a small
+// "Delinya" in the margin under the title block, and dashed guides where
+// it overlaps its neighbours. Without a title block there's no "Delinya",
+// and tiled sheets get their label in the bottom margin instead.
 
 import { type Bounds, type EntityId, type Path, type PathElement, type Point, type Resolved, arc, cubic, isVisible, segment } from "../model";
 import { planPages } from "./layout";
 import { formatScale } from "./paper";
 import { drawingPrimitives, primitivesBounds } from "./primitives";
-import { PAGE_MARGIN, RULER_LENGTH, STYLE, TILE_OVERLAP, TITLE_BLOCK } from "./style";
+import { FOOTER_HEIGHT, PAGE_MARGIN, RULER_LENGTH, STYLE, TILE_OVERLAP, TITLE_BLOCK } from "./style";
 import { textWidth, wrapText } from "./text";
 import type { PageDrawing, PagePlan, PageTile, PathPrim, Primitive, PrintOptions, Rect, TextPrim, TitleInfo } from "./types";
 
@@ -21,16 +23,17 @@ export function composePages(resolved: Resolved, options: PrintOptions, info: Ti
   const prims = drawingPrimitives(resolved, { dimensions: options.dimensions, textSize: STYLE.textSize / scale, tick: STYLE.tick / scale, hidden });
   const b = primitivesBounds(prims);
   if (!b) return null;
-  const plan = planPages(pad(b, STYLE.padding / scale), options);
+  const footer = options.ruler || options.titleBlock ? FOOTER_HEIGHT : 0;
+  const plan = planPages(pad(b, STYLE.padding / scale), { ...options, footer });
   const pages = plan.tiles.map((tile, i): PageDrawing => ({
     width: plan.width,
     height: plan.height,
     clip: { ...plan.area },
     content: prims.map((p) => toPaper(p, tile.window, plan.area, scale)),
     furniture: [
-      ...checkRuler(plan),
-      ...titleBlock(plan, info, sheetName(plan, tile, i)),
-      watermark(plan),
+      ...(options.ruler ? checkRuler(plan) : []),
+      ...(options.titleBlock ? [...titleBlock(plan, info, sheetName(plan, tile, i)), watermark(plan)]
+        : plan.tiles.length > 1 ? [sheetLabel(plan, sheetName(plan, tile, i))] : []),
       ...overlapGuides(plan, tile),
     ],
   }));
@@ -152,14 +155,20 @@ function titleBlock(plan: PagePlan, info: TitleInfo, sheet: string): Primitive[]
   return out;
 }
 
-/** A small "Delinya" just below the title block, right-aligned with it, in the page margin. */
+/** A small "Delinya" just below the title block, right-aligned with it, in the page margin. Only with the block. */
 function watermark(plan: PagePlan): TextPrim {
   const right = plan.width - PAGE_MARGIN, bottom = plan.height - PAGE_MARGIN;
   return furnitureText([right, bottom + WATERMARK.gap + 0.75 * WATERMARK.size], "Delinya", WATERMARK.size, "end");
 }
 
-/** The watermark's text size and its clearance below the block, mm. */
+/** The watermark's text size and its clearance below the block, mm; the sheet label shares the gap. */
 const WATERMARK = { size: 2, gap: 1.5 };
+
+/** A tiled sheet's label, in the page margin at the bottom left, when there's no title block to carry it. */
+function sheetLabel(plan: PagePlan, sheet: string): TextPrim {
+  const size = STYLE.footerTextSize, bottom = plan.height - PAGE_MARGIN;
+  return furnitureText([PAGE_MARGIN, bottom + WATERMARK.gap + 0.75 * size], `Sheet ${sheet}`, size);
+}
 
 /** A cell's label, top-left of the cell whose corner is (x, y). */
 const label = (x: number, y: number, text: string) => furnitureText([x + TB.pad, y + 0.9 + 0.75 * TB.label], text, TB.label);

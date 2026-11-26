@@ -1,5 +1,6 @@
-// Print and export: paper, orientation, scale and dimensions, a live
-// preview of the pages, then Print, PDF, SVG or DXF.
+// Print and export: paper, orientation, scale, dimensions, title block
+// and check ruler, a live preview of the pages, then Print, PDF, SVG or
+// DXF.
 //
 // Print and PDF draw the same composed pages as the preview. SVG and DXF
 // are always full size in mm; DXF carries shapes only, for CNC and laser.
@@ -21,12 +22,12 @@ import { tip } from "./tip";
 const PREVIEW_LIMIT = 24;
 const STORAGE_KEY = "delinya.output";
 
-type Stored = Pick<PrintOptions, "orientation" | "dimensions"> & { paper: string };
+type Stored = Pick<PrintOptions, "orientation" | "dimensions" | "ruler" | "titleBlock"> & { paper: string };
 /** The dialog's own choices; the hidden layers come from the editor. */
 type Choices = Omit<PrintOptions, "hidden">;
 
-// Paper, orientation and dimensions are remembered per browser; scale only
-// for this session, since it belongs to the drawing.
+// Paper, orientation and the checkboxes are remembered per browser; scale
+// only for this session, since it belongs to the drawing.
 let sessionScale: number | null = null;
 
 function loadStored(): Stored {
@@ -34,6 +35,8 @@ function loadStored(): Stored {
     paper: /^en-(US|CA)$/i.test(navigator.language) ? "Letter" : "A4",
     orientation: "auto",
     dimensions: true,
+    ruler: false,
+    titleBlock: true,
   };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -45,7 +48,8 @@ function loadStored(): Stored {
 
 function saveStored(o: Choices): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ paper: o.paper.name, orientation: o.orientation, dimensions: o.dimensions }));
+    const stored: Stored = { paper: o.paper.name, orientation: o.orientation, dimensions: o.dimensions, ruler: o.ruler, titleBlock: o.titleBlock };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(stored));
   } catch { /* private mode: not remembered */ }
 }
 
@@ -65,7 +69,10 @@ export function OutputDialog() {
 
   const [choices, setChoices] = useState<Choices>(() => {
     const s = loadStored();
-    const base: Choices = { paper: PAPERS.find((p) => p.name === s.paper) ?? PAPERS[0]!, orientation: s.orientation, dimensions: s.dimensions, scale: 1 };
+    const base: Choices = {
+      paper: PAPERS.find((p) => p.name === s.paper) ?? PAPERS[0]!, orientation: s.orientation, scale: 1,
+      dimensions: s.dimensions, ruler: s.ruler, titleBlock: s.titleBlock,
+    };
     return { ...base, scale: sessionScale ?? fitToSheet(resolved, { ...base, hidden }, info) };
   });
   const options = useMemo<PrintOptions>(() => ({ ...choices, hidden }), [choices, hidden]);
@@ -136,12 +143,20 @@ export function OutputDialog() {
                 <input type="checkbox" checked={options.dimensions} onChange={(e) => update({ dimensions: e.target.checked })} />
                 Dimensions and radius labels
               </label>
+              <label className="row check">
+                <input type="checkbox" checked={options.titleBlock} onChange={(e) => update({ titleBlock: e.target.checked })} />
+                Title block
+              </label>
+              <label className="row check">
+                <input type="checkbox" checked={options.ruler} onChange={(e) => update({ ruler: e.target.checked })} />
+                100 mm check ruler
+              </label>
               <p className="hint">
                 {plan
-                  ? sheets === 1 ? "One sheet." : `${sheets} sheets (${plan.rows} × ${plan.cols}), overlapping 10 mm for taping. Labels A1, A2… in each title block.`
+                  ? sheets === 1 ? "One sheet." : `${sheets} sheets (${plan.rows} × ${plan.cols}), overlapping 10 mm for taping. Labels A1, A2… ${options.titleBlock ? "in each title block" : "at the foot of each sheet"}.`
                   : "Nothing to print yet."}
               </p>
-              <p className="hint">Print at 100% / “Actual size”, then check the ruler measures 100 mm.</p>
+              <p className="hint">Print at 100% / “Actual size”{options.ruler ? ", then check the ruler measures 100 mm." : "."}</p>
               <div className="buttons">
                 <button className="primary" disabled={!composed} onClick={print} {...tip("Print (⌘P)")}>Print…</button>
                 <button disabled={!composed} onClick={download.pdf}>Download PDF</button>

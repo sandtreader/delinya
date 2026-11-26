@@ -8,7 +8,7 @@ import { doc } from "../helpers";
 
 const A4 = PAPERS.find((p) => p.name === "A4")!;
 const INFO: TitleInfo = { title: "Bench", author: "PRC", revision: "C", notes: "" };
-const opts: PrintOptions = { paper: A4, orientation: "portrait", scale: 1, dimensions: false };
+const opts: PrintOptions = { paper: A4, orientation: "portrait", scale: 1, dimensions: false, ruler: false, titleBlock: true };
 
 describe("print watermark", () => {
   it("puts a small \"Delinya\" just below the title block, right-aligned with it, on every page", () => {
@@ -30,5 +30,14 @@ describe("print watermark", () => {
       expect(m.at[1]).toBeLessThan(page.height - PAGE_MARGIN / 2);
       expect(m.size).toBeLessThanOrEqual(2.5);
     }
+  });
+
+  it("goes with the title block: left out when the block is", () => {
+    const r = resolve(doc(addRect("a", { x: 0, y: 0, width: 500, height: 300 })));
+    const marks = (o: PrintOptions) => composePages(r, o, INFO)!.pages
+      .flatMap((page) => page.furniture.filter((p): p is TextPrim => p.kind === "text" && p.text === "Delinya"));
+    expect(marks(opts).length).toBeGreaterThan(1);
+    expect(marks({ ...opts, titleBlock: false })).toHaveLength(0);
+    expect(marks({ ...opts, titleBlock: false, ruler: true })).toHaveLength(0);
   });
 });

@@ -9,7 +9,7 @@ import { doc } from "../helpers";
 
 const A4 = PAPERS.find((p) => p.name === "A4")!;
 const INFO: TitleInfo = { title: "Bench", author: "PRC", revision: "C", notes: "Glue up after dry fit" };
-const opts = (o: Partial<PrintOptions> = {}): PrintOptions => ({ paper: A4, orientation: "portrait", scale: 1, dimensions: false, ...o });
+const opts = (o: Partial<PrintOptions> = {}): PrintOptions => ({ paper: A4, orientation: "portrait", scale: 1, dimensions: false, ruler: true, titleBlock: true, ...o });
 
 const rect = (w: number, h: number) => resolve(doc(addRect("a", { x: 0, y: 0, width: w, height: h })));
 const withDims = (w: number, h: number) => resolve(doc(
@@ -127,6 +127,57 @@ describe("composePages", () => {
     const sheet2 = blockTexts(out.pages[1]!).map((t) => t.text).join("\n");
     expect(sheet2).toContain("A2");
     expect(sheet2).toContain("2 of 3");
+  });
+
+  describe("optional ruler and title block", () => {
+    const hasRuler = (page: PageDrawing) => textsOf(page.furniture).some((t) => /100 mm/.test(t.text));
+    const hasBlock = (page: PageDrawing) => blockTexts(page).some((t) => t.text === "TITLE");
+    const sheetLabels = (page: PageDrawing) => textsOf(page.furniture).filter((t) => t.text.startsWith("Sheet "));
+
+    it("leaves out the ruler but keeps the footer band for the title block", () => {
+      const page = composePages(rect(100, 50), opts({ ruler: false }), INFO)!.pages[0]!;
+      expect(hasRuler(page)).toBe(false);
+      expect(hasBlock(page)).toBe(true);
+      expect(page.clip.height).toBe(297 - 20 - FOOTER_HEIGHT);
+    });
+
+    it("leaves out the title block but keeps the footer band for the ruler", () => {
+      const page = composePages(rect(100, 50), opts({ titleBlock: false }), INFO)!.pages[0]!;
+      expect(hasBlock(page)).toBe(false);
+      expect(textsOf(page.furniture).some((t) => t.text === "Bench")).toBe(false);
+      expect(hasRuler(page)).toBe(true);
+      expect(page.clip.height).toBe(297 - 20 - FOOTER_HEIGHT);
+      expect(sheetLabels(page)).toHaveLength(0);
+    });
+
+    it("drops the footer band when both are off, so the drawing area reaches the bottom margin", () => {
+      const out = composePages(rect(100, 50), opts({ ruler: false, titleBlock: false }), INFO)!;
+      const page = out.pages[0]!;
+      expect(page.clip).toEqual({ x: 10, y: 10, width: 190, height: 297 - 20 });
+      expect(hasRuler(page)).toBe(false);
+      expect(hasBlock(page)).toBe(false);
+      expect(page.furniture).toEqual([]);
+    });
+
+    it("fits more on a sheet without the footer band", () => {
+      // 260 mm tall: too tall for A4 portrait's area with the band (247 mm), fits without (277 mm).
+      expect(composePages(rect(100, 260), opts(), INFO)!.pages.length).toBe(2);
+      expect(composePages(rect(100, 260), opts({ ruler: false, titleBlock: false }), INFO)!.pages.length).toBe(1);
+    });
+
+    it("labels tiled sheets in the bottom margin when there's no title block", () => {
+      const out = composePages(rect(400, 100), opts({ titleBlock: false }), INFO)!;
+      expect(out.pages.length).toBe(3);
+      out.pages.forEach((page, i) => {
+        const [label] = sheetLabels(page);
+        expect(label?.text).toBe(`Sheet A${i + 1} (${i + 1} of 3)`);
+        expect(label!.at[0]).toBe(PAGE_MARGIN);
+        expect(label!.at[1] - 0.75 * label!.size).toBeGreaterThan(page.height - PAGE_MARGIN);
+        expect(label!.at[1]).toBeLessThan(page.height);
+      });
+      // With the block, the label is in the block instead.
+      expect(sheetLabels(composePages(rect(400, 100), opts(), INFO)!.pages[1]!)).toHaveLength(0);
+    });
   });
 
   it("honours auto orientation", () => {

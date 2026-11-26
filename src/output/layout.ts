@@ -10,12 +10,16 @@ import { SCALES } from "./paper";
 import { FOOTER_HEIGHT, PAGE_MARGIN, TILE_OVERLAP } from "./style";
 import type { Orientation, PagePlan, PageTile, Paper, PrintOptions, Rect } from "./types";
 
-export type PlanOptions = Pick<PrintOptions, "paper" | "orientation" | "scale">;
+export type PlanOptions = Pick<PrintOptions, "paper" | "orientation" | "scale"> & {
+  /** Height of the footer band below the drawing area, mm: FOOTER_HEIGHT unless given; 0 when it would be empty. */
+  footer?: number;
+};
 
 export function planPages(bounds: Bounds, o: PlanOptions): PagePlan {
-  if (o.orientation !== "auto") return planOriented(bounds, o.paper, o.orientation, o.scale);
-  const portrait = planOriented(bounds, o.paper, "portrait", o.scale);
-  const landscape = planOriented(bounds, o.paper, "landscape", o.scale);
+  const footer = o.footer ?? FOOTER_HEIGHT;
+  if (o.orientation !== "auto") return planOriented(bounds, o.paper, o.orientation, o.scale, footer);
+  const portrait = planOriented(bounds, o.paper, "portrait", o.scale, footer);
+  const landscape = planOriented(bounds, o.paper, "landscape", o.scale, footer);
   return landscape.tiles.length < portrait.tiles.length ? landscape : portrait;
 }
 
@@ -27,11 +31,11 @@ export function fitScale(bounds: Bounds, paper: Paper, orientation: Orientation 
   return SCALES[SCALES.length - 1]!;
 }
 
-function planOriented(bounds: Bounds, paper: Paper, orientation: Orientation, scale: number): PagePlan {
+function planOriented(bounds: Bounds, paper: Paper, orientation: Orientation, scale: number, footer: number): PagePlan {
   const [width, height] = orientation === "portrait" ? [paper.width, paper.height] : [paper.height, paper.width];
   const area: Rect = {
     x: PAGE_MARGIN, y: PAGE_MARGIN,
-    width: width - 2 * PAGE_MARGIN, height: height - 2 * PAGE_MARGIN - FOOTER_HEIGHT,
+    width: width - 2 * PAGE_MARGIN, height: height - 2 * PAGE_MARGIN - footer,
   };
   const xs = windows(bounds.minX, bounds.maxX, area.width, scale);
   const ys = windows(bounds.minY, bounds.maxY, area.height, scale);

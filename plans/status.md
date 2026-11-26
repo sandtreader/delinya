@@ -19,7 +19,7 @@ paths of straight and curved segments), move, resize, edit path nodes, type exac
 link equal values and equal spacing, put shapes on layers (with line
 colours, see-through fills and patterns), undo,
 save/load local files, print at
-scale (tiled if needed, with a check ruler and title block) and export PDF,
+scale (tiled if needed, with a title block and optional check ruler) and export PDF,
 SVG and DXF. Collaboration is SynFlo's: a Collaborate card from the
 toolbar (the shared session panel), share links and other people's
 cursors, through the relay at /collab.
@@ -860,10 +860,12 @@ through `useSyncExternalStore`.
 - **Print / Export** (`panels/OutputDialog.tsx`, ⌘P): paper (A0–A4,
   Letter, Legal, Tabloid), orientation (auto picks fewer sheets), scale
   (2:1 … 1:100, Fit = largest that fits one sheet), dimensions on/off,
-  live preview of every sheet. Print uses `window.print()` on true-size
+  title block (default on), 100 mm check ruler (default off), live
+  preview of every sheet. Print uses `window.print()` on true-size
   page SVGs with an `@page` rule (`app/print.ts`); Download PDF writes the
-  same pages. SVG and DXF download at 1:1 mm. Paper, orientation and
-  dimensions are remembered in localStorage; scale only for the session.
+  same pages. SVG and DXF download at 1:1 mm. Paper, orientation and the
+  three checkboxes are remembered in localStorage (`delinya.output`);
+  scale only for the session.
 - **About** (`panels/AboutDialog.tsx`): "Delinya" at the left of the
   header opens it: name, version (`app/version.ts`, package.json via
   Vite's `define` `__APP_VERSION__`) and a placeholder line until the
@@ -904,12 +906,17 @@ through `useSyncExternalStore`.
   (shapes on a coloured layer; see Layers). The canvas takes its
   `--dimension` colour from the same constant, so screen and paper match.
 - `planPages` lays the drawing onto sheets at a scale: margins 10 mm, a
-  30 mm footer band, tiles overlapping 10 mm and labelled A1, A2, … B1.
+  footer band (`footer`, 30 mm by default), tiles overlapping 10 mm and
+  labelled A1, A2, … B1.
 - `composePages` gives each sheet in paper mm: the drawing (clipped to
-  the area), a 100 mm check ruler, overlap guides, and an 80 × 30 mm
-  title block bottom right (title, author, revision, scale, sheet,
-  notes; title falls back to the file name), and a small 2 mm "Delinya"
-  right-aligned just below the block, in the page margin.
+  the area), overlap guides, and in the 30 mm footer band an optional
+  100 mm check ruler bottom left (`PrintOptions.ruler`) and an optional
+  80 × 30 mm title block bottom right (`titleBlock`: title, author,
+  revision, scale, sheet, notes; title falls back to the file name).
+  With both off there is no band and the drawing area reaches the bottom
+  margin. With the block, a small 2 mm "Delinya" sits right-aligned just
+  below it, in the page margin; without the block there's no "Delinya",
+  and tiled sheets get "Sheet A2 (2 of 3)" at the bottom left of the margin.
 - `pageToSvg` (preview and print), `exportPdf` (hand-written PDF 1.4,
   standard Helvetica, no dependencies), `exportSvg` (1:1 mm) and
   `exportDxf` (R12, mm, y flipped, shapes only; rects become closed

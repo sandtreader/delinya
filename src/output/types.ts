@@ -83,6 +83,10 @@ export interface PrintOptions {
   scale: number;
   /** Include dimensions and radius labels. */
   dimensions: boolean;
+  /** The 100 mm check ruler, bottom left. */
+  ruler: boolean;
+  /** The title block, bottom right, with "Delinya" under it; without it a tiled sheet is labelled in the margin. */
+  titleBlock: boolean;
   /** Layers the viewer has hidden: left out, so print is what they see. */
   hidden?: ReadonlySet<EntityId>;
 }
@@ -133,6 +137,6 @@ export interface PageDrawing {
   clip: Rect;
   /** The drawing, already transformed to paper mm. */
   content: Primitive[];
-  /** Check ruler, title block and tile-overlap guides; not clipped. */
+  /** Check ruler, title block and watermark or sheet label, and tile-overlap guides; not clipped. */
   furniture: Primitive[];
 }
