@@ -80,7 +80,7 @@ const SCENES = {
 
     // A line's end snapping to the middle of a rectangle's top edge, mid-drag.
     page = await open(NARROW);
-    await page.getByRole("button", { name: "Dimension new shapes" }).click();
+    await noDimensions(page);
     await draw(page, "r", [330, 240], [590, 400]);
     await page.keyboard.press("l");
     await drag(page, [190, 130], [463, 243], { release: false });
@@ -159,7 +159,52 @@ const SCENES = {
     await deselect(page);
     await shot(page, "text/mirrored", await drawingBox(page));
   },
+
+  async "selecting-and-editing"(open) {
+    // A lasso round the rectangle and circle but not the line: those two select as it goes.
+    let page = await open(NARROW);
+    await noDimensions(page);
+    await draw(page, "r", [120, 200], [220, 280]);
+    await draw(page, "c", [300, 240], [340, 240]);
+    await draw(page, "l", [400, 280], [480, 200]);
+    await drag(page, [90, 170], [370, 310], { release: false });
+    await shot(page, "selecting-and-editing/lasso", await drawingBox(page));
+    await page.mouse.up();
+
+    // Each kind selected on its own, with its handles.
+    for (const [kind, key, from, to] of [
+      ["rect", "r", [200, 260], [320, 340]],
+      ["circle", "c", [260, 300], [300, 300]],
+      ["line", "l", [200, 340], [320, 260]],
+    ]) {
+      page = await open(NARROW);
+      await noDimensions(page);
+      await draw(page, key, from, to, { deselect: false });
+      await shot(page, `selecting-and-editing/handles-${kind}`, await drawingBox(page));
+    }
+
+    // A rectangle part way through a turn by its rotate handle, 20° clockwise.
+    page = await open(NARROW);
+    await noDimensions(page);
+    await draw(page, "r", [200, 260], [400, 380], { deselect: false });
+    const h = await page.locator(".rotate-handle").boundingBox();
+    const centre = await at(page, [300, 320]);
+    const grip = { x: h.x + h.width / 2, y: h.y + h.height / 2 };
+    const reach = centre.y - grip.y, turn = (20 * Math.PI) / 180;
+    await page.mouse.move(grip.x, grip.y);
+    await page.mouse.down();
+    await page.mouse.move(centre.x + reach * Math.sin(turn), centre.y - reach * Math.cos(turn), { steps: 12 });
+    await page.waitForTimeout(150);
+    await shot(page, "selecting-and-editing/turning", await drawingBox(page));
+    await page.mouse.up();
+  },
 };
+
+/** Turns off Dimension new shapes, for pictures about the shapes themselves. */
+async function noDimensions(page) {
+  await page.getByRole("button", { name: "Dimension new shapes" }).click();
+  await park(page);
+}
 
 /** The text for the Text page's boxes: the name, and what it means. */
 const MEANING = ["Delinya (Cornish / Kernewek):", "vi/vt. to draw or represent"];
@@ -291,7 +336,7 @@ async function park(page) {
 /** What a crop of the drawing takes in: drawn things, and the cards that float by them. */
 const DRAWN = [
   "svg g.shape", "svg g.dimension", "svg g.radius-label", "svg g.link-guide", "svg g.snap", "svg .preview",
-  "svg g.draft-nodes", "svg g.path-nodes", "svg g.handles", "svg g.rotate", ".path-card", ".text-editor",
+  "svg g.draft-nodes", "svg g.path-nodes", "svg g.handles", "svg g.rotate", "svg .lasso", ".path-card", ".text-editor",
 ].join(", ");
 
 /**

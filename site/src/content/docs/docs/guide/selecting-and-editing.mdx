@@ -5,6 +5,14 @@ sidebar:
   order: 4
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import ScreenshotRow from "@/components/ScreenshotRow.astro";
+import lasso from "@/assets/screenshots/selecting-and-editing/lasso.png";
+import handlesRect from "@/assets/screenshots/selecting-and-editing/handles-rect.png";
+import handlesCircle from "@/assets/screenshots/selecting-and-editing/handles-circle.png";
+import handlesLine from "@/assets/screenshots/selecting-and-editing/handles-line.png";
+import turning from "@/assets/screenshots/selecting-and-editing/turning.png";
+
 ## Selecting
 
 With the Select tool (**V**):
@@ -14,6 +22,8 @@ With the Select tool (**V**):
 - **Drag on the background** to lasso: shapes wholly inside the rectangle
   are selected. Hold Shift to add to the selection. Escape cancels.
 - **Click the background** to deselect, or press **Escape**.
+
+<Screenshot src={lasso} alt="A dashed lasso rectangle dragged round a rectangle and a circle, both drawn in orange as selected (the rectangle, selected first, with a halo as the one others align to), while a line outside it stays black" />
 
 Shapes on locked or hidden layers can't be selected.
 
@@ -27,12 +37,20 @@ Shapes on locked or hidden layers can't be selected.
 - For exact values, type them in the panel: see
   [Drawing shapes](/docs/guide/drawing-shapes/).
 
+<ScreenshotRow>
+  <Screenshot src={handlesRect} alt="A selected rectangle with a square handle at each corner and the rotate handle above" />
+  <Screenshot src={handlesCircle} alt="A selected circle with a round handle at its centre, a square handle on its edge for the radius, and the rotate handle above" />
+  <Screenshot src={handlesLine} alt="A selected line with a round handle at each end and the rotate handle above" />
+</ScreenshotRow>
+
 ## Turning
 
 A selection has a **rotate handle**, the circle on a stem above it. Drag
 it to turn the selection about its centre in whole degrees, or 15° steps
 with Shift. See [Rotate and duplicate](/docs/guide/rotate-and-duplicate/)
 for exact angles and flips.
+
+<Screenshot src={turning} alt="A rectangle part way through a turn, 20° clockwise about the cross at its centre, with the rotate handle above where the turn began" />
 
 ## Deleting and undoing
 

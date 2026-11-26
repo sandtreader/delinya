@@ -1157,17 +1157,19 @@ reference generator and screenshot scripts.
   at 1100 × 720, then at 840 wide, as narrow as the toolbar goes: toolbar,
   tool and layer palettes, rulers, status bar mid-drag, selection panel);
   page scenes save to a folder of their own (`drawing-shapes/`, `paths/`,
-  `text/`).
+  `text/`, `selecting-and-editing/`).
   Helpers: `draw` (a tool's key and a drag, then Escape and park the
   pointer so nothing is hovered), `clickPath`/`drawArch` (the Paths
   example), `addText` (types on the drawing, then sets a round 10 mm
   size: at 2 px/mm snapping is every 5 mm, so a drag can't give one),
   `setFields`, `deselect` (blurs a field first: a focused field keeps
-  Escape), and `drawingBox`, which crops to what's drawn, with handles,
-  the path cards and the text editor.
+  Escape), `noDimensions` (turns off Dimension new shapes), and
+  `drawingBox`, which crops to what's drawn, with handles, a lasso, the
+  path cards and the text editor.
   `src/components/Screenshot.astro` shows one at half its pixel size with
   a 2× srcset; `ScreenshotRow.astro` sets several side by side. Getting
-  started and Guide › Drawing shapes, Paths and Text use them; the Guide pages
+  started and Guide › Drawing shapes, Paths, Text and Selecting and
+  editing use them; the Guide pages
   are being illustrated one at a time. Rerun after UI changes.
 - **Changelog**: `CHANGELOG.md` at the repo root, `## <version> — <date>`
   per release, newest first, user-facing bullets; the site's
