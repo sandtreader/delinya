@@ -1280,6 +1280,12 @@ reference generator and screenshot scripts.
    carries `selection`).
 7. ⌘A selects every shape (on visible, unlocked layers) instead of the
    page's text, except while typing in a field.
+8. Shape names: a `name` prop on shapes, edited in the selection panel
+   where the id shows now (e.g. `rect_bt5a44hq`), and an option to show
+   names on the drawing. Decided: the name defaults to the id (unset or
+   blank shows the id), and ids themselves never change, since they're
+   the entity map's keys that dimensions, links and other entities
+   reference.
 
 ## Gotchas for whoever picks this up
 
