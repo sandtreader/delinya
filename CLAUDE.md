@@ -38,4 +38,6 @@ handoff: what is built, decisions taken, what is next. Keep it current.
 (`pnpm install` there first): `pnpm dev:site`, `pnpm build:site`,
 `pnpm publish:site` (build and rsync to st1), `pnpm screenshots:site`
 (retake the docs' app screenshots after UI changes). `CHANGELOG.md` feeds its
-changelog page; add an entry with each version bump.
+changelog page; add an entry with each version bump. Releases, docs
+deploys and retaking screenshots: the `deploy` skill
+(`.claude/skills/deploy/SKILL.md`).
