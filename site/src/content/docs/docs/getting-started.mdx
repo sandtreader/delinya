@@ -3,8 +3,19 @@ title: Getting started
 description: A first drawing in Delinya, from an empty page to a printed sheet.
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import app from "@/assets/screenshots/app.png";
+import toolbar from "@/assets/screenshots/toolbar.png";
+import toolPalette from "@/assets/screenshots/tool-palette.png";
+import layerPalette from "@/assets/screenshots/layer-palette.png";
+import selectionPanel from "@/assets/screenshots/selection-panel.png";
+import rulers from "@/assets/screenshots/rulers.png";
+import statusBar from "@/assets/screenshots/status-bar.png";
+
 Open **[delinya.net](https://delinya.net)**. You start with an empty,
 untitled drawing on a millimetre grid.
+
+<Screenshot src={app} alt="Delinya as it opens: the toolbar along the top, rulers along the top and left, the tool and layer palettes at the top left of an empty millimetre grid, and the status bar along the bottom" />
 
 ## Finding your way around
 
@@ -12,16 +23,28 @@ untitled drawing on a millimetre grid.
   Properties…, Collaborate… and Print / Export…; Undo and Redo; Rotate…
   and Duplicate…; Dimension new shapes; and the line style. The file name
   sits at the right-hand end, with a • while there are unsaved changes.
+
+  <Screenshot src={toolbar} alt="The toolbar: Delinya, the file buttons, Properties, Collaborate and Print, Undo and Redo, Rotate and Duplicate, Dimension new shapes, the line styles and width, and the file name Untitled" />
 - **The tool palette**, floating at the top left: Select (V), Line (L),
   Rectangle (R), Circle (C), Path (P), Text (T) and Dimension (D). Drag
   its grip to move it.
+
+  <Screenshot src={toolPalette} alt="The tool palette: a grip, then Select (highlighted), Line, Rectangle, Circle, Path, Text and Dimension" />
 - **The layer palette** below it: one numbered button per layer.
+
+  <Screenshot src={layerPalette} alt="The layer palette with layers 1 and 2, layer 2 highlighted as current, and a + button to add a layer" />
 - **The selection panel** at the top right, when something is selected:
   its exact position and size, and Delete.
+
+  <Screenshot src={selectionPanel} alt="The selection panel for a rectangle: layer, x, y, width 600 and height 400 in mm, rotation, dimension checkboxes, corner radii and a Delete button" />
 - **The rulers** along the top and left, in millimetres.
+
+  <Screenshot src={rulers} alt="The top-left corner of the drawing, where the rulers meet: mm marks every 10 mm, labelled every 50" />
 - **The status bar** along the bottom: where the pointer is, or the size
   of what you're drawing or moving; then the zoom (px/mm), Reset view,
   Fit to drawing, Show dimensions and Full screen.
+
+  <Screenshot src={statusBar} alt="The status bar while drawing a rectangle: where it starts and its size in mm, then the zoom in px/mm and the Reset view, Fit to drawing, Show dimensions and Full screen buttons" />
 
 Scroll or pinch to zoom at the pointer. Hold Space and drag, or drag with
 the middle mouse button, to pan.

@@ -1,0 +1,24 @@
+---
+// A screenshot of the app in the docs. The images are captured at 2× by
+// scripts/screenshots.mjs; this shows them at half their pixel size (what
+// they measure on screen in the app), with the 2× for sharp displays, and
+// never wider than the column.
+import { Image } from "astro:assets";
+import type { ImageMetadata } from "astro";
+
+interface Props {
+  src: ImageMetadata;
+  alt: string;
+}
+
+const { src, alt } = Astro.props;
+---
+
+<Image src={src} alt={alt} width={Math.round(src.width / 2)} densities={[1, 2]} class="screenshot" />
+
+<style is:global>
+  .sl-markdown-content img.screenshot {
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 6px;
+  }
+</style>

@@ -17,6 +17,7 @@
     "publish:web": "pnpm build && rsync -avz --delete dist/ st1:/var/www/delinya.net/",
     "dev:site": "pnpm --dir site dev",
     "build:site": "pnpm --dir site build",
+    "screenshots:site": "pnpm --dir site screenshots",
     "publish:site": "pnpm --dir site build && rsync -avz --delete site/dist/ st1:/var/www/delinya.org/"
   },
   "dependencies": {

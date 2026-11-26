@@ -36,5 +36,6 @@ handoff: what is built, decisions taken, what is next. Keep it current.
 `pnpm relay` (the collab relay on 2901, which the dev server proxies at
 `/collab`). The delinya.org docs site is its own package in `site/`
 (`pnpm install` there first): `pnpm dev:site`, `pnpm build:site`,
-`pnpm publish:site` (build and rsync to st1). `CHANGELOG.md` feeds its
+`pnpm publish:site` (build and rsync to st1), `pnpm screenshots:site`
+(retake the docs' app screenshots after UI changes). `CHANGELOG.md` feeds its
 changelog page; add an entry with each version bump.

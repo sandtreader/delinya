@@ -1145,6 +1145,16 @@ reference generator and screenshot scripts.
   in step when features change. `tests/site.test.ts` checks the pages
   exist with titles, that the shortcuts page lists every tool key in
   `App.tsx`, the package layout, scripts and favicon.
+- **Screenshots**: `site/scripts/screenshots.mjs` (`pnpm screenshots:site`)
+  starts the app's dev server on port 5199, drives it in headless
+  Chromium (Playwright 1.59.1, a site devDependency; `pnpm exec playwright
+  install chromium` once per machine) with real keys, drags and typing,
+  and saves 2× PNGs to `site/src/assets/screenshots/`: the whole app as it
+  opens (1100 × 720), then at 840 wide (as narrow as the toolbar goes) the
+  toolbar, tool and layer palettes, rulers, the status bar mid-drag and
+  the selection panel. `src/components/Screenshot.astro` shows one at half
+  its pixel size with a 2× srcset. Getting started uses them; rerun after
+  UI changes.
 - **Changelog**: `CHANGELOG.md` at the repo root, `## <version> — <date>`
   per release, newest first, user-facing bullets; the site's
   `/changelog` renders it (`marked`). A test checks its first entry is
