@@ -104,7 +104,66 @@ const SCENES = {
     await park(page);
     await shot(page, "drawing-shapes/circle-panel", page.locator(".selection-panel"), PAD);
   },
+
+  async paths(open) {
+    // Part way through: four nodes placed, the next segment following the pointer.
+    let page = await open(NARROW);
+    await page.keyboard.press("p");
+    await clickPath(page, ARCH.slice(0, 4));
+    const next = await at(page, ARCH[4].at);
+    await page.mouse.move(next.x + 6, next.y + 4, { steps: 8 });
+    await page.waitForTimeout(150);
+    await shot(page, "paths/drawing", await drawingBox(page));
+
+    // The finished arch, its smooth top node selected: handles and card.
+    page = await open(NARROW);
+    await drawArch(page);
+    await shot(page, "paths/panel", page.locator(".selection-panel"), PAD);
+    await clickAt(page, ARCH[3].at);
+    await park(page);
+    await shot(page, "paths/node", await drawingBox(page));
+
+    // Its bottom segment selected.
+    page = await open(NARROW);
+    await drawArch(page);
+    await clickAt(page, [(ARCH[0].at[0] + ARCH[1].at[0]) / 2, ARCH[0].at[1]]);
+    await park(page);
+    await shot(page, "paths/segment", await drawingBox(page));
+  },
 };
+
+/**
+ * An arch: square bottom corners, a smooth node at the top of a curved
+ * head. Drawing-area px; wide enough that the top node's card clears the
+ * corner below it, and left of where the selection panel sits.
+ */
+const ARCH = [
+  { at: [120, 460] }, { at: [480, 460] }, { at: [480, 280] }, { at: [300, 180], smooth: true }, { at: [120, 280] },
+];
+
+/** Clicks path nodes in (the Path tool already picked); Shift-click for smooth ones. */
+async function clickPath(page, nodes) {
+  for (const n of nodes) {
+    if (n.smooth) await page.keyboard.down("Shift");
+    await clickAt(page, n.at);
+    if (n.smooth) await page.keyboard.up("Shift");
+  }
+}
+
+/** Draws ARCH, closing it on its first node; it's left selected. */
+async function drawArch(page) {
+  await page.keyboard.press("p");
+  await clickPath(page, ARCH);
+  await clickAt(page, ARCH[0].at);
+  await park(page);
+}
+
+/** Clicks a point in the drawing area. */
+async function clickAt(page, point) {
+  const p = await at(page, point);
+  await page.mouse.click(p.x, p.y);
+  await page.waitForTimeout(100);
+}
 
 // ---- Driving the app ----
 
@@ -158,10 +217,19 @@ async function park(page) {
   await page.waitForTimeout(400);
 }
 
-/** What's drawn (shapes, dimensions, labels, link guides, a snap mark, the shape being drawn), with DRAWING_PAD round it. */
+/** What a crop of the drawing takes in: drawn things, and the cards that float by them. */
+const DRAWN = [
+  "svg g.shape", "svg g.dimension", "svg g.radius-label", "svg g.link-guide", "svg g.snap", "svg .preview",
+  "svg g.draft-nodes", "svg g.path-nodes", "svg g.handles", "svg g.rotate", ".path-card",
+].join(", ");
+
+/**
+ * What's drawn (shapes, dimensions, labels, link guides, a snap mark, the
+ * shape being drawn, a path's nodes and card), with DRAWING_PAD round it.
+ */
 async function drawingBox(page) {
-  const r = await page.evaluate(() => {
-    const els = document.querySelectorAll(".canvas-area svg :is(g.shape, g.dimension, g.radius-label, g.link-guide, g.snap, .preview)");
+  const r = await page.evaluate((drawn) => {
+    const els = document.querySelectorAll(`.canvas-area :is(${drawn})`);
     let box = null;
     for (const el of els) {
       const b = el.getBoundingClientRect();
@@ -171,7 +239,7 @@ async function drawingBox(page) {
         : { l: b.left, t: b.top, r: b.right, b: b.bottom };
     }
     return box;
-  });
+  }, DRAWN);
   if (!r) throw new Error("Nothing drawn to crop to");
   const area = await page.locator(".canvas-area").boundingBox();
   const x = Math.max(area.x, r.l - DRAWING_PAD), y = Math.max(area.y, r.t - DRAWING_PAD);

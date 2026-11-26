@@ -5,6 +5,12 @@ sidebar:
   order: 2
 ---
 
+import Screenshot from "@/components/Screenshot.astro";
+import drawing from "@/assets/screenshots/paths/drawing.png";
+import node from "@/assets/screenshots/paths/node.png";
+import segment from "@/assets/screenshots/paths/segment.png";
+import panel from "@/assets/screenshots/paths/panel.png";
+
 A path is a run of nodes joined by straight or curved segments, open or
 closed: an outline that a rectangle or circle can't make.
 
@@ -18,6 +24,8 @@ Press **P** (Path), then click, don't drag:
   and finish.
 - **Enter**, **Escape** or a **double-click** finishes it open.
 - **Backspace** or **Delete** takes back the last node.
+
+<Screenshot src={drawing} alt="An arch part way through drawing: corner nodes as squares at the bottom and right, a smooth node as a circle at the top, and the next segment curving from it towards the pointer" />
 
 Nodes snap to the grid and to other shapes, as for other tools. The status
 bar shows the length and angle of the segment you're about to add.
@@ -42,6 +50,8 @@ The selected node gets a small card beside it: **Corner** or **Smooth**,
 joins two paths into one), **Break apart** (splits the path at that node),
 a bin to delete the node, and its exact x and y.
 
+<Screenshot src={node} alt="The finished arch selected, its smooth top node selected with a handle out to each side, and the node's card beside it: Corner, Smooth (highlighted), Break apart, a bin, and x and y in mm" />
+
 ## Editing segments
 
 Click a selected path between its nodes to select that segment.
@@ -50,4 +60,8 @@ Click a selected path between its nodes to select that segment.
 - Its card switches it between **Straight** and **Curve**, or deletes it,
   which opens a closed path or splits an open one in two.
 
+<Screenshot src={segment} alt="The arch with its bottom segment selected, drawn thicker, and the segment's card below it: Straight (highlighted), Curve and a bin" />
+
 The panel shows the path's node count and a **Closed** checkbox.
+
+<Screenshot src={panel} alt="The selection panel for a path: 5 nodes, Closed ticked, a reminder of how to edit nodes and segments, and Delete" />
